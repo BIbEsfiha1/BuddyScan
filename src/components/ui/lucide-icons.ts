@@ -49,6 +49,7 @@ export {
   Moon, // Added for ThemeToggle
   MoreVertical, // Added for item actions
   Package, // Added for Inventory/All Plants
+  Palette, // Added for Theme/Appearance settings
   PanelLeft,
   Pencil,
   PlusCircle,
