@@ -82,7 +82,10 @@ export default function SignupPage() {
         description: 'Sua conta foi criada com sucesso. Você já está logado.',
         variant: 'default',
       });
-      router.push('/'); // Redirect to dashboard
+       // Set cookie after signup
+       document.cookie = "firebaseAuthToken=true; path=/; max-age=3600";
+       router.push('/'); // Redirect to dashboard
+       router.refresh(); // Refresh after redirect
     } catch (error: any) {
       console.error('Erro no cadastro com email:', error);
       let errorMsg = 'Falha ao criar a conta. Tente novamente.';
@@ -120,7 +123,7 @@ export default function SignupPage() {
       console.log(`Initiating social signup/login with ${providerName}...`);
       setIsSocialSubmitting(providerName);
       setSubmitError(null);
-      let provider;
+      let provider: GoogleAuthProvider | FacebookAuthProvider | TwitterAuthProvider;
 
       try {
          switch (providerName) {
@@ -158,14 +161,17 @@ export default function SignupPage() {
             description: `Você foi autenticado com sucesso usando ${providerName}.`,
             variant: 'default',
          });
-         router.push('/'); // Redirect to dashboard
+          // Set cookie after social auth
+          document.cookie = "firebaseAuthToken=true; path=/; max-age=3600";
+          router.push('/'); // Redirect to dashboard
+          router.refresh(); // Refresh after redirect
 
       } catch (error: any) {
           console.error(`Erro na autenticação com ${providerName}:`, error); // Log full error
           let errorMsg = `Falha ao autenticar com ${providerName}.`;
          // Reuse error messages from login page for consistency
          if (error.code === 'auth/argument-error') {
-            errorMsg = `Erro de configuração ao tentar autenticar com ${providerName}. Verifique se o provedor (${providerName}) está habilitado no Console do Firebase, se os domínios autorizados estão corretos e se as configurações de OAuth estão definidas corretamente.`;
+            errorMsg = `Erro de configuração ao tentar autenticar com ${providerName}. Verifique se o provedor (${providerName}) está habilitado no Console do Firebase, se os domínios autorizados estão corretos e se as configurações de OAuth estão definidas corretamente. Código: ${error.code}`;
             console.error("Potential causes for auth/argument-error: Invalid 'auth' object, invalid 'provider' object, or Firebase project misconfiguration (OAuth settings, authorized domains, API key, enabled providers, etc.). Double-check .env.local variables and Firebase console settings.");
          } else if (error.code === 'auth/account-exists-with-different-credential') {
             errorMsg = `Já existe uma conta com este email (${error.customData?.email}). Tente fazer login com o provedor original.`;

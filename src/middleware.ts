@@ -13,6 +13,10 @@ export function middleware(request: NextRequest) {
   const authTokenCookie = request.cookies.get('firebaseAuthToken'); // Adjust cookie name if different
   const hasAuthToken = !!authTokenCookie; // Check if the cookie exists
 
+  // Log cookie details for debugging
+  console.log(`Middleware: Path: ${pathname}, Cookie 'firebaseAuthToken':`, authTokenCookie ? 'Present' : 'Absent', authTokenCookie);
+
+
   // Check if the current path is public
   const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
 
