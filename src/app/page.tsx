@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -68,33 +69,43 @@ export default function Home() {
   }, []); // Empty dependency array ensures this runs only once
 
 
-  // Fetch plant data on mount
-  useEffect(() => {
-    const fetchPlants = async () => {
-      setIsLoadingPlants(true);
-      try {
-        const [fetchedRecent, fetchedAttention] = await Promise.all([
-          getRecentPlants(3), // Fetch 3 recent plants
-          getAttentionPlants(3) // Fetch 3 attention plants
-        ]);
-        setRecentPlants(fetchedRecent);
-        setAttentionPlants(fetchedAttention);
-      } catch (error) {
-        console.error('Failed to fetch plant data:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Erro ao Carregar Dados',
-          description: 'Não foi possível buscar os dados das plantas.',
-        });
-      } finally {
-        setIsLoadingPlants(false);
-      }
-    };
+   // --- Fetch Plant Data Function ---
+   const fetchPlants = useCallback(async () => {
+     console.log("Fetching plant data from service...");
+     setIsLoadingPlants(true);
+     try {
+       // Use the persistent service functions
+       const [fetchedRecent, fetchedAttention] = await Promise.all([
+         getRecentPlants(3), // Fetch 3 recent plants
+         getAttentionPlants(3) // Fetch 3 attention plants
+       ]);
+       console.log("Fetched recent plants:", fetchedRecent);
+       console.log("Fetched attention plants:", fetchedAttention);
+       setRecentPlants(fetchedRecent);
+       setAttentionPlants(fetchedAttention);
+     } catch (error) {
+       console.error('Failed to fetch plant data:', error);
+       toast({
+         variant: 'destructive',
+         title: 'Erro ao Carregar Dados',
+         description: 'Não foi possível buscar os dados das plantas do armazenamento local.',
+       });
+     } finally {
+       setIsLoadingPlants(false);
+        console.log("Finished fetching plant data.");
+     }
+   }, [toast]); // Dependency: toast
 
-    if (isMounted) {
-       fetchPlants();
-    }
-  }, [isMounted, toast]);
+
+   // --- Effect to fetch plant data on mount and when dialog closes ---
+   useEffect(() => {
+     if (isMounted && !isDialogOpen) { // Fetch only when mounted and dialog is closed
+        console.log("Component mounted or dialog closed, fetching plants.");
+        fetchPlants();
+     } else {
+        console.log(`Skipping plant fetch. Mounted: ${isMounted}, Dialog Open: ${isDialogOpen}`);
+     }
+   }, [isMounted, isDialogOpen, fetchPlants]); // Run on mount and when dialog state changes
 
 
     // --- Stop Media Stream ---
@@ -144,7 +155,7 @@ export default function Home() {
 
     try {
       // Try to get the environment-facing camera first
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: 'environment' } } });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       console.log("Camera permission granted (environment facing).");
       streamRef.current = stream;
 
@@ -222,7 +233,7 @@ export default function Home() {
   }, [stopMediaStream, toast]); // Dependencies: cleanup func, toast
 
 
-   // --- Dialog Open/Close Handlers (Defined before startScanning which depends on handleOpenChange) ---
+  // --- Dialog Open/Close Handlers ---
    const handleDialogClose = useCallback(() => {
         console.log("Dialog closing, performing cleanup...");
         stopScanInterval();
@@ -240,7 +251,7 @@ export default function Home() {
         } else {
             console.log("No pending navigation found.");
         }
-   }, [stopMediaStream, stopScanInterval, router]); // handleOpenChange removed as dependency
+   }, [stopMediaStream, stopScanInterval, router]);
 
    const handleDialogOpen = useCallback(() => {
         console.log(`Dialog opening...`);
@@ -266,9 +277,9 @@ export default function Home() {
         startCamera(); // Then attempt to start the camera
         console.log("Dialog opened, camera start initiated.");
 
-   }, [startCamera, toast]); // handleOpenChange removed as dependency
+   }, [startCamera, toast]);
 
-    // handleOpenChange is defined here, using handleDialogOpen and handleDialogClose
+    // handleOpenChange uses handleDialogOpen and handleDialogClose
     const handleOpenChange = useCallback((open: boolean) => {
        console.log(`handleOpenChange called with open: ${open}`);
        if (open) {
@@ -283,7 +294,7 @@ export default function Home() {
    }, [handleDialogOpen, handleDialogClose, isDialogOpen]); // Depends on handlers defined above
 
 
-  // --- Start Scanning Interval (Defined AFTER handleOpenChange) ---
+  // --- Start Scanning Interval ---
   const startScanning = useCallback(() => {
      stopScanInterval(); // Clear any existing interval first
      console.log("Starting scan interval...");
@@ -447,11 +458,6 @@ export default function Home() {
 
   const handleRegister = () => {
     console.log('Navegar para a página de registro...');
-    // toast({
-    //   title: 'Funcionalidade Indisponível',
-    //   description: 'A página de cadastro de plantas ainda não foi implementada.',
-    //   variant: 'default',
-    // });
      router.push('/register-plant'); // Navigate to the register page
   };
 
@@ -515,18 +521,23 @@ export default function Home() {
                    </div>
                 </Card>
                ) : (
-                 <AttentionPlants plants={attentionPlants.map(p => ({ // Map Plant to AttentionPlantSummary
-                     id: p.id,
-                     qrCode: p.qrCode,
-                     strain: p.strain,
-                     status: p.status,
-                     // Mock reason - replace with actual logic if available
-                     attentionReason: p.qrCode === 'plantABC' ? 'Deficiência de Nitrogênio' : p.qrCode === 'plantDEF' ? 'Umidade Alta Detectada' : 'Ácaros Aranha',
-                     // Mock last updated - replace with actual data if available
-                     lastUpdated: p.qrCode === 'plantDEF' ? 'Hoje' : 'Alguns dias atrás',
-                     // Use a placeholder image logic similar to RecentPlants
-                     photoUrl: `https://picsum.photos/seed/cannabis-${p.status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-problem/100/100`
-                 }))} />
+                 <AttentionPlants plants={attentionPlants.map(p => {
+                     // Determine attention reason and last updated based on plant data (mocked here)
+                     // In a real app, this logic would be based on diary entries or sensor data
+                     const attentionReason = `Verificar: ${p.status}`; // Simple reason based on status
+                     const lastUpdated = new Date(p.birthDate).toLocaleDateString('pt-BR'); // Use birthDate as proxy
+
+                     return {
+                         id: p.id,
+                         qrCode: p.qrCode,
+                         strain: p.strain,
+                         status: p.status,
+                         attentionReason: attentionReason,
+                         lastUpdated: lastUpdated,
+                         // Use a placeholder image logic similar to RecentPlants
+                         photoUrl: `https://picsum.photos/seed/cannabis-${p.status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-problem/100/100`
+                     };
+                 })} />
                )}
 
 
@@ -546,15 +557,17 @@ export default function Home() {
                      </div>
                  </Card>
               ) : (
-                 <RecentPlants plants={recentPlants.map(p => ({ // Map Plant to PlantSummary
-                      id: p.id,
-                      qrCode: p.qrCode,
-                      strain: p.strain,
-                      status: p.status,
-                      // Mock last updated - replace with actual data if available
-                      lastUpdated: 'Recentemente',
-                      photoUrl: `https://picsum.photos/seed/cannabis-${p.status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/100/100`
-                  }))} />
+                 <RecentPlants plants={recentPlants.map(p => {
+                      const lastUpdated = new Date(p.birthDate).toLocaleDateString('pt-BR'); // Use birthDate as proxy
+                      return {
+                          id: p.id,
+                          qrCode: p.qrCode,
+                          strain: p.strain,
+                          status: p.status,
+                          lastUpdated: lastUpdated,
+                          photoUrl: `https://picsum.photos/seed/cannabis-${p.status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/100/100`
+                      };
+                  })} />
               )}
            </div>
 
@@ -576,9 +589,10 @@ export default function Home() {
             <video
               ref={videoRef}
               // Keep mirrored for natural user experience
-              className={`absolute inset-0 h-full w-full object-cover transform scale-x-[-1] transition-opacity duration-300 ${scannerStatus === 'scanning' || scannerStatus === 'initializing' || scannerStatus === 'stopped' ? 'opacity-100' : 'opacity-0'}`}
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${scannerStatus === 'scanning' || scannerStatus === 'initializing' || scannerStatus === 'stopped' ? 'opacity-100' : 'opacity-0'}`}
               playsInline // Essential for iOS Safari
               muted // Required for autoplay in most browsers
+              // Do NOT apply scale-x-[-1] here, apply it to the container if needed
             />
 
              {/* Visual Guide Overlay - Show ONLY when scanning or initializing */}
@@ -675,3 +689,4 @@ export default function Home() {
     </div>
   );
 }
+

@@ -16,24 +16,31 @@ interface PlantPageProps {
   };
 }
 
+// Make the component async to use await for data fetching
 export default async function PlantPage({ params }: PlantPageProps) {
   const { qrCode } = params;
   let plant: Plant | null = null;
   let error: string | null = null;
 
   try {
-    // Use the actual qrCode from params to fetch data
+    console.log(`Fetching plant data for QR Code: ${qrCode} from service...`);
+    // Use the actual qrCode from params to fetch data using the updated service
     plant = await getPlantByQrCode(qrCode);
     if (!plant) {
-      error = `Planta não encontrada para o QR code: ${qrCode}`; // More specific error
+      // Keep the error message specific
+      error = `Planta com QR Code '${qrCode}' não encontrada no armazenamento local. Verifique se foi cadastrada corretamente.`;
+    } else {
+        console.log(`Plant data fetched successfully for ${qrCode}:`, plant);
     }
   } catch (e) {
-    console.error('Falha ao buscar dados da planta:', e); // Translated
-    error = 'Falha ao carregar dados da planta. Por favor, tente novamente mais tarde.'; // Translated
+    console.error('Falha ao buscar dados da planta no serviço:', e); // Log the error from the service
+    error = 'Falha ao carregar dados da planta. Por favor, tente novamente mais tarde.'; // Generic error for the user
   }
 
 
+  // --- Error State ---
   if (error) {
+    console.error(`Rendering error state: ${error}`);
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background via-muted/50 to-destructive/10"> {/* Added subtle gradient */}
         <Card className="w-full max-w-md text-center shadow-xl border-destructive/50 card"> {/* Added base card class */}
@@ -45,7 +52,7 @@ export default async function PlantPage({ params }: PlantPageProps) {
            </CardHeader>
            <CardContent className="space-y-4">
              <p className="text-muted-foreground">{error}</p>
-              <Button asChild variant="secondary">
+              <Button asChild variant="secondary" className="button"> {/* Add button class */}
                   <Link href="/">Voltar ao Painel</Link>
               </Button>
            </CardContent>
@@ -54,19 +61,21 @@ export default async function PlantPage({ params }: PlantPageProps) {
     );
   }
 
+  // --- Loading or Not Found State (redundant if getPlantByQrCode handles null correctly) ---
+  // This block might be reached if getPlantByQrCode resolves to null without throwing an error,
+  // which shouldn't happen with the current implementation but is kept as a fallback.
   if (!plant) {
-     // Loading state or fallback if getPlantByQrCode returns null without error
-     // This might happen if the mock function returns null for an unknown QR code
+     console.log(`Rendering 'not found' state for QR Code: ${qrCode}`);
      return (
         <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background to-secondary/10">
           <Card className="w-full max-w-md text-center shadow-lg card">
              <CardHeader>
                 <Sprout className="h-12 w-12 text-primary animate-pulse mx-auto mb-4" /> {/* Loading Icon */}
-                <CardTitle className="text-xl text-muted-foreground">Carregando Dados da Planta...</CardTitle>
+                <CardTitle className="text-xl text-muted-foreground">Planta Não Encontrada</CardTitle>
              </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-muted-foreground">Tentando encontrar detalhes para QR Code: {qrCode}</p>
-                <Button asChild variant="secondary">
+                <p className="text-muted-foreground">Não foi possível encontrar detalhes para o QR Code: {qrCode}</p>
+                 <Button asChild variant="secondary" className="button"> {/* Add button class */}
                     <Link href="/">Voltar ao Painel</Link>
                 </Button>
               </CardContent>
@@ -75,7 +84,8 @@ export default async function PlantPage({ params }: PlantPageProps) {
       );
   }
 
-
+  // --- Success State ---
+  console.log(`Rendering success state for plant: ${plant.strain} (${plant.qrCode})`);
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8"> {/* Increased spacing */}
         <Card className="shadow-lg overflow-hidden border-primary/20 card"> {/* Added base card class */}
@@ -137,11 +147,12 @@ export default async function PlantPage({ params }: PlantPageProps) {
         </Card>
 
       {/* Pass plant ID to the diary component */}
+      {/* Ensure PlantDiary component exists and accepts plantId */}
       <PlantDiary plantId={plant.id} />
 
       {/* Back to Dashboard Button */}
       <div className="text-center mt-8">
-          <Button asChild variant="outline">
+           <Button asChild variant="outline" className="button"> {/* Add button class */}
               <Link href="/">
                  Voltar ao Painel
               </Link>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useRef } from 'react';
@@ -17,17 +18,20 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Camera, Upload, Leaf, Bot, Loader2, AlertCircle, ImagePlus } from 'lucide-react'; // Added ImagePlus
+import { Camera, Upload, Leaf, Bot, Loader2, AlertCircle, ImagePlus, RefreshCw } from 'lucide-react'; // Added RefreshCw
 import Image from 'next/image';
 import { analyzePlantPhoto, type AnalyzePlantPhotoOutput } from '@/ai/flows/analyze-plant-photo';
 import type { DiaryEntry } from '@/types/diary-entry';
+// Import the function to add entries to localStorage
+import { addDiaryEntryToLocalStorage } from '@/types/diary-entry';
 import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label'; // Import Label explicitly
 import { useToast } from '@/hooks/use-toast'; // Import useToast
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 
 const diaryEntrySchema = z.object({
-  note: z.string().min(1, 'A nota não pode estar vazia').max(500, 'Nota muito longa'), // Translated
+  note: z.string().min(1, 'A nota não pode estar vazia').max(1000, 'Nota muito longa (máx 1000 caracteres)'), // Increased max length
   stage: z.string().optional(), // Exemplo: Vegetativo, Floração
   // Use preprocess to handle empty string for number inputs
   heightCm: z.preprocess(
@@ -50,27 +54,28 @@ const diaryEntrySchema = z.object({
          (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
           z.number({ invalid_type_error: 'Umidade deve ser um número' }).min(0, "Umidade não pode ser negativa").max(100, "Umidade não pode ser maior que 100").optional().nullable() // Allow null
    ),
-  // Photo data is handled separately
+  // Photo data is handled separately via state (photoPreview, photoFile)
 });
 
 type DiaryEntryFormData = z.infer<typeof diaryEntrySchema>;
 
 interface DiaryEntryFormProps {
   plantId: string;
-  onNewEntry: (entry: DiaryEntry) => void;
+  onNewEntry: (entry: DiaryEntry) => void; // Callback to notify parent about the new entry
 }
 
 export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  // Keep photoFile state if needed for future real upload, but it won't be saved directly now
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalyzePlantPhotoOutput | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  // Remove uploadProgress as we are not simulating upload anymore
+  // const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const { toast } = useToast(); // Initialize toast
-
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -78,7 +83,6 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     resolver: zodResolver(diaryEntrySchema),
     defaultValues: {
       note: '',
-      // Optional fields default to undefined implicitly which works with zod .optional()
       stage: undefined,
       heightCm: undefined,
       ec: undefined,
@@ -93,39 +97,34 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     if (file) {
       // Basic validation
       if (!file.type.startsWith('image/')) {
-           toast({ // Use toast for user feedback
+           toast({
                 variant: "destructive",
                 title: "Tipo de Arquivo Inválido",
                 description: "Por favor, selecione um arquivo de imagem (JPEG, PNG, GIF, etc.).",
            });
-           console.error("Arquivo selecionado não é uma imagem.");
-           setAnalysisError('Por favor, selecione um arquivo de imagem válido.'); // Keep analysisError state if needed
-           // Clear file input value
+           setAnalysisError('Por favor, selecione um arquivo de imagem válido.');
            if (fileInputRef.current) fileInputRef.current.value = '';
            return;
       }
        if (file.size > 5 * 1024 * 1024) { // 5MB limit
-            toast({ // Use toast for user feedback
+            toast({
                 variant: "destructive",
                 title: "Arquivo Muito Grande",
                 description: `O arquivo excede o limite de 5MB (${(file.size / (1024*1024)).toFixed(2)}MB).`,
             });
-           console.error("Arquivo muito grande.");
             setAnalysisError('A imagem é muito grande. O limite é 5MB.');
-           // Clear file input value
            if (fileInputRef.current) fileInputRef.current.value = '';
            return;
        }
 
-      setPhotoFile(file);
-       setAnalysisError(null); // Clear previous errors
-       setAnalysisResult(null); // Reset analysis if new photo is selected
-       // Reset preview before reading new file
+      setPhotoFile(file); // Keep the file if needed later
+       setAnalysisError(null);
+       setAnalysisResult(null);
        setPhotoPreview(null);
 
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
+        setPhotoPreview(reader.result as string); // Store Data URI for preview and analysis
       };
       reader.onerror = () => {
         console.error("Erro ao ler o arquivo.");
@@ -141,7 +140,6 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
       }
       reader.readAsDataURL(file);
     } else {
-        // Handle case where user cancels file selection
         setPhotoFile(null);
         setPhotoPreview(null);
         setAnalysisResult(null);
@@ -169,16 +167,17 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     setAnalysisResult(null);
 
     try {
-        // Ensure photoPreview is a valid data URI string
        if (typeof photoPreview !== 'string' || !photoPreview.startsWith('data:image')) {
          throw new Error('Dados de imagem inválidos para análise.');
        }
+       console.log("Sending photo for analysis...");
        const result = await analyzePlantPhoto({ photoDataUri: photoPreview });
+       console.log("Analysis result received:", result);
        setAnalysisResult(result);
        toast({
            title: "Análise Concluída",
            description: "A IA analisou a foto.",
-           variant: "default", // Use default or success variant
+           variant: "default",
        });
     } catch (error) {
       console.error('Erro na Análise de IA:', error);
@@ -197,114 +196,88 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
   const onSubmit = async (data: DiaryEntryFormData) => {
      setIsSubmitting(true);
      setSubmitError(null);
-     setUploadProgress(0); // Start progress
+     // Removed setUploadProgress
 
+     console.log('Iniciando envio para localStorage:', data);
+     // In a real app, you'd handle actual photo upload here before saving the entry
+     // Since we're using localStorage, we'll just use a placeholder or the preview URI if needed
 
-    // TODO: Replace with actual backend submission logic (e.g., Firebase Storage & Firestore)
-    console.log('Enviando dados:', data);
-    console.log('Arquivo da foto:', photoFile);
-    console.log('Resultado da análise:', analysisResult);
-
-    // Simulate upload/save process
     try {
-        // 1. Simulate photo upload if exists (replace with actual upload)
-        let photoUrl = null;
-        if (photoFile && photoPreview) {
-          console.log('Simulando upload da foto...');
-          // In real app: call upload function (e.g., uploadBytesResumable to Firebase Storage)
-          // Listen to progress updates and call setUploadProgress
-          for (let i = 1; i <= 5; i++) {
-            await new Promise(res => setTimeout(res, 200)); // Shorter delay
-             if (!isSubmitting) throw new Error("Submissão cancelada");
-            setUploadProgress(i * 20);
-          }
-          // In real app, get URL from upload response (e.g., getDownloadURL)
-          // Using a cannabis-related seed for placeholder
-          photoUrl = `https://picsum.photos/seed/cannabis-plant-diary-${Date.now()}/400/300`;
-          console.log('Upload simulado da foto concluído:', photoUrl);
-        } else {
-            // No photo to upload, still simulate some processing time
-            await new Promise(res => setTimeout(res, 100));
-             if (!isSubmitting) throw new Error("Submissão cancelada");
-            setUploadProgress(100); // Indicate completion even without upload
-            console.log('Nenhuma foto para enviar.');
-        }
+        // Use the Data URI from the preview as the photoUrl for mock storage.
+        // In a real app, this would be the URL returned by the storage service.
+        // If no preview, photoUrl remains null.
+        const photoUrlForStorage = photoPreview;
 
-
-        // 2. Construct the new DiaryEntry object
+        // Construct the new DiaryEntry object
         const newEntry: DiaryEntry = {
-            id: `entry-${Date.now()}`, // Temporary ID - replace with ID from backend save
+            id: `entry-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`, // More unique ID
             plantId: plantId,
             timestamp: new Date().toISOString(),
-            authorId: 'simulated-user-id', // Replace with actual authenticated user ID
+            authorId: 'local-user', // Placeholder user ID for local storage
             note: data.note,
-            stage: data.stage || null, // Ensure null if undefined
+            stage: data.stage || null,
             heightCm: data.heightCm ?? null,
             ec: data.ec ?? null,
             ph: data.ph ?? null,
             temp: data.temp ?? null,
             humidity: data.humidity ?? null,
-            photoUrl: photoUrl,
+            photoUrl: photoUrlForStorage, // Using the preview data URI (or null)
             aiSummary: analysisResult?.analysisResult || null,
         };
 
-        // 3. Simulate saving entry data to backend (e.g., addDoc to Firestore)
-        console.log('Simulando salvamento da entrada no banco de dados...');
-        await new Promise(resolve => setTimeout(resolve, 300)); // Simulate save delay
-         if (!isSubmitting) throw new Error("Submissão cancelada");
-        console.log('Salvamento simulado concluído:', newEntry);
+        console.log('Novo objeto de entrada:', newEntry);
+
+        // Directly call the function to add the entry to localStorage
+        addDiaryEntryToLocalStorage(plantId, newEntry);
+        console.log('Entrada adicionada ao localStorage.');
 
 
-        // 4. Call the callback to update the UI optimistically
+        // Call the callback to update the parent component's UI immediately
         onNewEntry(newEntry);
+        console.log('Callback onNewEntry chamado.');
 
-        // 5. Show success toast
+
+        // Show success toast
          toast({
            title: "Entrada Salva",
            description: "Sua entrada no diário foi adicionada com sucesso.",
-           variant: "default", // Or a success variant if defined
+           variant: "default",
          });
 
-        // 6. Reset form state completely
+        // Reset form state completely
         form.reset();
         setPhotoPreview(null);
         setPhotoFile(null);
         setAnalysisResult(null);
         setAnalysisError(null);
         if (fileInputRef.current) fileInputRef.current.value = ''; // Clear file input
+        console.log('Formulário e estados resetados.');
+
 
     } catch (error: any) {
-        console.error('Erro no envio:', error);
-         if (error.message !== "Submissão cancelada") {
-            const errorMsg = 'Falha ao salvar a entrada do diário. Por favor, tente novamente.';
-            setSubmitError(errorMsg);
-            toast({
-                variant: "destructive",
-                title: "Erro ao Salvar",
-                description: errorMsg,
-            });
-         } else {
-             console.log("Submissão foi cancelada.");
-             toast({
-                 title: "Envio Cancelado",
-                 description: "A operação de salvamento foi cancelada.",
-                 variant: "default",
-             });
-         }
+        console.error('Erro ao salvar no localStorage:', error);
+        const errorMsg = `Falha ao salvar a entrada do diário: ${error.message || 'Erro desconhecido'}`;
+        setSubmitError(errorMsg);
+        toast({
+            variant: "destructive",
+            title: "Erro ao Salvar",
+            description: errorMsg,
+        });
     } finally {
         setIsSubmitting(false);
-        setUploadProgress(null); // Hide progress bar
+        // Removed setUploadProgress(null)
+        console.log('Finalizado o processo de envio.');
     }
   };
 
 
   return (
-    <Card className="shadow-lg border border-primary/10 card"> {/* Adjusted border, added base card class */}
-      <CardHeader className="pb-4"> {/* Reduced bottom padding */}
-        <CardTitle className="text-2xl flex items-center gap-2"> {/* Increased size */}
-            <Leaf className="text-primary h-6 w-6" /> Adicionar Nova Entrada no Diário {/* Translated */}
+    <Card className="shadow-lg border border-primary/10 card">
+      <CardHeader className="pb-4">
+        <CardTitle className="text-2xl flex items-center gap-2">
+            <Leaf className="text-primary h-6 w-6" /> Adicionar Nova Entrada no Diário
         </CardTitle>
-        <CardDescription>Registre observações, medições e adicione uma foto para análise pela IA.</CardDescription> {/* Translated, emphasizing AI */}
+        <CardDescription>Registre observações, medições e adicione uma foto para análise pela IA.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -316,13 +289,13 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
               name="note"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-base font-medium">Observações / Notas</FormLabel> {/* Translated, increased size/weight */}
+                  <FormLabel className="text-base font-medium">Observações / Notas</FormLabel>
                   <FormControl>
                     <Textarea
                        placeholder="Descreva o que você vê, ações tomadas, ou qualquer detalhe relevante..." {...field}
                        disabled={isSubmitting}
-                       rows={4} // Slightly larger text area
-                       className="textarea" // Added base textarea class
+                       rows={4}
+                       className="textarea"
                     />
                   </FormControl>
                   <FormMessage />
@@ -330,19 +303,18 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
               )}
             />
 
-            {/* Measurement Fields - Improved Layout */}
+            {/* Measurement Fields */}
              <Card className="bg-muted/30 border border-border/50 p-4">
-                 <Label className="text-base font-medium mb-3 block">Medições (Opcional)</Label> {/* Section Label */}
+                 <Label className="text-base font-medium mb-3 block">Medições (Opcional)</Label>
                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-5">
                      <FormField
                        control={form.control}
                        name="stage"
                        render={({ field }) => (
                          <FormItem>
-                           <FormLabel>Estágio</FormLabel> {/* Translated */}
+                           <FormLabel>Estágio</FormLabel>
                            <FormControl>
-                             {/* Consider using a Select component here */}
-                             <Input placeholder="ex: Floração S3" {...field} disabled={isSubmitting} className="input"/> {/* Translated, added base input class */}
+                             <Input placeholder="ex: Floração S3" {...field} disabled={isSubmitting} className="input"/>
                            </FormControl>
                            <FormMessage />
                          </FormItem>
@@ -353,9 +325,9 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                         name="heightCm"
                         render={({ field }) => (
                            <FormItem>
-                             <FormLabel>Altura (cm)</FormLabel> {/* Translated */}
+                             <FormLabel>Altura (cm)</FormLabel>
                              <FormControl>
-                                <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} value={field.value ?? ''} disabled={isSubmitting} className="input"/> {/* Handle null value for controlled input */}
+                                <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} value={field.value ?? ''} disabled={isSubmitting} className="input"/>
                              </FormControl>
                              <FormMessage />
                            </FormItem>
@@ -405,7 +377,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          name="humidity"
                          render={({ field }) => (
                              <FormItem>
-                                 <FormLabel>Umidade (%)</FormLabel> {/* Translated */}
+                                 <FormLabel>Umidade (%)</FormLabel>
                                  <FormControl>
                                      <Input type="number" step="1" placeholder="ex: 55" {...field} value={field.value ?? ''} disabled={isSubmitting} className="input"/>
                                  </FormControl>
@@ -419,50 +391,47 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
 
             {/* Photo Section */}
              <Card className="bg-muted/30 border border-border/50 p-4">
-                 <Label className="text-base font-medium mb-3 block">Foto da Planta (Opcional)</Label> {/* Section Label */}
+                 <Label className="text-base font-medium mb-3 block">Foto da Planta (Opcional)</Label>
                 <div className="flex flex-col md:flex-row items-start gap-4">
                      {/* Upload Area */}
                     <div className="w-full md:w-1/2 flex flex-col items-center justify-center border-2 border-dashed border-secondary/30 rounded-lg p-6 text-center bg-background hover:border-primary/50 transition-colors aspect-video md:aspect-auto md:h-auto min-h-[150px]">
                         {photoPreview ? (
                              <div className="relative group w-full h-full flex items-center justify-center">
                                 <Image
-                                  data-ai-hint="cannabis plant user upload close up" // More specific hint
-                                  src={photoPreview}
-                                  alt="Pré-visualização da planta" // Translated
-                                  // Use fill and object-contain/cover for better responsive image handling
+                                  data-ai-hint="cannabis plant user upload close up"
+                                  src={photoPreview} // Display the Data URI preview
+                                  alt="Pré-visualização da planta"
                                   layout="fill"
-                                  objectFit="contain" // or 'cover' depending on desired behavior
+                                  objectFit="contain"
                                   className="rounded-md shadow-md"
                                 />
-                                {/* Option to remove photo? Consider adding a small 'x' button */}
-                                {/* <Button size="icon" variant="destructive" className="absolute top-1 right-1 h-6 w-6 opacity-70 group-hover:opacity-100" onClick={() => { setPhotoPreview(null); setPhotoFile(null); if(fileInputRef.current) fileInputRef.current.value = ''; }}><X className="h-4 w-4"/></Button> */}
                              </div>
 
                         ) : (
                            <div className="flex flex-col items-center text-muted-foreground">
                                 <ImagePlus className="h-12 w-12 mb-2 text-secondary/50" />
-                                <span className="text-sm">Arraste uma foto ou clique para selecionar</span> {/* Translated */}
+                                <span className="text-sm">Arraste uma foto ou clique para selecionar</span>
                                 <span className="text-xs mt-1">(Max 5MB)</span>
                            </div>
                         )}
                          <Input
                             type="file"
-                            accept="image/*" // Accepts any image type
+                            accept="image/*"
                             onChange={handleFileChange}
-                            className="hidden" // Visually hidden, triggered by button
+                            className="hidden"
                             ref={fileInputRef}
-                            aria-label="Carregar foto da planta" // Translated
+                            aria-label="Carregar foto da planta"
                             disabled={isSubmitting || isAnalyzing}
                          />
                          <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="mt-4 button" // Added base class
+                            className="mt-4 button"
                             onClick={triggerFileInput}
                             disabled={isSubmitting || isAnalyzing}
                           >
-                            <Upload className="mr-2 h-4 w-4" /> {photoPreview ? 'Trocar Foto' : 'Selecionar Foto'} {/* Translated */}
+                            <Upload className="mr-2 h-4 w-4" /> {photoPreview ? 'Trocar Foto' : 'Selecionar Foto'}
                          </Button>
                      </div>
 
@@ -473,15 +442,15 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                            onClick={handleAnalyzePhoto}
                            disabled={!photoPreview || isAnalyzing || isSubmitting}
                            variant="secondary"
-                           className="w-full button" // Added base class
+                           className="w-full button"
                           >
                             {isAnalyzing ? (
                               <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analisando com IA... {/* Translated */}
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analisando com IA...
                               </>
                             ) : (
                               <>
-                                <Bot className="mr-2 h-4 w-4" /> Analisar Foto com IA {/* Translated */}
+                                <Bot className="mr-2 h-4 w-4" /> Analisar Foto com IA
                               </>
                             )}
                          </Button>
@@ -489,7 +458,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                            <Card className="bg-accent/10 border-accent p-3 shadow-sm">
                              <CardHeader className="p-0 mb-1">
                                <CardTitle className="text-sm font-semibold flex items-center gap-1.5 text-accent-foreground">
-                                 <Bot className="h-4 w-4"/> Resultado da Análise IA {/* Translated */}
+                                 <Bot className="h-4 w-4"/> Resultado da Análise IA
                                </CardTitle>
                              </CardHeader>
                              <CardContent className="p-0">
@@ -498,9 +467,9 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                            </Card>
                          )}
                          {analysisError && (
-                            <Alert variant="destructive" className="text-xs p-2"> {/* Smaller alert */}
+                            <Alert variant="destructive" className="text-xs p-2">
                                 <AlertCircle className="h-4 w-4" />
-                                <AlertTitle>Erro na Análise</AlertTitle> {/* Changed title */}
+                                <AlertTitle>Erro na Análise</AlertTitle>
                                 <AlertDescription>{analysisError}</AlertDescription>
                            </Alert>
                          )}
@@ -511,29 +480,24 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
 
             {/* Submission Area */}
             <div className="pt-4 space-y-3">
-                {uploadProgress !== null && (
-                  <div className="space-y-1">
-                      <Label className="text-sm text-muted-foreground">Progresso do Salvamento...</Label> {/* Translated */}
-                      <Progress value={uploadProgress} className="w-full h-2 bg-muted border" /> {/* Added border */}
-                  </div>
-                 )}
+                {/* Removed Progress Bar */}
 
                  {submitError && (
                     <Alert variant="destructive" className="p-3">
                       <AlertCircle className="h-4 w-4"/>
-                      <AlertTitle>Erro ao Salvar</AlertTitle> {/* Translated */}
+                      <AlertTitle>Erro ao Salvar</AlertTitle>
                       <AlertDescription className="text-sm">{submitError}</AlertDescription>
                      </Alert>
                  )}
 
 
-                <Button type="submit" size="lg" className="w-full font-semibold button" disabled={isSubmitting || isAnalyzing}> {/* Larger submit button */}
+                <Button type="submit" size="lg" className="w-full font-semibold button" disabled={isSubmitting || isAnalyzing}>
                    {isSubmitting ? (
                      <>
-                       <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Salvando Entrada... {/* Translated */}
+                       <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Salvando Entrada...
                      </>
                    ) : (
-                     'Salvar Entrada no Diário' // Translated
+                     'Salvar Entrada no Diário'
                    )}
                 </Button>
             </div>

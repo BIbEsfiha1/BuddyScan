@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -6,87 +7,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
-import { Lightbulb, Droplets, Ruler, StickyNote, Thermometer, Microscope, AlertTriangle, Activity, CalendarDays, Bot, User, TestTube2, Loader2 } from 'lucide-react'; // Added CalendarDays, Bot, User, TestTube2, Loader2
+import {
+    Lightbulb, Droplets, Ruler, StickyNote, Thermometer, Microscope, AlertTriangle,
+    Activity, CalendarDays, Bot, User, TestTube2, Loader2, RefreshCw // Added RefreshCw
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import type { DiaryEntry } from '@/types/diary-entry'; // Define this type
+import type { DiaryEntry } from '@/types/diary-entry';
+// Import localStorage functions for diary entries
+import { loadDiaryEntriesFromLocalStorage, addDiaryEntryToLocalStorage } from '@/types/diary-entry';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert components
 import { Button } from '@/components/ui/button'; // Import Button for refresh
-
-// Mock function to fetch diary entries - replace with actual API call
-async function fetchDiaryEntries(plantId: string): Promise<DiaryEntry[]> {
-  console.log(`Buscando entradas para a planta: ${plantId}`); // Translated
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 800)); // Reduced delay
-
-  // Mock Data (Updated with more cannabis-specific seeds)
-  const mockEntries: DiaryEntry[] = [
-      {
-        id: 'entry1',
-        plantId: plantId, // Use the passed plantId
-        timestamp: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
-        authorId: 'user1',
-        note: 'Parece saudável, regada hoje com solução nutritiva padrão (EC 1.5, pH 6.2). Crescimento vigoroso.',
-        stage: 'Vegetativo - S4',
-        heightCm: 30,
-        ec: 1.5,
-        ph: 6.2,
-        temp: 23,
-        humidity: 60,
-        photoUrl: 'https://picsum.photos/seed/cannabis-healthy-veg-week4/400/300',
-        aiSummary: null,
-      },
-      {
-        id: 'entry2',
-        plantId: plantId,
-        timestamp: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-        authorId: 'user2',
-        note: 'Notei um leve amarelamento nas pontas das folhas inferiores. Tirei uma foto para análise da IA. Suspeito de deficiência de N ou leve queima de nutrientes.',
-        stage: 'Vegetativo - S4',
-        heightCm: 32,
-        ec: 1.4, // Lower EC reading
-        ph: 6.1,
-        temp: 24,
-        humidity: 58,
-        photoUrl: 'https://picsum.photos/seed/cannabis-yellow-leaf-tips/400/300',
-        aiSummary: 'Leve necrose nas pontas das folhas inferiores detectada. Pode indicar sinais precoces de deficiência de nitrogênio (N) ou excesso de nutrientes (queima). Recomenda-se monitorar o EC da solução e da drenagem e ajustar a alimentação se necessário.',
-      },
-      {
-        id: 'entry3',
-        plantId: plantId,
-        timestamp: new Date().toISOString(), // Today
-        authorId: 'user1',
-        note: 'Ajustei a solução nutritiva após a análise da IA de ontem. Reduzi EC para 1.35 e aumentei N. Verificarei a resposta.',
-        stage: 'Vegetativo - S4',
-        heightCm: 33,
-        ec: 1.35, // Further adjusted EC
-        ph: 6.0,
-        temp: 23.5,
-        humidity: 59,
-        photoUrl: null, // No photo for this update entry
-        aiSummary: null,
-      },
-      {
-        id: 'entry4-flowering', // Entry for a different plant state for variety
-        plantId: plantId,
-        timestamp: new Date(Date.now() - 86400000 * 5).toISOString(), // 5 days ago
-        authorId: 'user3',
-        note: 'Início da floração, botões começando a se formar. Ajustada a luz e nutrientes para o estágio de floração.',
-        stage: 'Floração - S1',
-        heightCm: 45,
-        ec: 1.8,
-        ph: 5.9,
-        temp: 22,
-        humidity: 50,
-        photoUrl: 'https://picsum.photos/seed/cannabis-early-flowering-buds/400/300',
-        aiSummary: 'A planta entrou no estágio inicial de floração. Recomenda-se monitorar o desenvolvimento dos botões e manter os níveis ótimos de umidade e nutrientes para floração.',
-      },
-  ];
-
-  // Filter entries relevant to the specific plantId if the mock data contained multiple plants
-  // For this example, we assume all mock entries belong to the requested plantId for simplicity.
-  // In a real scenario, your API would handle the filtering.
-  return mockEntries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()); // Sort newest first
-}
 
 
 interface PlantDiaryProps {
@@ -94,21 +24,24 @@ interface PlantDiaryProps {
 }
 
 export default function PlantDiary({ plantId }: PlantDiaryProps) {
-  const [entries, setEntries] =useState<DiaryEntry[]>([]);
+  const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Use useCallback to memoize the load function
   const loadEntries = useCallback(async () => {
-    console.log("Executing loadEntries...");
+    console.log(`Loading entries for plant ${plantId} from localStorage...`);
     setIsLoading(true);
     setError(null);
     try {
-      const fetchedEntries = await fetchDiaryEntries(plantId);
+      // Simulate slight delay even for localStorage to mimic loading feel
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const fetchedEntries = loadDiaryEntriesFromLocalStorage(plantId);
+      console.log(`Loaded ${fetchedEntries.length} entries.`);
       setEntries(fetchedEntries);
-    } catch (err) {
-      console.error('Falha ao buscar entradas do diário:', err); // Translated
-      setError('Não foi possível carregar as entradas do diário. Tente atualizar a página.'); // Translated & Improved message
+    } catch (err: any) {
+      console.error('Falha ao buscar entradas do diário no localStorage:', err); // Translated
+      setError(`Não foi possível carregar as entradas do diário: ${err.message || 'Erro desconhecido'}`); // Translated & Improved message
     } finally {
       setIsLoading(false);
     }
@@ -116,15 +49,29 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
 
   useEffect(() => {
     console.log("PlantDiary useEffect triggered for plantId:", plantId);
-    loadEntries();
+    if (plantId) { // Ensure plantId is available
+        loadEntries();
+    } else {
+        console.warn("PlantDiary mounted without a plantId.");
+        setError("ID da planta não fornecido para carregar o diário.");
+        setIsLoading(false);
+    }
     // No cleanup needed here unless there were subscriptions
-  }, [loadEntries]); // Run effect when loadEntries changes (due to plantId change)
+  }, [loadEntries, plantId]); // Run effect when loadEntries changes (due to plantId change) or plantId itself changes
 
+   // Handler for when DiaryEntryForm submits a new entry
    const handleNewEntry = (newEntry: DiaryEntry) => {
-    // Add the new entry optimistically to the top
-    setEntries(prevEntries => [newEntry, ...prevEntries]);
-    // Optional: Re-sort if order might be affected by timestamps, though adding to front usually works
-    // setEntries(prevEntries => [newEntry, ...prevEntries].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+       console.log('Handling new entry in PlantDiary:', newEntry);
+       try {
+           addDiaryEntryToLocalStorage(plantId, newEntry);
+           // Optimistically update the state immediately
+           setEntries(prevEntries => [newEntry, ...prevEntries].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+       } catch (err: any) {
+           console.error("Erro ao adicionar nova entrada no diário (localStorage):", err);
+            setError(`Falha ao salvar a nova entrada no diário: ${err.message}`);
+           // Optionally: trigger a full reload to ensure consistency
+           // loadEntries();
+       }
    };
 
 
@@ -136,17 +83,17 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
 
       {/* Display existing entries */}
       <Card className="shadow-lg border-primary/10 card"> {/* Adjusted border, added base card class */}
-        <CardHeader className="flex flex-row justify-between items-center"> {/* Flex layout for title and refresh button */}
+        <CardHeader className="flex flex-row justify-between items-center sticky top-0 bg-background/95 backdrop-blur-sm z-10 border-b pb-3 pt-4 px-4"> {/* Sticky header */}
             <div>
                 <CardTitle className="text-2xl">Histórico do Diário</CardTitle> {/* Translated */}
                 <CardDescription>Registro cronológico de observações e ações.</CardDescription> {/* Translated */}
             </div>
-             <Button variant="ghost" size="sm" onClick={loadEntries} disabled={isLoading}>
-                 {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CalendarDays className="h-4 w-4 mr-2" />}
+             <Button variant="outline" size="sm" onClick={loadEntries} disabled={isLoading} className="button">
+                 {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                  {isLoading ? 'Atualizando...' : 'Atualizar'}
              </Button>
         </CardHeader>
-        <CardContent className="space-y-6 pt-0"> {/* Removed top padding */}
+        <CardContent className="space-y-6 pt-4 px-4"> {/* Adjust padding */}
           {isLoading && (
              <div className="space-y-6 pt-4"> {/* Wrap skeletons, add padding top */}
                <Skeleton className="h-48 w-full rounded-lg" /> {/* Slightly smaller skeleton */}
@@ -190,10 +137,10 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                       {(entry.heightCm || entry.ec !== null || entry.ph !== null || entry.temp !== null || entry.humidity !== null) && ( // Check for null as well as undefined/0
                           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-2 text-xs text-muted-foreground border-b pb-3 mb-3">
                               {entry.heightCm && <div className="flex items-center gap-1.5"><Ruler className="h-4 w-4 text-secondary" /> <span>{entry.heightCm} cm</span></div>}
-                              {entry.ec !== null && <div className="flex items-center gap-1.5"><Activity className="h-4 w-4 text-secondary" /> <span>EC: {entry.ec}</span></div>}
-                              {entry.ph !== null && <div className="flex items-center gap-1.5"><TestTube2 className="h-4 w-4 text-secondary" /> <span>pH: {entry.ph}</span></div>}
-                              {entry.temp !== null && <div className="flex items-center gap-1.5"><Thermometer className="h-4 w-4 text-secondary" /> <span>{entry.temp}°C</span></div>}
-                              {entry.humidity !== null && <div className="flex items-center gap-1.5"><Droplets className="h-4 w-4 text-secondary" /> <span>{entry.humidity}%</span></div>}
+                              {entry.ec !== null && typeof entry.ec !== 'undefined' && <div className="flex items-center gap-1.5"><Activity className="h-4 w-4 text-secondary" /> <span>EC: {entry.ec}</span></div>}
+                              {entry.ph !== null && typeof entry.ph !== 'undefined' && <div className="flex items-center gap-1.5"><TestTube2 className="h-4 w-4 text-secondary" /> <span>pH: {entry.ph}</span></div>}
+                              {entry.temp !== null && typeof entry.temp !== 'undefined' && <div className="flex items-center gap-1.5"><Thermometer className="h-4 w-4 text-secondary" /> <span>{entry.temp}°C</span></div>}
+                              {entry.humidity !== null && typeof entry.humidity !== 'undefined' && <div className="flex items-center gap-1.5"><Droplets className="h-4 w-4 text-secondary" /> <span>{entry.humidity}%</span></div>}
                           </div>
                       )}
 
@@ -202,13 +149,20 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                            {/* Photo */}
                            {entry.photoUrl && (
                              <div className="lg:w-1/2 flex-shrink-0">
-                                <Image
+                                {/* Use placeholder if photoUrl is not a valid URL (like picsum) */}
+                               <Image
                                   data-ai-hint={entry.aiSummary ? `cannabis analysis ${entry.stage?.toLowerCase()}` : `cannabis plant ${entry.stage?.toLowerCase()} diary photo`} // Contextual hint
-                                  src={entry.photoUrl}
+                                  src={entry.photoUrl.startsWith('http') ? entry.photoUrl : `https://picsum.photos/seed/cannabis-diary-${entry.id}/400/300`} // Fallback placeholder
                                   alt={`Foto da planta em ${new Date(entry.timestamp).toLocaleDateString('pt-BR')}`} // Translated
                                   width={400}
                                   height={300}
                                   className="rounded-lg shadow-md w-full h-auto object-cover border" // Responsive image
+                                  onError={(e) => {
+                                     // If the provided URL fails, replace with a generic placeholder
+                                     console.warn(`Failed to load image: ${entry.photoUrl}. Using placeholder.`);
+                                     (e.target as HTMLImageElement).src = `https://picsum.photos/seed/cannabis-placeholder/400/300`;
+                                     (e.target as HTMLImageElement).srcset = ''; // Clear srcset if it exists
+                                  }}
                                 />
                              </div>
                            )}

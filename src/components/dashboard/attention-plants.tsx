@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -8,21 +9,11 @@ import { Button } from '@/components/ui/button';
 import { AlertTriangle, ArrowRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import type { Plant } from '@/services/plant-id'; // Import the base Plant type
 
-
-// Use the specific AttentionPlantSummary for this component's props
-interface AttentionPlantSummary {
-  id: string;
-  qrCode: string;
-  strain: string;
-  status: string;
-  attentionReason: string; // Reason for needing attention
-  lastUpdated: string;
-  photoUrl?: string | null;
-}
-
+// This component receives the full Plant object now
 interface AttentionPlantsProps {
-  plants: AttentionPlantSummary[];
+  plants: Plant[];
 }
 
 export default function AttentionPlants({ plants }: AttentionPlantsProps) {
@@ -48,36 +39,43 @@ export default function AttentionPlants({ plants }: AttentionPlantsProps) {
            </Alert>
         ) : (
           <ul className="divide-y divide-border">
-            {plants.map((plant) => (
-              <li key={plant.id} className="py-3 group hover:bg-destructive/5 rounded-md transition-colors duration-150">
-                {/* Ensure Link points to the correct plant page using qrCode */}
-                <Link href={`/plant/${plant.qrCode}`} className="flex items-center space-x-4 px-2">
-                   <div className="flex-shrink-0">
-                    <Image
-                      // Updated hint to be more specific for AI search
-                      data-ai-hint={`cannabis plant ${plant.attentionReason.toLowerCase().replace(/ /g, '-')}`}
-                      // Updated placeholder seed
-                      src={plant.photoUrl || `https://picsum.photos/seed/cannabis-${plant.attentionReason.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/100/100`}
-                      alt={`Foto de ${plant.strain} precisando de atenção (${plant.attentionReason})`}
-                      width={50}
-                      height={50}
-                      className="rounded-md object-cover border border-destructive/50 aspect-square" // Destructive hint on border
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-base font-medium text-foreground truncate">{plant.strain}</p>
-                     <p className="text-sm text-destructive font-medium truncate">{plant.attentionReason}</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                       {/* Use destructive badge for attention status */}
-                       <Badge variant="destructive" className="text-xs px-1.5 py-0.5">{plant.status}</Badge>
-                       <span>·</span>
-                       <span>Última att: {plant.lastUpdated}</span>
+            {plants.map((plant) => {
+              // Derive attention reason and last updated from plant data here
+              const attentionReason = `Status: ${plant.status}`; // Simple reason
+              // Using birthDate as a proxy for last updated date in this simplified version
+              const lastUpdated = `Cadastrada em: ${new Date(plant.birthDate).toLocaleDateString('pt-BR')}`;
+
+              return (
+                <li key={plant.id} className="py-3 group hover:bg-destructive/5 rounded-md transition-colors duration-150">
+                  {/* Ensure Link points to the correct plant page using qrCode */}
+                  <Link href={`/plant/${plant.qrCode}`} className="flex items-center space-x-4 px-2">
+                     <div className="flex-shrink-0">
+                      <Image
+                        // Updated hint to be more specific for AI search
+                        data-ai-hint={`cannabis plant ${plant.status.toLowerCase().replace(/ /g, '-')}`}
+                        // Updated placeholder seed
+                        src={`https://picsum.photos/seed/cannabis-${plant.status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-problem/100/100`}
+                        alt={`Foto de ${plant.strain} precisando de atenção (${attentionReason})`}
+                        width={50}
+                        height={50}
+                        className="rounded-md object-cover border border-destructive/50 aspect-square" // Destructive hint on border
+                      />
                     </div>
-                  </div>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-destructive transition-colors" />
-                </Link>
-              </li>
-            ))}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-base font-medium text-foreground truncate">{plant.strain}</p>
+                       <p className="text-sm text-destructive font-medium truncate">{attentionReason}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                         {/* Use destructive badge for attention status */}
+                         <Badge variant="destructive" className="text-xs px-1.5 py-0.5">{plant.status}</Badge>
+                         <span>·</span>
+                         <span>{lastUpdated}</span>
+                      </div>
+                    </div>
+                    <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-destructive transition-colors" />
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
       </CardContent>
@@ -86,6 +84,7 @@ export default function AttentionPlants({ plants }: AttentionPlantsProps) {
            <div className="p-4 border-t mt-auto text-center">
               <Button variant="link" size="sm" asChild className="text-destructive hover:text-destructive/80">
                  {/* Make sure this link points to a valid page if implemented */}
+                 {/* This link likely won't work correctly without a proper backend filter */}
                  <Link href="/plants?filter=attention">Ver todas as plantas com atenção</Link>
               </Button>
            </div>
