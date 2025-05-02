@@ -8,27 +8,6 @@ import { getAuth, Auth } from 'firebase/auth';
 // Your web app's Firebase configuration
 // Ensure these environment variables are set in your .env.local file
 
-// Validate that environment variables are loaded
-const requiredEnvVars = [
-  'NEXT_PUBLIC_FIREBASE_API_KEY',
-  'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
-  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-  'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
-  'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
-  'NEXT_PUBLIC_FIREBASE_APP_ID',
-];
-
-const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
-
-if (missingEnvVars.length > 0 && typeof window !== 'undefined') {
-  // Only show alert on client-side to avoid console noise during build
-  const message = `Firebase configuration is missing environment variables: ${missingEnvVars.join(', ')}. Please set them in your .env.local file.`;
-  console.error(message);
-  // Optional: Show an alert to the user during development
-  // alert(message);
-}
-
-
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -38,6 +17,34 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+// Function to check if all required Firebase config values are present
+function hasFirebaseConfig(): boolean {
+    return !!(
+        firebaseConfig.apiKey &&
+        firebaseConfig.authDomain &&
+        firebaseConfig.projectId &&
+        firebaseConfig.storageBucket &&
+        firebaseConfig.messagingSenderId &&
+        firebaseConfig.appId
+    );
+}
+
+// Log missing variables only once on the client side
+if (typeof window !== 'undefined' && !hasFirebaseConfig()) {
+    const missingVars = Object.entries(firebaseConfig)
+        .filter(([, value]) => !value)
+        .map(([key]) => `NEXT_PUBLIC_FIREBASE_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`);
+
+    if (missingVars.length > 0) {
+         console.warn(
+           `Firebase configuration is missing environment variables: ${missingVars.join(
+             ', '
+           )}. Please set them in your .env.local file. Firebase features may not work correctly.`
+         );
+    }
+}
+
+
 // Initialize Firebase
 let app: FirebaseApp;
 let auth: Auth;
@@ -45,7 +52,7 @@ let auth: Auth;
 try {
     if (!getApps().length) {
       // Check if all config values are present before initializing
-      if (requiredEnvVars.every(varName => process.env[varName])) {
+      if (hasFirebaseConfig()) {
         app = initializeApp(firebaseConfig);
         console.log('Firebase initialized.');
       } else {
