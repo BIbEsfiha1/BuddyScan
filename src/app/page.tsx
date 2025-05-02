@@ -18,19 +18,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import RecentPlants from '@/components/dashboard/recent-plants';
 import AttentionPlants from '@/components/dashboard/attention-plants';
 import { Separator } from '@/components/ui/separator';
-
-// Mock Data
-const mockRecentPlants = [
-    { id: 'plant123', qrCode: 'plant123', strain: 'Variedade Exemplo', status: 'Vegetativo', lastUpdated: 'Ontem', photoUrl: 'https://picsum.photos/seed/cannabis-veg-healthy-day1/100/100' },
-    { id: 'plant456', qrCode: 'plant456', strain: 'Purple Haze', status: 'Floração', lastUpdated: '2 dias atrás', photoUrl: 'https://picsum.photos/seed/cannabis-flowering-early/100/100' },
-    { id: 'plant789', qrCode: 'plant789', strain: 'Sour Diesel', status: 'Secagem', lastUpdated: '5 dias atrás', photoUrl: 'https://picsum.photos/seed/cannabis-drying-buds/100/100' },
-];
-
-const mockAttentionPlants = [
-    { id: 'plantABC', qrCode: 'plantABC', strain: 'Cepa Problema', status: 'Vegetativo', attentionReason: 'Deficiência de Nitrogênio', lastUpdated: '3 dias atrás', photoUrl: 'https://picsum.photos/seed/cannabis-nitrogen-deficiency/100/100' },
-    { id: 'plantDEF', qrCode: 'plantDEF', strain: 'White Widow', status: 'Floração', attentionReason: 'Umidade Alta Detectada', lastUpdated: 'Hoje', photoUrl: 'https://picsum.photos/seed/cannabis-high-humidity-mold/100/100' },
-    { id: 'plantGHI', qrCode: 'plantGHI', strain: 'OG Kush', status: 'Floração', attentionReason: 'Ácaros Aranha', lastUpdated: '1 dia atrás', photoUrl: 'https://picsum.photos/seed/cannabis-spider-mites/100/100' },
-];
+import type { Plant } from '@/services/plant-id'; // Import Plant type
+import { getRecentPlants, getAttentionPlants } from '@/services/plant-id'; // Import fetch functions
 
 
 // Define states for camera/scanner
@@ -47,6 +36,12 @@ export default function Home() {
   const barcodeDetectorRef = useRef<any | null>(null); // Using any for BarcodeDetector due to type issues
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isMounted, setIsMounted] = useState(false); // Track mount state
+
+  // State for fetched plant data
+  const [recentPlants, setRecentPlants] = useState<Plant[]>([]);
+  const [attentionPlants, setAttentionPlants] = useState<Plant[]>([]);
+  const [isLoadingPlants, setIsLoadingPlants] = useState(true);
+
 
   // Track mount state
   useEffect(() => {
@@ -71,6 +66,36 @@ export default function Home() {
         // Don't set state immediately
     }
   }, []); // Empty dependency array ensures this runs only once
+
+
+  // Fetch plant data on mount
+  useEffect(() => {
+    const fetchPlants = async () => {
+      setIsLoadingPlants(true);
+      try {
+        const [fetchedRecent, fetchedAttention] = await Promise.all([
+          getRecentPlants(3), // Fetch 3 recent plants
+          getAttentionPlants(3) // Fetch 3 attention plants
+        ]);
+        setRecentPlants(fetchedRecent);
+        setAttentionPlants(fetchedAttention);
+      } catch (error) {
+        console.error('Failed to fetch plant data:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Erro ao Carregar Dados',
+          description: 'Não foi possível buscar os dados das plantas.',
+        });
+      } finally {
+        setIsLoadingPlants(false);
+      }
+    };
+
+    if (isMounted) {
+       fetchPlants();
+    }
+  }, [isMounted, toast]);
+
 
     // --- Stop Media Stream ---
    const stopMediaStream = useCallback(() => {
@@ -422,12 +447,12 @@ export default function Home() {
 
   const handleRegister = () => {
     console.log('Navegar para a página de registro...');
-    toast({
-      title: 'Funcionalidade Indisponível',
-      description: 'A página de cadastro de plantas ainda não foi implementada.',
-      variant: 'default',
-    });
-    // router.push('/register-plant'); // Uncomment when register page exists
+    // toast({
+    //   title: 'Funcionalidade Indisponível',
+    //   description: 'A página de cadastro de plantas ainda não foi implementada.',
+    //   variant: 'default',
+    // });
+     router.push('/register-plant'); // Navigate to the register page
   };
 
 
@@ -478,13 +503,59 @@ export default function Home() {
              </Card>
 
               {/* Plants Needing Attention Card */}
-              <AttentionPlants plants={mockAttentionPlants} />
+              {isLoadingPlants ? (
+                <Card className="shadow-md card border-destructive/30 p-6">
+                   <div className="flex items-center gap-2 mb-4">
+                      <AlertTriangle className="h-5 w-5 text-destructive" />
+                      <CardTitle className="text-xl">Requer Atenção</CardTitle>
+                   </div>
+                   <div className="space-y-4">
+                       <Loader2 className="h-8 w-8 mx-auto text-muted-foreground animate-spin" />
+                       <p className="text-center text-muted-foreground text-sm">Carregando plantas...</p>
+                   </div>
+                </Card>
+               ) : (
+                 <AttentionPlants plants={attentionPlants.map(p => ({ // Map Plant to AttentionPlantSummary
+                     id: p.id,
+                     qrCode: p.qrCode,
+                     strain: p.strain,
+                     status: p.status,
+                     // Mock reason - replace with actual logic if available
+                     attentionReason: p.qrCode === 'plantABC' ? 'Deficiência de Nitrogênio' : p.qrCode === 'plantDEF' ? 'Umidade Alta Detectada' : 'Ácaros Aranha',
+                     // Mock last updated - replace with actual data if available
+                     lastUpdated: p.qrCode === 'plantDEF' ? 'Hoje' : 'Alguns dias atrás',
+                     // Use a placeholder image logic similar to RecentPlants
+                     photoUrl: `https://picsum.photos/seed/cannabis-${p.status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-problem/100/100`
+                 }))} />
+               )}
+
 
           </div>
 
            {/* Right Column (Recent Plants) */}
            <div className="lg:col-span-2">
-              <RecentPlants plants={mockRecentPlants} />
+              {isLoadingPlants ? (
+                 <Card className="shadow-md card h-full flex flex-col p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                        <History className="h-5 w-5 text-primary" />
+                        <CardTitle className="text-xl">Plantas Recentes</CardTitle>
+                    </div>
+                     <div className="flex-1 flex flex-col items-center justify-center space-y-4">
+                         <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
+                         <p className="text-center text-muted-foreground">Carregando plantas recentes...</p>
+                     </div>
+                 </Card>
+              ) : (
+                 <RecentPlants plants={recentPlants.map(p => ({ // Map Plant to PlantSummary
+                      id: p.id,
+                      qrCode: p.qrCode,
+                      strain: p.strain,
+                      status: p.status,
+                      // Mock last updated - replace with actual data if available
+                      lastUpdated: 'Recentemente',
+                      photoUrl: `https://picsum.photos/seed/cannabis-${p.status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/100/100`
+                  }))} />
+              )}
            </div>
 
        </main>
@@ -504,8 +575,8 @@ export default function Home() {
             {/* Video element - Always render */}
             <video
               ref={videoRef}
-              // Apply scaleX(-1) to mirror the video feed for a more natural user experience
-              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${scannerStatus === 'scanning' || scannerStatus === 'initializing' || scannerStatus === 'stopped' ? 'opacity-100' : 'opacity-0'}`} // Removed transform scale-x-[-1]
+              // Keep mirrored for natural user experience
+              className={`absolute inset-0 h-full w-full object-cover transform scale-x-[-1] transition-opacity duration-300 ${scannerStatus === 'scanning' || scannerStatus === 'initializing' || scannerStatus === 'stopped' ? 'opacity-100' : 'opacity-0'}`}
               playsInline // Essential for iOS Safari
               muted // Required for autoplay in most browsers
             />
@@ -521,12 +592,17 @@ export default function Home() {
                       {/* Optional: Inner Crosshair or Lines */}
                       {/* <div className="absolute w-1/2 h-[2px] bg-primary/30 top-1/2 left-1/4 -translate-y-1/2"></div>
                       <div className="absolute h-1/2 w-[2px] bg-primary/30 left-1/2 top-1/4 -translate-x-1/2"></div> */}
+                       {/* Pulsing Corner Brackets for focus */}
+                        <div className="absolute top-[-4px] left-[-4px] w-8 h-8 border-t-4 border-l-4 border-accent animate-pulse rounded-tl-lg"></div>
+                        <div className="absolute top-[-4px] right-[-4px] w-8 h-8 border-t-4 border-r-4 border-accent animate-pulse rounded-tr-lg"></div>
+                        <div className="absolute bottom-[-4px] left-[-4px] w-8 h-8 border-b-4 border-l-4 border-accent animate-pulse rounded-bl-lg"></div>
+                        <div className="absolute bottom-[-4px] right-[-4px] w-8 h-8 border-b-4 border-r-4 border-accent animate-pulse rounded-br-lg"></div>
                     </div>
 
 
                     {/* Animated Scan Line (only when actively scanning) */}
                     {scannerStatus === 'scanning' && (
-                      <div className="absolute left-[15%] right-[15%] top-0 h-1.5 bg-gradient-to-r from-transparent via-accent/80 to-transparent animate-scan-line-vertical shadow-[0_0_15px_2px_hsl(var(--accent)/0.5)] rounded-full"></div>
+                       <div className="absolute w-[70%] h-1.5 bg-gradient-to-r from-transparent via-accent/80 to-transparent animate-scan-line-vertical shadow-[0_0_15px_2px_hsl(var(--accent)/0.5)] rounded-full"></div>
                     )}
                 </div>
              )}

@@ -102,3 +102,65 @@ export async function getPlantByQrCode(qrCode: string): Promise<Plant | null> {
     return null;
   }
 }
+
+
+/**
+ * Adiciona uma nova planta ao armazenamento de dados (mock).
+ * Em um aplicativo real, isso interagiria com um backend/banco de dados.
+ *
+ * @param plantData Os dados da nova planta a ser adicionada.
+ * @returns Uma promessa que resolve quando a planta é adicionada. Rejeita se o QR code já existir.
+ */
+export async function addPlant(plantData: Plant): Promise<void> {
+  // Simulate API call delay
+  await new Promise(resolve => setTimeout(resolve, 400));
+
+  console.log(`Tentando adicionar planta com QR Code: ${plantData.qrCode}`);
+
+  // Check if QR code already exists
+  if (mockPlants[plantData.qrCode]) {
+    console.error(`Erro: QR Code '${plantData.qrCode}' já existe.`);
+    throw new Error(`O ID/QR Code '${plantData.qrCode}' já está em uso.`);
+  }
+
+  // Add the new plant to the mock data store
+  mockPlants[plantData.qrCode] = { ...plantData };
+  console.log(`Planta '${plantData.strain}' adicionada com sucesso.`);
+
+  // No return needed, throws error on failure
+}
+
+/**
+ * Recupera uma lista de plantas recentes (mock).
+ * Em um aplicativo real, isso consultaria o banco de dados ordenando por data de atualização.
+ *
+ * @returns Uma promessa que resolve para um array de objetos Plant.
+ */
+ export async function getRecentPlants(limit: number = 3): Promise<Plant[]> {
+    await new Promise(resolve => setTimeout(resolve, 200)); // Simulate delay
+    console.log('Buscando plantas recentes (mock)...');
+
+    // Sort all plants by birthDate (newest first) as a proxy for recent updates in mock data
+    const sortedPlants = Object.values(mockPlants).sort((a, b) =>
+      new Date(b.birthDate).getTime() - new Date(a.birthDate).getTime()
+    );
+
+    return sortedPlants.slice(0, limit);
+ }
+
+ /**
+  * Recupera uma lista de plantas que precisam de atenção (mock).
+  * Em um aplicativo real, isso consultaria com base em regras/flags específicas.
+  *
+  * @returns Uma promessa que resolve para um array de objetos Plant.
+  */
+  export async function getAttentionPlants(limit: number = 3): Promise<Plant[]> {
+     await new Promise(resolve => setTimeout(resolve, 250)); // Simulate delay
+     console.log('Buscando plantas que precisam de atenção (mock)...');
+
+     // Filter mock plants based on some arbitrary condition (e.g., specific QR codes)
+     const attentionQrCodes = ['plantABC', 'plantDEF', 'plantGHI']; // Example QR codes needing attention
+     const attentionPlants = attentionQrCodes.map(qr => mockPlants[qr]).filter(Boolean); // Filter out nulls if QR code doesn't exist
+
+     return attentionPlants.slice(0, limit);
+  }

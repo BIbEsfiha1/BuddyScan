@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { History, ArrowRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
+// Use the simplified PlantSummary for this component's props
 interface PlantSummary {
   id: string;
   qrCode: string;
@@ -35,7 +36,7 @@ export default function RecentPlants({ plants }: RecentPlantsProps) {
            </Button> */}
       </CardHeader>
       <CardDescription className="px-6 pb-4 text-muted-foreground">
-          Plantas com as atualizações mais recentes no diário.
+          Plantas com as atualizações mais recentes no diário ou cadastro.
       </CardDescription>
       <CardContent className="flex-1 overflow-y-auto space-y-4 pt-0"> {/* Allow scrolling and space items */}
         {plants.length === 0 ? (

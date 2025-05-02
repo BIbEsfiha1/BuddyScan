@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 
+// Use the specific AttentionPlantSummary for this component's props
 interface AttentionPlantSummary {
   id: string;
   qrCode: string;

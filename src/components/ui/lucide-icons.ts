@@ -7,6 +7,7 @@ export {
   Activity,
   AlertCircle,
   AlertTriangle,
+  ArrowLeft, // Added for back button
   ArrowRight,
   Bot,
   Calendar,
