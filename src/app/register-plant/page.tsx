@@ -138,7 +138,7 @@ export default function RegisterPlantPage() {
       });
 
       // Reset form after successful submission BUT keep generated QR code displayed
-      form.reset();
+      // form.reset(); // Commented out to keep form data if user wants to register another quickly? Reconsider if needed.
 
 
     } catch (error: any) {
@@ -209,8 +209,24 @@ export default function RegisterPlantPage() {
                             Baixar QR Code
                         </Button>
                     </div>
-                     <Button variant="outline" size="sm" onClick={() => router.push('/')} className="mt-5 button">
+                     <Button variant="outline" size="sm" onClick={() => {
+                         // Optionally clear the form and QR code states if navigating away
+                         // setGeneratedQrCode(null);
+                         // setQrCodeImageDataUrl(null);
+                         // form.reset();
+                         router.push('/')
+                       }} className="mt-5 button">
                          Ir para o Painel
+                     </Button>
+                      <Button variant="link" size="sm" onClick={() => {
+                          // Reset state to allow registering another plant
+                          setGeneratedQrCode(null);
+                          setQrCodeImageDataUrl(null);
+                          setSubmitError(null);
+                          form.reset(); // Clear form fields
+                          toast({ title: "Formulário limpo", description: "Pronto para cadastrar outra planta."});
+                      }} className="mt-1 button">
+                         Cadastrar Outra Planta
                      </Button>
                 </CardContent>
              </Card>
