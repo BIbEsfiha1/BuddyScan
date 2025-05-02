@@ -4,50 +4,35 @@
 
  import React from 'react';
  import Link from 'next/link';
- // import { Button } from '@/components/ui/button'; // Button might not be needed if no actions remain
+ import Image from 'next/image'; // Import Image component
  import ThemeToggle from '@/components/theme-toggle';
- // import { useAuth } from '@/context/auth-context'; // Remove useAuth import
- // import { signOut } from 'firebase/auth'; // Remove Firebase imports
- // import { auth } from '@/lib/firebase/config'; // Remove Firebase imports
- // import { useRouter } from 'next/navigation'; // Remove useRouter if not needed for logout
- // import { useToast } from '@/hooks/use-toast'; // Remove useToast if not needed for logout
- import { Sprout } from 'lucide-react'; // Keep Sprout icon // Removed LogOut, UserCircle
+ // Removed Sprout icon as we're using an image logo now
+ // import { Sprout } from 'lucide-react';
 
  export default function AppHeader() {
-   // const { user, loading } = useAuth(); // Remove auth state
-   // const router = useRouter(); // Remove if not needed
-   // const { toast } = useToast(); // Remove if not needed
-
-   // const handleLogout = async () => { // Remove logout handler
-   //   try {
-   //     await signOut(auth);
-   //     toast({ title: 'Logout Realizado', description: 'Você saiu com sucesso.' });
-   //     router.push('/login'); // Redirect to login after logout
-   //   } catch (error) {
-   //     console.error('Erro ao fazer logout:', error);
-   //     toast({ variant: 'destructive', title: 'Erro no Logout', description: 'Não foi possível sair.' });
-   //   }
-   // };
-
-   // No longer need loading state check
-   // if (loading) {
-   //   return null; // Or a minimal loading state if preferred
-   // }
-
    return (
      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-       <div className="container flex h-14 items-center justify-between">
-         {/* Logo/Brand */}
-         <Link href="/" className="flex items-center gap-2 mr-6">
-           <Sprout className="h-6 w-6 text-primary" />
-           <span className="font-bold text-primary tracking-tight hidden sm:inline-block">CannaLog</span>
+       <div className="container flex h-16 items-center justify-between"> {/* Increased height for logo */}
+         {/* Logo/Brand - Use Image component */}
+         <Link href="/" className="flex items-center mr-6">
+           {/* Use Next Image for optimization */}
+           <Image
+               src="/budscan-logo.png" // Path to the logo in the public folder
+               alt="BudScan Logo"
+               width={140} // Adjust width as needed
+               height={40} // Adjust height as needed
+               priority // Load the logo quickly
+               className="h-8 md:h-10 w-auto" // Responsive height
+           />
+           {/* Remove text span */}
+           {/* <Sprout className="h-6 w-6 text-primary" />
+           <span className="font-bold text-primary tracking-tight hidden sm:inline-block">CannaLog</span> */}
          </Link>
 
          {/* Right side actions */}
          <div className="flex items-center gap-3">
            <ThemeToggle />
            {/* Remove all conditional rendering based on user */}
-           {/* {user ? (...) : (...)} */}
          </div>
        </div>
      </header>

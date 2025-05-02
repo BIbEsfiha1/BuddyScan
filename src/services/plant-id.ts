@@ -44,7 +44,7 @@ export const CANNABIS_STAGES = [
 ];
 
 
-const LOCAL_STORAGE_KEY = 'cannalogPlants';
+const LOCAL_STORAGE_KEY = 'budscanPlants'; // Updated key name
 
 // --- Helper Functions for localStorage ---
 

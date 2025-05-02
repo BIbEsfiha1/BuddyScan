@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useCallback } from 'react';
@@ -166,12 +167,21 @@ export default function RegisterPlantPage() {
                </Link>
             </Button>
            <div className="flex flex-col items-center text-center pt-8">
-              <Sprout className="h-12 w-12 mb-3 text-primary animate-pulse" />
-              <CardTitle className="text-2xl md:text-3xl font-bold text-primary">
-                Cadastrar Nova Planta
-              </CardTitle>
+              {/* Replace Sprout icon and CardTitle with BudScan Logo */}
+               <Image
+                   src="/budscan-logo.png"
+                   alt="BudScan Logo"
+                   width={180} // Adjust size as needed for this context
+                   height={51}
+                   priority
+                   className="mb-3"
+               />
+               {/* <Sprout className="h-12 w-12 mb-3 text-primary animate-pulse" /> */}
+               {/* <CardTitle className="text-2xl md:text-3xl font-bold text-primary">
+                 Cadastrar Nova Planta
+               </CardTitle> */}
               <CardDescription className="text-muted-foreground mt-1">
-                Preencha os detalhes. O QR Code será gerado automaticamente.
+                Preencha os detalhes da nova planta. O QR Code será gerado automaticamente.
               </CardDescription>
            </div>
          </CardHeader>

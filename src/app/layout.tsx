@@ -5,7 +5,8 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/components/theme-provider';
 import AppHeader from '@/components/app-header'; // Import the new AppHeader
-// import { AuthProvider } from '@/context/auth-context'; // Remove AuthProvider import
+// Removed Geist Sans import as Inter is used
+// import { GeistSans } from 'geist/font/sans';
 
 const inter = Inter({
   variable: '--font-inter',
@@ -13,8 +14,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'CannaLog',
-  description: 'Diário e Análise de Plantas de Cannabis',
+  title: 'BudScan', // Updated title
+  description: 'Diário e Análise Inteligente de Plantas', // Updated description
 };
 
 export default function RootLayout({
@@ -23,23 +24,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    // Set lang to pt-BR. Dark theme is applied via globals.css :root and .dark selectors
     <html lang="pt-BR" suppressHydrationWarning>
+      {/* No whitespace or comments directly inside <html> */}
       <body className={`${inter.variable} font-sans antialiased bg-background text-foreground`}>
         <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
+            attribute="class"
+            defaultTheme="dark" // Default to dark theme
+            enableSystem
+            disableTransitionOnChange
         >
-          {/* <AuthProvider> {/* Remove AuthProvider wrapper */}
+            {/* Removed AuthProvider wrapper */}
             <div className="relative flex min-h-screen flex-col">
-              {/* Render header unconditionally */}
-              <AppHeader />
+              <AppHeader /> {/* Render header unconditionally */}
               {/* Main content */}
               <main className="flex-1">{children}</main>
             </div>
             <Toaster />
-          {/* </AuthProvider> */} {/* Remove AuthProvider wrapper */}
         </ThemeProvider>
       </body>
     </html>

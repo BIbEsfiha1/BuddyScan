@@ -59,7 +59,7 @@ export interface DiaryEntry {
 }
 
 
-const DIARY_STORAGE_PREFIX = 'cannalogDiary_';
+const DIARY_STORAGE_PREFIX = 'budscanDiary_'; // Updated prefix
 
 /**
  * Loads diary entries for a specific plant from localStorage.

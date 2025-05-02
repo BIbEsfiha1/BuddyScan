@@ -21,6 +21,7 @@ import AttentionPlants from '@/components/dashboard/attention-plants';
 import { Separator } from '@/components/ui/separator';
 import type { Plant } from '@/services/plant-id'; // Import Plant type
 import { getRecentPlants, getAttentionPlants } from '@/services/plant-id'; // Import fetch functions
+import Image from 'next/image'; // Import Image component
 
 
 // Define states for camera/scanner
@@ -170,6 +171,10 @@ export default function Home() {
       streamRef.current = stream;
 
        if (videoRef.current) {
+           // Flip the video horizontally if it's the front-facing camera (common behavior)
+           const isFrontFacing = stream.getVideoTracks()[0]?.getSettings()?.facingMode === 'user';
+           videoRef.current.style.transform = isFrontFacing ? 'scaleX(-1)' : 'scaleX(1)';
+
            videoRef.current.srcObject = stream;
            console.log("Video stream attached.");
            try {
@@ -200,6 +205,10 @@ export default function Home() {
             streamRef.current = stream;
 
             if (videoRef.current) {
+                // Flip the video horizontally if it's the front-facing camera
+                const isFrontFacing = stream.getVideoTracks()[0]?.getSettings()?.facingMode === 'user';
+                 videoRef.current.style.transform = isFrontFacing ? 'scaleX(-1)' : 'scaleX(1)';
+
                 videoRef.current.srcObject = stream;
                 console.log("Video stream attached (default).");
                  try {
@@ -522,13 +531,22 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen p-4 md:p-8 bg-gradient-to-br from-background via-background to-primary/5 text-foreground">
       {/* Header Section */}
-      <header className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-            <Sprout className="h-10 w-10 text-primary animate-pulse duration-3000" />
-            <h1 className="text-4xl font-bold text-primary tracking-tight drop-shadow-sm">CannaLog</h1>
-        </div>
-        <p className="text-lg text-muted-foreground">Seu painel de controle de cultivo inteligente.</p>
-      </header>
+       <header className="mb-8">
+         <div className="flex items-center gap-3 mb-2">
+             {/* Use BudScan Logo Image */}
+             <Image
+                 src="/budscan-logo.png" // Path to the logo in the public folder
+                 alt="BudScan Logo"
+                 width={200} // Adjust width as needed for main page heading
+                 height={57} // Adjust height proportionally
+                 priority // Load the logo quickly
+                 className="h-10 md:h-12 w-auto drop-shadow-sm" // Adjust size and add shadow
+             />
+             {/* Removed text h1 */}
+             {/* <h1 className="text-4xl font-bold text-primary tracking-tight drop-shadow-sm">CannaLog</h1> */}
+         </div>
+         <p className="text-lg text-muted-foreground">Seu painel de controle de cultivo inteligente.</p>
+       </header>
 
       {/* Main Content Area - Grid Layout */}
        <main className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
@@ -625,7 +643,7 @@ export default function Home() {
                   }`}
                   playsInline // Essential for iOS Safari
                   muted // Required for autoplay in most browsers
-                  // Ensure transform doesn't interfere with detection
+                  style={{ transform: 'scaleX(1)' }} // Default, will be overridden by JS if front camera
               />
 
              {/* Visual Guide Overlay - Show ONLY when scanning or actively initializing */}
