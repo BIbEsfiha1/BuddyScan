@@ -30,6 +30,7 @@ export {
   Loader2, // Added Loader2
   Microscope,
   PanelLeft,
+  Pencil, // Added Pencil
   PlusCircle,
   QrCode,
   RefreshCw, // Added RefreshCw
@@ -44,6 +45,5 @@ export {
   VideoOff,
   Warehouse,
   X,
+  XCircle, // Added XCircle
 } from 'lucide-react';
-
-    

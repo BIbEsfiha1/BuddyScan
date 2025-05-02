@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -67,10 +68,13 @@ const SelectScrollDownButton = React.forwardRef<
 SelectScrollDownButton.displayName =
   SelectPrimitive.ScrollDownButton.displayName
 
+// Add align prop to SelectContent props
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & {
+    align?: 'start' | 'center' | 'end'; // Added align prop
+  }
+>(({ className, children, position = "popper", align = "center", ...props }, ref) => ( // Default align to 'center'
   <SelectPrimitive.Portal>
     <SelectPrimitive.Content
       ref={ref}
@@ -81,6 +85,7 @@ const SelectContent = React.forwardRef<
         className
       )}
       position={position}
+      align={align} // Pass align prop to primitive
       {...props}
     >
       <SelectScrollUpButton />

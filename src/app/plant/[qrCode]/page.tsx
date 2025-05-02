@@ -1,16 +1,24 @@
 
 'use client'; // Add 'use client' directive
 
-import React, { useState, useEffect } from 'react'; // Import hooks
-import { getPlantByQrCode } from '@/services/plant-id';
+import React, { useState, useEffect, useCallback } from 'react'; // Import hooks
+import { getPlantByQrCode, updatePlantStatus, CANNABIS_STAGES } from '@/services/plant-id'; // Import update function and stages
 import type { Plant } from '@/services/plant-id';
 import PlantDiary from '@/components/plant/plant-diary';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Leaf, QrCode, Calendar, Thermometer, Droplet, Activity, AlertCircle, Sprout, Warehouse, Loader2 } from 'lucide-react'; // Added Warehouse icon and Loader2
+import { Leaf, QrCode, Calendar, Warehouse, Loader2, AlertCircle, Sprout, Pencil } from 'lucide-react'; // Added Pencil icon
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"; // Import Select components
+import { useToast } from '@/hooks/use-toast'; // Import useToast
 
 // Define expected params structure remains the same
 interface PlantPageProps {
@@ -22,18 +30,21 @@ interface PlantPageProps {
 // Component is now a standard function component, not async
 export default function PlantPage({ params }: PlantPageProps) {
   const { qrCode } = params;
+  const { toast } = useToast();
   const [plant, setPlant] = useState<Plant | null>(null);
+  const [currentStatus, setCurrentStatus] = useState<string>(''); // Local state for status
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false); // Loading state for status update
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true); // Add loading state
 
+  // Fetch plant data
   useEffect(() => {
-    // Define the async function to fetch data inside useEffect
     const fetchPlantData = async () => {
-      setIsLoading(true); // Start loading
-      setError(null); // Reset error
-      setPlant(null); // Reset plant data
+      setIsLoading(true);
+      setError(null);
+      setPlant(null);
+      setCurrentStatus(''); // Reset status
 
-      // Guard against running fetch if qrCode is missing (though unlikely with route structure)
       if (!qrCode) {
           console.error("QR Code is missing in params.");
           setError("Código QR inválido ou ausente.");
@@ -43,26 +54,58 @@ export default function PlantPage({ params }: PlantPageProps) {
 
       try {
         console.log(`Fetching plant data for QR Code: ${qrCode} from service...`);
-        // Fetch data using the service function (which now correctly runs client-side)
         const fetchedPlant = await getPlantByQrCode(qrCode);
         if (!fetchedPlant) {
           setError(`Planta com QR Code '${qrCode}' não encontrada no armazenamento local. Verifique se foi cadastrada corretamente.`);
-          console.warn(`Plant with QR Code '${qrCode}' not found.`); // Use warn for not found
+          console.warn(`Plant with QR Code '${qrCode}' not found.`);
         } else {
           console.log(`Plant data fetched successfully for ${qrCode}:`, fetchedPlant);
           setPlant(fetchedPlant);
+          setCurrentStatus(fetchedPlant.status); // Initialize local status state
         }
       } catch (e) {
         console.error('Falha ao buscar dados da planta no serviço:', e);
         setError('Falha ao carregar dados da planta. Por favor, tente novamente mais tarde.');
       } finally {
-        setIsLoading(false); // Stop loading regardless of outcome
+        setIsLoading(false);
       }
     };
 
-    fetchPlantData(); // Call the async function
-
+    fetchPlantData();
   }, [qrCode]); // Dependency array includes qrCode
+
+  // --- Handle Status Update ---
+  const handleStatusChange = useCallback(async (newStatus: string) => {
+     if (!plant || newStatus === currentStatus || isUpdatingStatus) {
+       return; // No change or already updating
+     }
+
+     setIsUpdatingStatus(true);
+     console.log(`Attempting to update status for plant ${plant.id} to ${newStatus}`);
+
+     try {
+       await updatePlantStatus(plant.id, newStatus);
+       setCurrentStatus(newStatus); // Update local state on success
+       setPlant(prevPlant => prevPlant ? { ...prevPlant, status: newStatus } : null); // Update plant object state too
+       toast({
+         title: "Status Atualizado",
+         description: `O status da planta ${plant.strain} foi alterado para ${newStatus}.`,
+         variant: "default",
+       });
+     } catch (err: any) {
+       console.error('Falha ao atualizar status da planta:', err);
+       toast({
+         variant: "destructive",
+         title: "Erro ao Atualizar Status",
+         description: err.message || 'Não foi possível alterar o status da planta.',
+       });
+       // Optionally revert local state if needed, though keeping the selection might be better UX
+       // setCurrentStatus(plant.status);
+     } finally {
+       setIsUpdatingStatus(false);
+     }
+   }, [plant, currentStatus, isUpdatingStatus, toast]);
+
 
   // --- Loading State ---
   if (isLoading) {
@@ -83,8 +126,8 @@ export default function PlantPage({ params }: PlantPageProps) {
   if (error) {
     console.error(`Rendering error state: ${error}`);
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background via-muted/50 to-destructive/10">
-        <Card className="w-full max-w-md text-center shadow-xl border-destructive/50 card">
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background via-muted/50 to-destructive/10"> {/* Added subtle gradient */}
+        <Card className="w-full max-w-md text-center shadow-xl border-destructive/50 card"> {/* Added base card class */}
            <CardHeader>
              <div className="mx-auto bg-destructive/10 rounded-full p-3 w-fit mb-3">
                 <AlertCircle className="h-10 w-10 text-destructive" />
@@ -102,11 +145,8 @@ export default function PlantPage({ params }: PlantPageProps) {
     );
   }
 
-  // --- Not Found State (handled by error state now if plant is null after loading) ---
-  // Kept conceptually, but the check below is sufficient if loading completes and plant is still null
+  // --- Not Found State ---
   if (!plant) {
-     // This state should ideally not be reached if the error state handles null plants after loading.
-     // But kept as a fallback or if error logic changes.
      console.log(`Rendering 'not found' state for QR Code: ${qrCode} after loading.`);
      return (
         <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background to-secondary/10">
@@ -127,12 +167,13 @@ export default function PlantPage({ params }: PlantPageProps) {
   }
 
   // --- Success State ---
-  console.log(`Rendering success state for plant: ${plant.strain} (${plant.qrCode})`);
+  console.log(`Rendering success state for plant: ${plant.strain} (${plant.qrCode}) with status: ${currentStatus}`);
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
         <Card className="shadow-lg overflow-hidden border-primary/20 card">
             <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-5 md:p-6">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                    {/* Plant Title and Info */}
                     <div className="flex items-center gap-3">
                          <div className="bg-primary/10 p-3 rounded-lg">
                             <Leaf className="h-8 w-8 text-primary" />
@@ -146,9 +187,33 @@ export default function PlantPage({ params }: PlantPageProps) {
                              </CardDescription>
                          </div>
                     </div>
-                     <Badge variant="secondary" className="self-start sm:self-center text-base px-4 py-1.5 font-medium shadow-sm">
-                        Status: {plant.status}
-                    </Badge>
+                    {/* Status Badge and Selector */}
+                    <div className="flex items-center gap-2 self-start sm:self-center">
+                        <Badge variant="secondary" className="text-base px-3 py-1 font-medium shadow-sm flex items-center gap-1.5">
+                            {/* Icon based on status? Could be added later */}
+                            Status: {currentStatus}
+                        </Badge>
+                        {/* Status Change Select */}
+                        <Select
+                            value={currentStatus}
+                            onValueChange={handleStatusChange}
+                            disabled={isUpdatingStatus}
+                        >
+                            <SelectTrigger
+                                className="w-auto h-9 px-2 py-1 text-xs shadow-sm button focus:ring-offset-0 focus:ring-primary/50"
+                                aria-label="Alterar status da planta"
+                            >
+                                {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin"/> : <Pencil className="h-3 w-3" />}
+                            </SelectTrigger>
+                            <SelectContent align="end">
+                                {CANNABIS_STAGES.map((stage) => (
+                                    <SelectItem key={stage} value={stage}>
+                                        {stage}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
             </CardHeader>
 
@@ -163,19 +228,11 @@ export default function PlantPage({ params }: PlantPageProps) {
                    <Warehouse className="h-5 w-5 text-secondary flex-shrink-0" />
                     <span className="text-foreground"><strong className="font-medium">Sala de Cultivo:</strong> {plant.growRoomId}</span>
                 </div>
-                 {/* Example placeholders for potential future data */}
-                 {/*
-                 <div className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
-                   <Thermometer className="h-5 w-5 text-secondary flex-shrink-0" />
-                   <span className="text-foreground"><strong className="font-medium">Temp Média:</strong> 24°C</span>
-                 </div>
-                 ... etc
-                 */}
+                 {/* Example placeholders for potential future data can remain here */}
             </CardContent>
         </Card>
 
       {/* Pass plant ID to the diary component */}
-      {/* Ensure PlantDiary component exists and accepts plantId */}
       <PlantDiary plantId={plant.id} />
 
       {/* Back to Dashboard Button */}
@@ -189,5 +246,3 @@ export default function PlantPage({ params }: PlantPageProps) {
     </div>
   );
 }
-
-    

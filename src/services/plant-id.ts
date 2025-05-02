@@ -29,6 +29,21 @@ export interface Plant {
   status: string;
 }
 
+// Define os estágios comuns de crescimento da cannabis
+export const CANNABIS_STAGES = [
+  'Semente', // Seed
+  'Plântula', // Seedling
+  'Clone',    // Clone
+  'Vegetativo', // Vegetative
+  'Pré-floração', // Pre-flowering
+  'Floração', // Flowering
+  'Colhida', // Harvested
+  'Secagem', // Drying
+  'Cura', // Curing
+  'Finalizada', // Finished (e.g., discarded or completed lifecycle)
+];
+
+
 const LOCAL_STORAGE_KEY = 'cannalogPlants';
 
 // --- Helper Functions for localStorage ---
@@ -87,16 +102,18 @@ export async function getPlantByQrCode(qrCode: string): Promise<Plant | null> {
 
   console.log(`Buscando planta com QR Code: ${qrCode} no localStorage.`);
   const plants = loadPlantsFromLocalStorage();
-  const plant = plants[qrCode]; // QR code is the key
+  // Find the plant by QR code - iterate as QR code might not be the key if ID differs
+  const plant = Object.values(plants).find(p => p.qrCode === qrCode);
 
   if (plant) {
-    console.log(`Planta encontrada: ${plant.strain}`);
+    console.log(`Planta encontrada: ${plant.strain} (ID: ${plant.id})`);
     return plant;
   } else {
     console.log(`Nenhuma planta encontrada para o QR Code: ${qrCode}`);
     return null;
   }
 }
+
 
 /**
  * Adiciona uma nova planta ao armazenamento de dados (localStorage).
@@ -121,6 +138,38 @@ export async function addPlant(plantData: Plant): Promise<void> {
   savePlantsToLocalStorage(plants);
   console.log(`Planta '${plantData.strain}' adicionada com sucesso com ID: ${plantData.id}.`);
 }
+
+/**
+ * Updates the status of an existing plant in localStorage.
+ *
+ * @param plantId The ID of the plant to update.
+ * @param newStatus The new status string.
+ * @returns A promise that resolves when the plant status is updated. Rejects if the plant ID is not found.
+ */
+export async function updatePlantStatus(plantId: string, newStatus: string): Promise<void> {
+    // Simulate potential async nature
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    console.log(`Atualizando status da planta ID: ${plantId} para "${newStatus}" no localStorage.`);
+    const plants = loadPlantsFromLocalStorage();
+
+    if (!plants[plantId]) {
+        console.error(`Erro: Planta com ID '${plantId}' não encontrada para atualização de status.`);
+        throw new Error(`Planta com ID '${plantId}' não encontrada.`);
+    }
+
+    // Validate if newStatus is one of the allowed stages (optional but good practice)
+    if (!CANNABIS_STAGES.includes(newStatus)) {
+         console.warn(`Status "${newStatus}" não é um estágio padrão. Salvando mesmo assim.`);
+        // Optionally throw an error: throw new Error(`Status inválido: ${newStatus}`);
+    }
+
+
+    plants[plantId].status = newStatus;
+    savePlantsToLocalStorage(plants);
+    console.log(`Status da planta '${plants[plantId].strain}' (ID: ${plantId}) atualizado para "${newStatus}".`);
+}
+
 
 /**
  * Recupera uma lista de plantas recentes do localStorage.
@@ -177,3 +226,4 @@ export async function getRecentPlants(limit: number = 3): Promise<Plant[]> {
     const plants = loadPlantsFromLocalStorage();
     return Object.values(plants);
  }
+
