@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -18,13 +18,12 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Camera, Upload, Leaf, Bot, Loader2, AlertCircle, ImagePlus, RefreshCw } from 'lucide-react'; // Added RefreshCw
+import { Camera, Upload, Leaf, Bot, Loader2, AlertCircle, ImagePlus, RefreshCw, XCircle, VideoOff } from 'lucide-react'; // Added XCircle, VideoOff
 import Image from 'next/image';
 import { analyzePlantPhoto, type AnalyzePlantPhotoOutput } from '@/ai/flows/analyze-plant-photo';
 import type { DiaryEntry } from '@/types/diary-entry';
 // Import the function to add entries to localStorage
 import { addDiaryEntryToLocalStorage } from '@/types/diary-entry';
-import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label'; // Import Label explicitly
 import { useToast } from '@/hooks/use-toast'; // Import useToast
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -52,9 +51,9 @@ const diaryEntrySchema = z.object({
    ),
   humidity: z.preprocess(
          (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
-          z.number({ invalid_type_error: 'Umidade deve ser um número' }).min(0, "Umidade não pode ser negativa").max(100, "Umidade não pode ser maior que 100").optional().nullable() // Allow null
+          z.number({ invalid_type_error: 'Umidade não pode ser negativa' }).min(0, "Umidade não pode ser negativa").max(100, "Umidade não pode ser maior que 100").optional().nullable() // Allow null
    ),
-  // Photo data is handled separately via state (photoPreview, photoFile)
+  // Photo data is handled separately via state (photoPreview, photoFile - now just photoPreview from camera)
 });
 
 type DiaryEntryFormData = z.infer<typeof diaryEntrySchema>;
@@ -64,20 +63,25 @@ interface DiaryEntryFormProps {
   onNewEntry: (entry: DiaryEntry) => void; // Callback to notify parent about the new entry
 }
 
+type CameraStatus = 'idle' | 'permission-pending' | 'permission-denied' | 'streaming' | 'error';
+
 export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  // Keep photoFile state if needed for future real upload, but it won't be saved directly now
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalyzePlantPhotoOutput | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  // Remove uploadProgress as we are not simulating upload anymore
-  // const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const { toast } = useToast(); // Initialize toast
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Camera related state
+  const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle');
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [showCameraView, setShowCameraView] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
 
   const form = useForm<DiaryEntryFormData>({
     resolver: zodResolver(diaryEntrySchema),
@@ -92,72 +96,176 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     },
   });
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // Basic validation
-      if (!file.type.startsWith('image/')) {
-           toast({
-                variant: "destructive",
-                title: "Tipo de Arquivo Inválido",
-                description: "Por favor, selecione um arquivo de imagem (JPEG, PNG, GIF, etc.).",
-           });
-           setAnalysisError('Por favor, selecione um arquivo de imagem válido.');
-           if (fileInputRef.current) fileInputRef.current.value = '';
-           return;
-      }
-       if (file.size > 5 * 1024 * 1024) { // 5MB limit
-            toast({
-                variant: "destructive",
-                title: "Arquivo Muito Grande",
-                description: `O arquivo excede o limite de 5MB (${(file.size / (1024*1024)).toFixed(2)}MB).`,
-            });
-            setAnalysisError('A imagem é muito grande. O limite é 5MB.');
-           if (fileInputRef.current) fileInputRef.current.value = '';
-           return;
+  // --- Stop Media Stream ---
+  const stopMediaStream = useCallback(() => {
+    console.log("Attempting to stop media stream in Diary Form...");
+    if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+        console.log("Media stream stopped.");
+    } else {
+        console.log("No active media stream to stop.");
+    }
+    // Ensure video srcObject is cleared
+    if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject = null;
+        console.log("Video source object cleared.");
+    }
+    setCameraStatus('idle');
+  }, []);
+
+  // --- Request Camera Permission & Start Stream ---
+  const startCamera = useCallback(async () => {
+     console.log("Attempting to start camera in Diary Form...");
+     setCameraError(null);
+     setPhotoPreview(null); // Clear previous photo on camera start
+     setAnalysisResult(null);
+     setAnalysisError(null);
+     setCameraStatus('permission-pending');
+     setShowCameraView(true); // Show the video/status area
+
+    // Ensure necessary APIs are available
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('Camera API (getUserMedia) not supported or available.');
+        setCameraError('A API da câmera não é suportada neste navegador ou ambiente.');
+        setCameraStatus('error');
+        return;
+    }
+
+    try {
+      // Try to get the environment-facing camera first
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      console.log("Camera permission granted (environment facing).");
+      streamRef.current = stream;
+
+       if (videoRef.current) {
+           videoRef.current.srcObject = stream;
+           console.log("Video stream attached.");
+           try {
+                await videoRef.current.play();
+                console.log("Video play initiated.");
+                setCameraStatus('streaming');
+           } catch (playError) {
+               console.error("Error trying to play video:", playError);
+               setCameraError("Falha ao iniciar o vídeo da câmera.");
+               setCameraStatus('error');
+               stopMediaStream(); // Clean up stream if play failed
+           }
+       } else {
+           console.warn("Video ref not available when stream was ready.");
+           setCameraStatus('error');
+           setCameraError('Falha ao configurar a visualização da câmera.');
+           stopMediaStream(); // Cleanup stream if attachment failed
        }
 
-      setPhotoFile(file); // Keep the file if needed later
-       setAnalysisError(null);
-       setAnalysisResult(null);
-       setPhotoPreview(null);
+    } catch (error) {
+       console.warn('Error accessing environment camera, trying default:', error);
+        // Fallback to default camera if environment fails
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            console.log("Camera permission granted (default).");
+            streamRef.current = stream;
 
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result as string); // Store Data URI for preview and analysis
-      };
-      reader.onerror = () => {
-        console.error("Erro ao ler o arquivo.");
-        toast({
-            variant: "destructive",
-            title: "Erro ao Ler Arquivo",
-            description: "Não foi possível pré-visualizar a imagem.",
-        });
-         setAnalysisError('Erro ao carregar a pré-visualização da imagem.');
-         setPhotoFile(null);
-         setPhotoPreview(null);
-         if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-      reader.readAsDataURL(file);
-    } else {
-        setPhotoFile(null);
-        setPhotoPreview(null);
-        setAnalysisResult(null);
-        setAnalysisError(null);
-        if (fileInputRef.current) fileInputRef.current.value = '';
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                console.log("Video stream attached (default).");
+                 try {
+                    await videoRef.current.play();
+                    console.log("Video play initiated (default).");
+                    setCameraStatus('streaming');
+                 } catch (playError) {
+                    console.error("Error trying to play default video:", playError);
+                    setCameraError("Falha ao iniciar o vídeo da câmera padrão.");
+                    setCameraStatus('error');
+                    stopMediaStream();
+                 }
+            } else {
+               console.warn("Video ref not available when default stream was ready.");
+               setCameraStatus('error');
+               setCameraError('Falha ao configurar a visualização da câmera padrão.');
+               stopMediaStream();
+           }
+        } catch (finalError) {
+            console.error('Error accessing any camera:', finalError);
+            let errorMsg = 'Permissão da câmera negada. Habilite nas configurações do navegador.';
+            if (finalError instanceof Error) {
+                if (finalError.name === 'NotAllowedError') {
+                    errorMsg = 'Permissão da câmera negada pelo usuário.';
+                } else if (finalError.name === 'NotFoundError') {
+                    errorMsg = 'Nenhuma câmera encontrada ou compatível.';
+                } else if (finalError.name === 'NotReadableError' || finalError.name === 'OverconstrainedError') {
+                    errorMsg = 'Câmera já em uso ou não pode ser lida.';
+                } else {
+                    errorMsg = `Erro ao acessar câmera: ${finalError.message}`;
+                }
+            }
+            setCameraError(errorMsg);
+            setCameraStatus('permission-denied');
+            toast({
+                variant: 'destructive',
+                title: 'Erro de Câmera',
+                description: errorMsg,
+            });
+            stopMediaStream();
+        }
     }
-  };
+  }, [stopMediaStream, toast]); // Dependencies: cleanup func, toast
 
-  const triggerFileInput = () => {
-    fileInputRef.current?.click();
-  };
 
+  // --- Capture Photo Logic ---
+  const capturePhoto = useCallback(() => {
+    if (cameraStatus !== 'streaming' || !videoRef.current || !canvasRef.current) {
+      console.warn("Cannot capture photo, camera not ready or refs missing.");
+      toast({ variant: "destructive", title: "Erro", description: "Câmera não está pronta para capturar." });
+      return;
+    }
+
+    const videoElement = videoRef.current;
+    const canvasElement = canvasRef.current;
+    const context = canvasElement.getContext('2d');
+
+    if (!context) {
+      console.error("Failed to get canvas context.");
+      toast({ variant: "destructive", title: "Erro", description: "Não foi possível processar a imagem." });
+      return;
+    }
+
+    // Set canvas dimensions to match video intrinsic dimensions
+    canvasElement.width = videoElement.videoWidth;
+    canvasElement.height = videoElement.videoHeight;
+
+    // Draw the current video frame onto the canvas
+    context.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+
+    // Get the image data URL from the canvas
+    const dataUrl = canvasElement.toDataURL('image/jpeg', 0.9); // Use JPEG with quality 0.9
+
+    setPhotoPreview(dataUrl);
+    console.log("Photo captured successfully.");
+    toast({ title: "Foto Capturada!", description: "Você pode analisar ou salvar a entrada." });
+
+    // Stop the camera stream after capturing
+    stopMediaStream();
+    setShowCameraView(false); // Hide camera view, show preview
+
+  }, [cameraStatus, toast, stopMediaStream]);
+
+
+  // Cleanup stream on component unmount
+  useEffect(() => {
+    return () => {
+      stopMediaStream();
+    };
+  }, [stopMediaStream]);
+
+
+  // --- AI Analysis --- (No change needed here, triggered by button)
   const handleAnalyzePhoto = async () => {
     if (!photoPreview) {
         toast({
             variant: "destructive",
             title: "Nenhuma Foto",
-            description: "Selecione uma foto antes de analisar.",
+            description: "Capture uma foto antes de analisar.", // Updated message
         });
         return;
     }
@@ -193,22 +301,16 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     }
   };
 
+  // --- Form Submission --- (No change needed here, uses photoPreview)
   const onSubmit = async (data: DiaryEntryFormData) => {
      setIsSubmitting(true);
      setSubmitError(null);
-     // Removed setUploadProgress
 
      console.log('Iniciando envio para localStorage:', data);
-     // In a real app, you'd handle actual photo upload here before saving the entry
-     // Since we're using localStorage, we'll just use a placeholder or the preview URI if needed
 
     try {
-        // Use the Data URI from the preview as the photoUrl for mock storage.
-        // In a real app, this would be the URL returned by the storage service.
-        // If no preview, photoUrl remains null.
-        const photoUrlForStorage = photoPreview;
+        const photoUrlForStorage = photoPreview; // Use the captured photo Data URI
 
-        // Construct the new DiaryEntry object
         const newEntry: DiaryEntry = {
             id: `entry-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`, // More unique ID
             plantId: plantId,
@@ -221,23 +323,17 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
             ph: data.ph ?? null,
             temp: data.temp ?? null,
             humidity: data.humidity ?? null,
-            photoUrl: photoUrlForStorage, // Using the preview data URI (or null)
+            photoUrl: photoUrlForStorage, // Using the captured data URI (or null)
             aiSummary: analysisResult?.analysisResult || null,
         };
 
         console.log('Novo objeto de entrada:', newEntry);
-
-        // Directly call the function to add the entry to localStorage
         addDiaryEntryToLocalStorage(plantId, newEntry);
         console.log('Entrada adicionada ao localStorage.');
 
-
-        // Call the callback to update the parent component's UI immediately
         onNewEntry(newEntry);
         console.log('Callback onNewEntry chamado.');
 
-
-        // Show success toast
          toast({
            title: "Entrada Salva",
            description: "Sua entrada no diário foi adicionada com sucesso.",
@@ -247,12 +343,10 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
         // Reset form state completely
         form.reset();
         setPhotoPreview(null);
-        setPhotoFile(null);
         setAnalysisResult(null);
         setAnalysisError(null);
-        if (fileInputRef.current) fileInputRef.current.value = ''; // Clear file input
+        // No file input to clear
         console.log('Formulário e estados resetados.');
-
 
     } catch (error: any) {
         console.error('Erro ao salvar no localStorage:', error);
@@ -265,7 +359,6 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
         });
     } finally {
         setIsSubmitting(false);
-        // Removed setUploadProgress(null)
         console.log('Finalizado o processo de envio.');
     }
   };
@@ -327,7 +420,8 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                            <FormItem>
                              <FormLabel>Altura (cm)</FormLabel>
                              <FormControl>
-                                <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} value={field.value ?? ''} disabled={isSubmitting} className="input"/>
+                                {/* Ensure value is handled correctly for controlled number input */}
+                                <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isSubmitting} className="input"/>
                              </FormControl>
                              <FormMessage />
                            </FormItem>
@@ -340,7 +434,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                              <FormItem>
                                  <FormLabel>EC</FormLabel>
                                  <FormControl>
-                                     <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} value={field.value ?? ''} disabled={isSubmitting} className="input"/>
+                                     <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isSubmitting} className="input"/>
                                  </FormControl>
                                  <FormMessage />
                              </FormItem>
@@ -353,7 +447,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                              <FormItem>
                                  <FormLabel>pH</FormLabel>
                                  <FormControl>
-                                     <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} value={field.value ?? ''} disabled={isSubmitting} className="input"/>
+                                     <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isSubmitting} className="input"/>
                                  </FormControl>
                                  <FormMessage />
                              </FormItem>
@@ -366,7 +460,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                              <FormItem>
                                  <FormLabel>Temp (°C)</FormLabel>
                                  <FormControl>
-                                     <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} value={field.value ?? ''} disabled={isSubmitting} className="input"/>
+                                     <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isSubmitting} className="input"/>
                                  </FormControl>
                                  <FormMessage />
                              </FormItem>
@@ -379,7 +473,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                              <FormItem>
                                  <FormLabel>Umidade (%)</FormLabel>
                                  <FormControl>
-                                     <Input type="number" step="1" placeholder="ex: 55" {...field} value={field.value ?? ''} disabled={isSubmitting} className="input"/>
+                                     <Input type="number" step="1" placeholder="ex: 55" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isSubmitting} className="input"/>
                                  </FormControl>
                                  <FormMessage />
                              </FormItem>
@@ -389,13 +483,51 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
              </Card>
 
 
-            {/* Photo Section */}
+            {/* Photo Section - Updated for Camera */}
              <Card className="bg-muted/30 border border-border/50 p-4">
                  <Label className="text-base font-medium mb-3 block">Foto da Planta (Opcional)</Label>
                 <div className="flex flex-col md:flex-row items-start gap-4">
-                     {/* Upload Area */}
-                    <div className="w-full md:w-1/2 flex flex-col items-center justify-center border-2 border-dashed border-secondary/30 rounded-lg p-6 text-center bg-background hover:border-primary/50 transition-colors aspect-video md:aspect-auto md:h-auto min-h-[150px]">
-                        {photoPreview ? (
+                     {/* Camera/Preview Area */}
+                    <div className="w-full md:w-1/2 flex flex-col items-center justify-center border-2 border-dashed border-secondary/30 rounded-lg p-2 text-center bg-background transition-colors aspect-video md:aspect-auto md:h-auto min-h-[200px] relative overflow-hidden">
+                         {/* Canvas for capturing - hidden */}
+                        <canvas ref={canvasRef} className="hidden"></canvas>
+
+                        {showCameraView && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
+                                <video
+                                    ref={videoRef}
+                                    className={`w-full h-full object-cover transition-opacity duration-300 ${cameraStatus === 'streaming' ? 'opacity-100' : 'opacity-0'}`}
+                                    playsInline
+                                    muted
+                                    autoPlay
+                                />
+                                {/* Status Overlays */}
+                                {cameraStatus === 'permission-pending' && (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-white p-4 z-10">
+                                        <Loader2 className="h-10 w-10 animate-spin mb-3" />
+                                        <p className="font-semibold">Aguardando permissão...</p>
+                                    </div>
+                                )}
+                                {cameraStatus === 'permission-denied' && (
+                                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-white p-4 z-10">
+                                         <VideoOff className="h-10 w-10 text-destructive mb-3" />
+                                         <p className="font-semibold text-destructive">Acesso negado</p>
+                                         <p className="text-sm text-center mt-1">{cameraError || "Permissão da câmera negada."}</p>
+                                          <Button variant="secondary" size="sm" className="mt-4 button" onClick={startCamera}>Tentar Novamente</Button>
+                                     </div>
+                                )}
+                                 {cameraStatus === 'error' && (
+                                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-white p-4 z-10">
+                                         <AlertCircle className="h-10 w-10 text-destructive mb-3" />
+                                         <p className="font-semibold text-destructive">Erro na câmera</p>
+                                         <p className="text-sm text-center mt-1">{cameraError || "Não foi possível iniciar a câmera."}</p>
+                                          <Button variant="secondary" size="sm" className="mt-4 button" onClick={startCamera}>Tentar Novamente</Button>
+                                     </div>
+                                )}
+                            </div>
+                        )}
+
+                        {!showCameraView && photoPreview && (
                              <div className="relative group w-full h-full flex items-center justify-center">
                                 <Image
                                   data-ai-hint="cannabis plant user upload close up"
@@ -405,42 +537,73 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                                   objectFit="contain"
                                   className="rounded-md shadow-md"
                                 />
+                                {/* Overlay button to retake photo */}
+                                <Button
+                                     variant="outline"
+                                     size="sm"
+                                     className="absolute bottom-2 right-2 z-10 opacity-80 hover:opacity-100 button"
+                                     onClick={() => { setPhotoPreview(null); startCamera(); }} // Restart camera
+                                     disabled={isSubmitting || isAnalyzing}
+                                >
+                                     <RefreshCw className="mr-2 h-4 w-4" /> Retirar Foto
+                                </Button>
                              </div>
+                        )}
 
-                        ) : (
-                           <div className="flex flex-col items-center text-muted-foreground">
-                                <ImagePlus className="h-12 w-12 mb-2 text-secondary/50" />
-                                <span className="text-sm">Arraste uma foto ou clique para selecionar</span>
-                                <span className="text-xs mt-1">(Max 5MB)</span>
+                        {!showCameraView && !photoPreview && (
+                           <div className="flex flex-col items-center text-muted-foreground p-4">
+                                <Camera className="h-12 w-12 mb-3 text-secondary/50" />
+                                <span className="text-sm font-medium">Adicionar Foto</span>
+                                <span className="text-xs mt-1 text-center">Clique abaixo para ativar a câmera e capturar uma imagem.</span>
+                                 <Button
+                                     type="button"
+                                     variant="outline"
+                                     size="sm"
+                                     className="mt-4 button"
+                                     onClick={startCamera}
+                                     disabled={isSubmitting || isAnalyzing || cameraStatus === 'permission-pending'}
+                                   >
+                                     <Camera className="mr-2 h-4 w-4" /> Abrir Câmera
+                                </Button>
                            </div>
                         )}
-                         <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleFileChange}
-                            className="hidden"
-                            ref={fileInputRef}
-                            aria-label="Carregar foto da planta"
-                            disabled={isSubmitting || isAnalyzing}
-                         />
-                         <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="mt-4 button"
-                            onClick={triggerFileInput}
-                            disabled={isSubmitting || isAnalyzing}
-                          >
-                            <Upload className="mr-2 h-4 w-4" /> {photoPreview ? 'Trocar Foto' : 'Selecionar Foto'}
-                         </Button>
+
+                         {/* Capture/Cancel buttons when streaming */}
+                        {showCameraView && cameraStatus === 'streaming' && (
+                             <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 z-20 flex gap-3">
+                                <Button
+                                     type="button"
+                                     variant="destructive"
+                                     size="icon"
+                                     className="rounded-full h-12 w-12 shadow-lg button"
+                                     onClick={() => { stopMediaStream(); setShowCameraView(false); }}
+                                     disabled={isSubmitting || isAnalyzing}
+                                     aria-label="Cancelar Câmera"
+                                >
+                                     <XCircle className="h-6 w-6" />
+                                </Button>
+                                <Button
+                                     type="button"
+                                     variant="default" // Primary button for capture
+                                     size="icon"
+                                     className="rounded-full h-16 w-16 shadow-lg button border-4 border-background"
+                                     onClick={capturePhoto}
+                                     disabled={isSubmitting || isAnalyzing}
+                                     aria-label="Capturar Foto"
+                                >
+                                     <Camera className="h-7 w-7" />
+                                </Button>
+                             </div>
+                        )}
                      </div>
+
 
                      {/* Analysis Area */}
                      <div className="w-full md:w-1/2 space-y-3">
                          <Button
                            type="button"
                            onClick={handleAnalyzePhoto}
-                           disabled={!photoPreview || isAnalyzing || isSubmitting}
+                           disabled={!photoPreview || isAnalyzing || isSubmitting || showCameraView}
                            variant="secondary"
                            className="w-full button"
                           >
@@ -480,8 +643,6 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
 
             {/* Submission Area */}
             <div className="pt-4 space-y-3">
-                {/* Removed Progress Bar */}
-
                  {submitError && (
                     <Alert variant="destructive" className="p-3">
                       <AlertCircle className="h-4 w-4"/>
@@ -490,8 +651,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                      </Alert>
                  )}
 
-
-                <Button type="submit" size="lg" className="w-full font-semibold button" disabled={isSubmitting || isAnalyzing}>
+                <Button type="submit" size="lg" className="w-full font-semibold button" disabled={isSubmitting || isAnalyzing || showCameraView}>
                    {isSubmitting ? (
                      <>
                        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Salvando Entrada...
@@ -507,3 +667,4 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     </Card>
   );
 }
+
