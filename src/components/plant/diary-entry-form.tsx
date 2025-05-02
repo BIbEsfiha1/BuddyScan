@@ -301,7 +301,6 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                        <FormLabel>Estágio</FormLabel> {/* Translated */}
                        <FormControl>
                          {/* Consider using a Select component here */}
-                         {/* Removed explicit value={field.value ?? ''} */}
                          <Input placeholder="ex: Floração Semana 3" {...field} disabled={isSubmitting}/> {/* Translated */}
                        </FormControl>
                        <FormMessage />
@@ -315,7 +314,6 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                        <FormItem>
                          <FormLabel>Altura (cm)</FormLabel> {/* Translated */}
                          <FormControl>
-                            {/* Removed explicit value={field.value ?? ''} */}
                             <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} disabled={isSubmitting} />
                          </FormControl>
                          <FormMessage />
@@ -329,7 +327,6 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>EC</FormLabel>
                              <FormControl>
-                                 {/* Removed explicit value={field.value ?? ''} */}
                                  <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} disabled={isSubmitting} />
                              </FormControl>
                              <FormMessage />
@@ -343,7 +340,6 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>pH</FormLabel>
                              <FormControl>
-                                 {/* Removed explicit value={field.value ?? ''} */}
                                  <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} disabled={isSubmitting}/>
                              </FormControl>
                              <FormMessage />
@@ -357,7 +353,6 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>Temp (°C)</FormLabel>
                              <FormControl>
-                                 {/* Removed explicit value={field.value ?? ''} */}
                                  <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} disabled={isSubmitting}/>
                              </FormControl>
                              <FormMessage />
@@ -371,7 +366,6 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>Umidade (%)</FormLabel> {/* Translated */}
                              <FormControl>
-                                 {/* Removed explicit value={field.value ?? ''} */}
                                  <Input type="number" step="1" placeholder="ex: 55" {...field} disabled={isSubmitting} />
                              </FormControl>
                              <FormMessage />
