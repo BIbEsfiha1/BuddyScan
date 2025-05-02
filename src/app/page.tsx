@@ -22,10 +22,11 @@ import { Separator } from '@/components/ui/separator';
 import type { Plant } from '@/services/plant-id'; // Import Plant type
 import { getRecentPlants, getAttentionPlants, getPlantById } from '@/services/plant-id'; // Import Firestore fetch functions
 import Image from 'next/image'; // Import Image component
+import { cn } from '@/lib/utils'; // Import cn utility
 
 
 // Define states for camera/scanner
-type ScannerStatus = 'idle' | 'permission-pending' | 'permission-denied' | 'initializing' | 'scanning' | 'error' | 'stopped';
+type ScannerStatus = 'idle' | 'permission-pending' | 'permission-denied' | 'initializing' | 'scanning' | 'stopped' | 'error';
 
 export default function Home() {
   const router = useRouter();
@@ -173,8 +174,8 @@ export default function Home() {
        if (videoRef.current) {
            // Flip the video horizontally if it's the front-facing camera (common behavior)
            const isFrontFacing = stream.getVideoTracks()[0]?.getSettings()?.facingMode === 'user';
-           // Apply transform only if front facing (and only if needed - removed for now)
-           videoRef.current.style.transform = 'scaleX(1)'; // Ensure it's not mirrored by default
+           // Apply transform based on facing mode
+           videoRef.current.style.transform = isFrontFacing ? 'scaleX(-1)' : 'scaleX(1)';
 
            videoRef.current.srcObject = stream;
            console.log("Video stream attached.");
@@ -259,39 +260,41 @@ export default function Home() {
 
    // --- Start Scanning Interval ---
    const startScanning = useCallback(async () => {
-      stopScanInterval();
+      stopScanInterval(); // Stop any previous interval first
       console.log("Attempting to start scan interval...");
 
       if (!barcodeDetectorRef.current) {
          console.error("BarcodeDetector not available, cannot start scanning.");
          setScannerStatus('error');
          setScannerError('Leitor de QR code não inicializado ou não suportado.');
-         stopMediaStream();
+         stopMediaStream(); // Stop camera if scanner failed to initialize
          return;
       }
 
+      // Check if video element is ready and playing
       if (!videoRef.current || videoRef.current.paused || videoRef.current.ended || !videoRef.current.srcObject || videoRef.current.readyState < videoRef.current.HAVE_METADATA || videoRef.current.videoWidth === 0) {
           console.warn(`Video not ready/playing/attached for scanning. Status: ${scannerStatus}, Ref: ${!!videoRef.current}, Paused: ${videoRef.current?.paused}, Ended: ${videoRef.current?.ended}, SrcObj: ${!!videoRef.current?.srcObject}, ReadyState: ${videoRef.current?.readyState}, Width: ${videoRef.current?.videoWidth}`);
-           if (scannerStatus === 'scanning') {
-               console.log("Scan attempt failed while status was 'scanning', resetting to 'initializing'.");
-               setScannerStatus('initializing'); // Try re-initializing if scan failed while status was scanning
-           } else if (scannerStatus !== 'error' && scannerStatus !== 'permission-denied') {
-               // If not already error/denied, set to initializing to retry
+           // If the video isn't ready, don't start the interval, just wait for events or try again.
+           // Set status to initializing to potentially retry on video events.
+           if (scannerStatus !== 'error' && scannerStatus !== 'permission-denied') {
                setScannerStatus('initializing');
            }
           return;
       }
 
+     // Set status to scanning and start the interval
      setScannerStatus('scanning');
      console.log("Scanner status set to 'scanning'. Interval starting.");
 
      scanIntervalRef.current = setInterval(async () => {
-          // Check more robustly if scanning should continue
+          // Check again within the interval if scanning should continue
          if (!videoRef.current || videoRef.current.paused || videoRef.current.ended || !isDialogOpen || scannerStatus !== 'scanning' || videoRef.current.readyState < videoRef.current.HAVE_METADATA || videoRef.current.videoWidth === 0) {
              console.log(`Scan interval tick skipped or stopping. Status: ${scannerStatus}, Dialog: ${isDialogOpen}, Video Paused: ${videoRef.current?.paused}, Ready: ${videoRef.current?.readyState}, Width: ${videoRef.current?.videoWidth}`);
              stopScanInterval(); // Stop if conditions aren't met
-             // Optionally reset status if it was scanning
-             if (scannerStatus === 'scanning') setScannerStatus('initializing');
+             // Optionally reset status to allow restart if conditions change
+             if (scannerStatus === 'scanning' && isDialogOpen && videoRef.current && videoRef.current.srcObject) {
+                 setScannerStatus('initializing');
+             }
              return;
          }
 
@@ -303,6 +306,15 @@ export default function Home() {
               setScannerError('Leitor de QR code falhou durante o escaneamento.');
               return;
           }
+
+          // Check if video element is still valid for detection
+           if (!videoRef.current || videoRef.current.readyState < videoRef.current.HAVE_METADATA || videoRef.current.videoWidth === 0) {
+               console.warn("Video element not ready for detection within interval.");
+               // Optionally stop and reset status
+               // stopScanInterval();
+               // setScannerStatus('initializing');
+               return; // Skip this detection attempt
+           }
 
           const barcodes = await barcodeDetectorRef.current.detect(videoRef.current);
 
@@ -359,16 +371,21 @@ export default function Home() {
          if (error instanceof DOMException && (error.name === 'NotSupportedError' || error.name === 'InvalidStateError' || error.name === 'OperationError')) {
              console.warn('DOMException during barcode detection (likely temporary/benign):', error.message);
              // Don't necessarily stop scanning for these, might be recoverable
+         } else if (error.message && error.message.includes("video source is detached")) {
+              console.warn("Video source detached error during detection. Stopping scan.", error);
+              stopScanInterval();
+              setScannerStatus('error');
+              setScannerError('Fonte de vídeo desconectada.');
          } else {
              console.error('Erro durante a detecção do código de barras:', error);
-              stopScanInterval(); // Stop scanning on other errors
+             stopScanInterval(); // Stop scanning on other errors
              setScannerStatus('error');
              setScannerError('Falha ao detectar o código de barras.');
          }
        }
-     }, 500); // Interval duration
+     }, 500); // Interval duration (adjust if needed, e.g., 300ms for faster scans)
      console.log("Scan interval setup complete.");
-   }, [stopScanInterval, stopMediaStream, toast, scannerStatus, isDialogOpen]); // Removed startScanning from deps
+   }, [stopScanInterval, stopMediaStream, toast, isDialogOpen, scannerStatus]); // Added isDialogOpen and scannerStatus
 
 
   // --- Dialog Open/Close Handlers ---
@@ -402,13 +419,13 @@ export default function Home() {
                 title: 'Erro de Compatibilidade',
                 description: errorMsg,
             });
-            setIsDialogOpen(false);
+            setIsDialogOpen(false); // Prevent opening if incompatible
             return;
         }
 
         setScannerError(null);
         setScannerStatus('idle'); // Start as idle, camera starts, then initializing
-        setIsDialogOpen(true);
+        setIsDialogOpen(true); // Set dialog open state *before* starting camera
         startCamera(); // Initiate camera start
         console.log("Dialog state set to open, camera start initiated.");
 
@@ -640,41 +657,58 @@ export default function Home() {
           </DialogHeader>
 
           {/* Container for video and overlays */}
-           <div className="relative mt-4 aspect-square w-full max-w-[400px] mx-auto overflow-hidden rounded-lg bg-muted shadow-inner">
+           <div className={cn(
+                "relative mt-4 aspect-square w-full max-w-[400px] mx-auto overflow-hidden rounded-lg bg-muted shadow-inner",
+                "scanner-background-effect" // Add subtle background pattern
+            )}>
               {/* Video element - Ensure playsInline */}
               <video
                   ref={videoRef}
-                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
-                      ['initializing', 'scanning', 'stopped'].includes(scannerStatus) ? 'opacity-100' : 'opacity-0'
-                  }`}
+                  className={cn(
+                    `absolute inset-0 h-full w-full object-cover transition-opacity duration-500`,
+                    {
+                      'opacity-100': ['initializing', 'scanning', 'stopped'].includes(scannerStatus),
+                      'opacity-0': !['initializing', 'scanning', 'stopped'].includes(scannerStatus),
+                    }
+                  )}
                   playsInline // Important for mobile inline playback
                   muted // Mute to avoid feedback loops and allow autoplay
                   autoPlay // Request autoplay
-                  style={{ transform: 'scaleX(1)' }} // Default scale
+                  // Removed explicit style, handled by state + mirror logic
               />
 
              {/* Visual Guide Overlay */}
-             {(scannerStatus === 'scanning' || scannerStatus === 'initializing') && (
+             {(scannerStatus === 'scanning' || scannerStatus === 'initializing' || scannerStatus === 'stopped') && ( // Show guide when camera is potentially active
                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                     <div className="absolute inset-0 bg-gradient-radial from-transparent via-background/70 to-background/90"></div>
-                     <div className="relative w-[70%] h-[70%] border-2 border-primary/50 rounded-lg animate-pulse-border flex items-center justify-center overflow-hidden">
-                         <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-accent animate-pulse rounded-tl-md z-20"></div>
-                         <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-accent animate-pulse rounded-tr-md z-20"></div>
-                         <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-accent animate-pulse rounded-bl-md z-20"></div>
-                         <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-accent animate-pulse rounded-br-md z-20"></div>
-                         {/* Scan Line - Ensure it's visible */}
+                      {/* Faded background effect */}
+                     <div className="absolute inset-0 bg-gradient-radial from-transparent via-background/50 to-background/80"></div>
+                      {/* Focus Box */}
+                     <div className="relative w-[70%] h-[70%] border-2 border-primary/50 rounded-lg animate-pulse-border flex items-center justify-center overflow-hidden shadow-xl shadow-primary/20">
+                         {/* Corner Highlights - Now using the new pulse animation */}
+                         <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-accent animate-pulse-corners rounded-tl-md z-20"></div>
+                         <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-accent animate-pulse-corners rounded-tr-md z-20"></div>
+                         <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-accent animate-pulse-corners rounded-bl-md z-20"></div>
+                         <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-accent animate-pulse-corners rounded-br-md z-20"></div>
+
+                         {/* Scan Line - Now using the new pulse animation */}
                          {scannerStatus === 'scanning' && (
                             <div
-                                className="absolute bg-gradient-to-r from-transparent via-accent to-transparent shadow-[0_0_10px_1px_hsl(var(--accent)/0.6)] rounded-full animate-scan-line-vertical"
+                                className="animate-scan-line-vertical" // Use the enhanced animation class
                                 style={{ background: 'linear-gradient(90deg, transparent, hsl(var(--accent)), transparent)' }} // Explicit gradient
                            />
                          )}
+                         {/* Text inside focus box (optional) */}
+                          {scannerStatus === 'scanning' && (
+                            <p className="absolute bottom-4 text-xs text-accent font-medium drop-shadow-md z-30">
+                                ESCANEANDO...
+                            </p>
+                          )}
                      </div>
                  </div>
              )}
 
 
-             {/* Status Overlay */}
+             {/* Status Overlay (non-scanning states) */}
              {!['scanning', 'stopped'].includes(scannerStatus) && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-background/90 via-background/95 to-background/90 text-center p-4 rounded-lg z-10 transition-opacity duration-300">
                        {scannerStatus === 'permission-pending' && (
@@ -745,3 +779,5 @@ export default function Home() {
     </div>
   );
 }
+
+    

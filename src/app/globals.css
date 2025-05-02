@@ -106,37 +106,41 @@ body {
 }
 
 /* Keyframes for animations */
-/* Simplified vertical scan line animation */
+/* Enhanced vertical scan line animation */
 @keyframes scan-line-vertical {
   0% {
-    transform: translateY(0%);
+    transform: translateY(0);
     opacity: 0.8;
+    filter: drop-shadow(0 0 6px hsla(var(--accent) / 0.7)); /* Glow effect */
   }
   50% {
-    transform: translateY(calc(100% - 2px)); /* Move to bottom */
+    transform: translateY(calc(100% - 2px));
     opacity: 0.8;
+    filter: drop-shadow(0 0 10px hsla(var(--accent) / 0.8)); /* Brighter glow at bottom */
   }
   100% {
-    transform: translateY(0%); /* Move back to top */
+    transform: translateY(0);
     opacity: 0.8;
+    filter: drop-shadow(0 0 6px hsla(var(--accent) / 0.7));
   }
 }
 
-
 .animate-scan-line-vertical {
-  animation: scan-line-vertical 3.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; /* Smoother timing, longer duration */
+  animation: scan-line-vertical 2.8s cubic-bezier(0.5, 0, 0.5, 1) infinite; /* Faster, different easing */
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 2px;
   z-index: 10;
-  /* Gradient background defined in JSX/TSX or style prop for dynamic colors */
+  /* Gradient remains defined inline for dynamic color, but ensure it's visible */
   /* Example static gradient (replace hsl var if using inline styles): */
-   /* background: linear-gradient(90deg, transparent, hsl(var(--accent)), transparent); */
+  /* background: linear-gradient(90deg, transparent, hsl(var(--accent)), transparent); */
+  /* Add a slight blur for a softer effect */
+  filter: blur(0.5px);
 }
 
-/* Keyframe for pulsing border */
+/* Keyframe for pulsing border - Remains same */
 @keyframes pulse-border {
   0%, 100% { border-color: hsla(var(--primary) / 0.5); box-shadow: 0 0 10px 2px hsla(var(--primary) / 0.2); }
   50% { border-color: hsla(var(--primary) / 0.8); box-shadow: 0 0 18px 4px hsla(var(--primary) / 0.3); }
@@ -146,12 +150,35 @@ body {
   animation: pulse-border 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Keyframe for pulsing corners (can use Tailwind's animate-pulse directly if sufficient) */
-/* If more control is needed:
+/* Keyframe for pulsing corners - Enhanced */
 @keyframes pulse-corners {
-  0%, 100% { border-color: hsl(var(--accent)); opacity: 0.7; }
-  50% { border-color: hsl(var(--accent)); opacity: 1; }
+  0%, 100% {
+    border-color: hsla(var(--accent) / 0.7);
+    box-shadow: 0 0 8px 1px hsla(var(--accent) / 0.3);
+    opacity: 0.8;
+  }
+  50% {
+    border-color: hsla(var(--accent) / 1);
+    box-shadow: 0 0 14px 2px hsla(var(--accent) / 0.4);
+    opacity: 1;
+  }
 }
 .animate-pulse-corners {
   animation: pulse-corners 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-} */
+}
+
+/* Subtle background grid/scan effect (optional) */
+@keyframes subtle-scan-bg {
+    0% { background-position: 0% 0%; }
+    100% { background-position: 0% 100%; }
+}
+
+.scanner-background-effect {
+    background-image:
+        linear-gradient(hsla(var(--primary) / 0.05) 1px, transparent 1px),
+        linear-gradient(to right, hsla(var(--primary) / 0.05) 1px, transparent 1px);
+    background-size: 20px 20px;
+    /* animation: subtle-scan-bg 10s linear infinite; */ /* Can be too distracting, keep subtle */
+}
+
+    
