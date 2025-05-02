@@ -1,6 +1,6 @@
 // src/lib/firebase/config.ts
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
+import { getAuth, Auth, browserLocalPersistence, initializeAuth } from 'firebase/auth';
 // import { getFirestore } from 'firebase/firestore'; // Keep for future Firestore use
 // import { getStorage } from 'firebase/storage'; // Keep for future Storage use
 
@@ -22,6 +22,8 @@ function hasFirebaseConfig(): boolean {
         firebaseConfig.apiKey &&
         firebaseConfig.authDomain &&
         firebaseConfig.projectId &&
+        // Storage Bucket, Messaging Sender ID, App ID are often less critical for basic auth
+        // Keep checks if needed, but API Key, Auth Domain, Project ID are usually essential
         firebaseConfig.storageBucket &&
         firebaseConfig.messagingSenderId &&
         firebaseConfig.appId
@@ -45,25 +47,21 @@ if (typeof window !== 'undefined' && !hasFirebaseConfig()) {
 
 
 // Initialize Firebase
-let app: FirebaseApp;
-let auth: Auth;
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let firebaseInitializationError: Error | null = null;
 
 try {
     if (!getApps().length) {
-      // Check if all config values are present before initializing
+      // Check if all essential config values are present before initializing
       if (hasFirebaseConfig()) {
+        console.log("Attempting Firebase initialization...");
         app = initializeApp(firebaseConfig); // This line might throw if the key is invalid
-        console.log('Firebase initialized.');
+        console.log('Firebase app initialized.');
       } else {
-         // This block handles MISSING variables, not invalid ones.
+         // This block handles MISSING variables.
          console.error('Firebase initialization skipped due to missing environment variables.');
-         // Assign dummy app/auth to prevent runtime errors where they are expected
-         // @ts-ignore - Assigning partial config for error case
-         app = {} as FirebaseApp;
-         // @ts-ignore
-         auth = {} as Auth;
-         // Optionally throw an error or handle this case gracefully depending on requirements
-         // throw new Error("Firebase environment variables are missing.");
+         firebaseInitializationError = new Error("Firebase environment variables are missing.");
       }
     } else {
       app = getApp();
@@ -71,29 +69,34 @@ try {
     }
 
     // Initialize Auth only if app was successfully initialized
-    // Check if 'app' has necessary methods to be considered initialized
-    if (app && app.options && app.options.apiKey) {
-        auth = getAuth(app);
+    if (app) {
+        console.log("Attempting Firebase Auth initialization...");
+        // Use initializeAuth for better compatibility with different environments (client/server)
+        // and persistence options.
+        auth = initializeAuth(app, {
+            persistence: browserLocalPersistence, // Use local persistence
+            // Useful for debugging popup/redirect issues:
+            // popupRedirectResolver: browserPopupRedirectResolver,
+        });
+        console.log('Firebase Auth initialized.');
     } else {
         // Handle the case where app initialization failed (e.g., missing vars)
         console.error('Firebase Auth initialization skipped because app initialization failed or was skipped.');
-         // @ts-ignore
-        auth = {} as Auth;
+        if (!firebaseInitializationError) {
+            firebaseInitializationError = new Error("Firebase app initialization failed.");
+        }
     }
 
-} catch (error) {
-    // This catch block should catch the auth/api-key-not-valid error if initializeApp throws it
-    console.error("Error initializing Firebase:", error); // Log the actual error
-     // Assign dummy app/auth in case of unexpected initialization errors
-     // @ts-ignore
-    app = {} as FirebaseApp;
-     // @ts-ignore
-    auth = {} as Auth;
+} catch (error: any) {
+    // This catch block should catch errors like auth/api-key-not-valid if initializeApp or initializeAuth throws it
+    console.error("Error initializing Firebase or Auth:", error); // Log the actual error
+    firebaseInitializationError = error; // Store the error
+    app = null; // Ensure app is null on error
+    auth = null; // Ensure auth is null on error
 }
 
-// const db = getFirestore(app); // Keep for future Firestore use
-// const storage = getStorage(app); // Keep for future Storage use
-
-export { app, auth };
+// Export the initialized instances and the potential error
+export { app, auth, firebaseInitializationError };
 // export { db, storage }; // Keep for future use
+
 
