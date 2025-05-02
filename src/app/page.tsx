@@ -505,7 +505,7 @@ export default function Home() {
             <video
               ref={videoRef}
               // Apply scaleX(-1) to mirror the video feed for a more natural user experience
-              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 transform scale-x-[-1] ${scannerStatus === 'scanning' || scannerStatus === 'initializing' || scannerStatus === 'stopped' ? 'opacity-100' : 'opacity-0'}`}
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${scannerStatus === 'scanning' || scannerStatus === 'initializing' || scannerStatus === 'stopped' ? 'opacity-100' : 'opacity-0'}`} // Removed transform scale-x-[-1]
               playsInline // Essential for iOS Safari
               muted // Required for autoplay in most browsers
             />
