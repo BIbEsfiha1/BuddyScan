@@ -53,17 +53,17 @@ export default function Home() {
 
   // Initialize BarcodeDetector only once on mount
   useEffect(() => {
-    if ('BarcodeDetector' in window && !barcodeDetectorRef.current) {
+    if (typeof window !== 'undefined' && 'BarcodeDetector' in window && !barcodeDetectorRef.current) {
       try {
         // @ts-ignore - Suppress type checking for experimental API
         barcodeDetectorRef.current = new BarcodeDetector({ formats: ['qr_code'] });
-        console.log('BarcodeDetector initialized');
+        console.log('BarcodeDetector initialized successfully.');
       } catch (error) {
         console.error('Failed to initialize BarcodeDetector:', error);
         // Don't set state immediately, let user trigger scan first
       }
-    } else if (!('BarcodeDetector' in window)) {
-        console.warn('BarcodeDetector API not supported.');
+    } else if (typeof window !== 'undefined' && !('BarcodeDetector' in window)) {
+        console.warn('BarcodeDetector API not supported in this browser.');
         // Don't set state immediately
     }
   }, []); // Empty dependency array ensures this runs only once
@@ -232,6 +232,95 @@ export default function Home() {
     }
   }, [stopMediaStream, toast]); // Dependencies: cleanup func, toast
 
+   // --- Start Scanning Interval ---
+   const startScanning = useCallback(() => {
+      stopScanInterval(); // Clear any existing interval first
+      console.log("Starting scan interval...");
+
+      if (!barcodeDetectorRef.current) {
+         console.error("BarcodeDetector not available for scanning.");
+         setScannerStatus('error');
+         setScannerError('Leitor de QR code não está pronto.');
+         stopMediaStream(); // Stop camera if detector failed
+         return;
+      }
+      // Ensure videoRef.current exists before accessing its properties
+      if (!videoRef.current || videoRef.current.paused || videoRef.current.ended || !videoRef.current.srcObject) {
+          console.warn(`Video not ready/playing/attached, cannot start scan. Status: ${scannerStatus}, Ref: ${!!videoRef.current}, Paused: ${videoRef.current?.paused}, Ended: ${videoRef.current?.ended}, SrcObject: ${!!videoRef.current?.srcObject}`);
+          setScannerStatus('error');
+          setScannerError('Falha ao iniciar a câmera para escaneamento.');
+          stopMediaStream();
+          return;
+      }
+
+     setScannerStatus('scanning');
+     console.log("Scanner status set to 'scanning'.");
+
+     scanIntervalRef.current = setInterval(async () => {
+         // Check conditions inside interval
+         if (!videoRef.current || videoRef.current.paused || videoRef.current.ended || !isDialogOpen || scannerStatus !== 'scanning') {
+             console.log(`Scan interval tick skipped or stopping: Status: ${scannerStatus}, Dialog Open: ${isDialogOpen}, Video Paused: ${videoRef.current?.paused}`);
+             stopScanInterval();
+             return;
+         }
+         // Crucial check: Ensure the video is ready to be processed
+         if (videoRef.current.readyState < videoRef.current.HAVE_ENOUGH_DATA) {
+             console.log("Video not ready for detection (readyState < HAVE_ENOUGH_DATA). Skipping detect call.");
+             return;
+         }
+
+       try {
+          if (!barcodeDetectorRef.current) {
+              console.warn("BarcodeDetector became unavailable during scanning.");
+              stopScanInterval();
+              setScannerStatus('error');
+              setScannerError('Leitor de QR code falhou durante o escaneamento.');
+              return;
+          }
+
+          // Check if video has dimensions before detecting (redundant if readyState checked, but safe)
+          if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
+             console.log("Video dimensions not yet available, skipping detect call.");
+             return; // Wait for video to have dimensions
+          }
+
+          console.log("Attempting barcode detection...");
+          const barcodes = await barcodeDetectorRef.current.detect(videoRef.current);
+          console.log(`Detection result: ${barcodes.length} barcode(s) found.`);
+
+         if (barcodes.length > 0 && scannerStatus === 'scanning' && isDialogOpen) { // Double check status and dialog open
+           const qrCodeData = barcodes[0].rawValue;
+           console.log('QR Code detectado:', qrCodeData);
+
+           stopScanInterval(); // Stop scanning interval first
+           setScannerStatus('stopped'); // Indicate scanning stopped successfully (keeps video frame)
+
+           toast({ title: 'QR Code Detectado!', description: `Redirecionando para planta ${qrCodeData}...` });
+
+           // Use sessionStorage to pass data before navigation
+           sessionStorage.setItem('pendingNavigationQr', qrCodeData);
+           // Call handleOpenChange(false) to trigger close and navigation
+           // Needs handleOpenChange to be defined *before* this callback.
+           // We'll move handleOpenChange definition up.
+           handleOpenChange(false); // Use the correct closer function
+
+         }
+       } catch (error: any) {
+         // Ignore detection errors if they are DOMExceptions (can happen during stream transitions)
+         if (error instanceof DOMException && (error.name === 'NotSupportedError' || error.name === 'InvalidStateError')) {
+             console.warn('DOMException during barcode detection (likely temporary):', error.message);
+         } else {
+             console.error('Erro durante a detecção do código de barras:', error);
+              // Consider logging without stopping if errors are frequent but temporary
+              // stopScanInterval();
+              // setScannerStatus('error');
+              // setScannerError(`Falha ao escanear QR code: ${error.message || 'Erro desconhecido'}`);
+         }
+       }
+     }, 700); // Increased scan interval slightly
+     console.log("Scan interval setup complete.");
+   }, [stopScanInterval, stopMediaStream, toast, scannerStatus, isDialogOpen, () => handleOpenChange(false)]); // Dependency on handleOpenChange requires it to be defined above or wrapped if needed.
+
 
   // --- Dialog Open/Close Handlers ---
    const handleDialogClose = useCallback(() => {
@@ -256,8 +345,8 @@ export default function Home() {
    const handleDialogOpen = useCallback(() => {
         console.log(`Dialog opening...`);
         // Check prerequisites before attempting to start camera
-        if (!('BarcodeDetector' in window) || !window.BarcodeDetector || !barcodeDetectorRef.current) {
-            const errorMsg = !('BarcodeDetector' in window) || !window.BarcodeDetector
+        if (typeof window === 'undefined' || !('BarcodeDetector' in window) || !window.BarcodeDetector || !barcodeDetectorRef.current) {
+            const errorMsg = typeof window === 'undefined' || !('BarcodeDetector' in window) || !window.BarcodeDetector
                 ? 'O escaneamento de QR code não é suportado neste navegador.'
                 : 'Não foi possível inicializar o leitor de QR code. Tente recarregar a página.';
             console.error("Prerequisite check failed:", errorMsg);
@@ -279,7 +368,7 @@ export default function Home() {
 
    }, [startCamera, toast]);
 
-    // handleOpenChange uses handleDialogOpen and handleDialogClose
+    // Define handleOpenChange *before* startScanning uses it.
     const handleOpenChange = useCallback((open: boolean) => {
        console.log(`handleOpenChange called with open: ${open}`);
        if (open) {
@@ -293,84 +382,6 @@ export default function Home() {
        }
    }, [handleDialogOpen, handleDialogClose, isDialogOpen]); // Depends on handlers defined above
 
-
-  // --- Start Scanning Interval ---
-  const startScanning = useCallback(() => {
-     stopScanInterval(); // Clear any existing interval first
-     console.log("Starting scan interval...");
-
-     if (!barcodeDetectorRef.current) {
-        console.error("BarcodeDetector not available for scanning.");
-        setScannerStatus('error');
-        setScannerError('Leitor de QR code não está pronto.');
-        stopMediaStream(); // Stop camera if detector failed
-        return;
-     }
-     if (!videoRef.current || videoRef.current.paused || videoRef.current.ended || !videoRef.current.srcObject) {
-         console.warn(`Video not ready/playing/attached, cannot start scan. Status: ${scannerStatus}, Paused: ${videoRef.current?.paused}, Ended: ${videoRef.current?.ended}, SrcObject: ${!!videoRef.current?.srcObject}`);
-         setScannerStatus('error');
-         setScannerError('Falha ao iniciar a câmera para escaneamento.');
-         stopMediaStream();
-         return;
-     }
-
-    setScannerStatus('scanning');
-    console.log("Scanner status set to 'scanning'.");
-
-    scanIntervalRef.current = setInterval(async () => {
-        // Check conditions inside interval
-        if (!videoRef.current || videoRef.current.paused || videoRef.current.ended || !isDialogOpen || scannerStatus !== 'scanning') {
-            console.log(`Scan interval tick skipped or stopping: Status: ${scannerStatus}, Dialog Open: ${isDialogOpen}, Video Paused: ${videoRef.current?.paused}`);
-            stopScanInterval();
-            return;
-        }
-
-      try {
-         if (!barcodeDetectorRef.current) {
-             console.warn("BarcodeDetector became unavailable during scanning.");
-             stopScanInterval();
-             setScannerStatus('error');
-             setScannerError('Leitor de QR code falhou durante o escaneamento.');
-             return;
-         }
-
-         // Check if video has dimensions before detecting
-         if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
-            console.log("Video dimensions not yet available, skipping detect call.");
-            return; // Wait for video to have dimensions
-         }
-
-        const barcodes = await barcodeDetectorRef.current.detect(videoRef.current);
-
-        if (barcodes.length > 0 && scannerStatus === 'scanning' && isDialogOpen) { // Double check status and dialog open
-          const qrCodeData = barcodes[0].rawValue;
-          console.log('QR Code detectado:', qrCodeData);
-
-          stopScanInterval(); // Stop scanning interval first
-          setScannerStatus('stopped'); // Indicate scanning stopped successfully (keeps video frame)
-
-          toast({ title: 'QR Code Detectado!', description: `Redirecionando para planta ${qrCodeData}...` });
-
-          // Use sessionStorage to pass data before navigation
-          sessionStorage.setItem('pendingNavigationQr', qrCodeData);
-          handleOpenChange(false); // Trigger dialog close, which handles cleanup and navigation
-
-        }
-      } catch (error: any) {
-        // Ignore detection errors if they are DOMExceptions (can happen during stream transitions)
-        if (error instanceof DOMException && (error.name === 'NotSupportedError' || error.name === 'InvalidStateError')) {
-            console.warn('DOMException during barcode detection:', error.message);
-        } else {
-            console.error('Erro durante a detecção do código de barras:', error);
-             // Consider logging without stopping if errors are frequent but temporary
-             // stopScanInterval();
-             // setScannerStatus('error');
-             // setScannerError(`Falha ao escanear QR code: ${error.message || 'Erro desconhecido'}`);
-        }
-      }
-    }, 700); // Increased scan interval slightly
-    console.log("Scan interval setup complete.");
-  }, [stopScanInterval, stopMediaStream, toast, scannerStatus, isDialogOpen, handleOpenChange]); // handleOpenChange is now defined
 
 
    // --- Effect to manage video events ---
@@ -521,23 +532,7 @@ export default function Home() {
                    </div>
                 </Card>
                ) : (
-                 <AttentionPlants plants={attentionPlants.map(p => {
-                     // Determine attention reason and last updated based on plant data (mocked here)
-                     // In a real app, this logic would be based on diary entries or sensor data
-                     const attentionReason = `Verificar: ${p.status}`; // Simple reason based on status
-                     const lastUpdated = new Date(p.birthDate).toLocaleDateString('pt-BR'); // Use birthDate as proxy
-
-                     return {
-                         id: p.id,
-                         qrCode: p.qrCode,
-                         strain: p.strain,
-                         status: p.status,
-                         attentionReason: attentionReason,
-                         lastUpdated: lastUpdated,
-                         // Use a placeholder image logic similar to RecentPlants
-                         photoUrl: `https://picsum.photos/seed/cannabis-${p.status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-problem/100/100`
-                     };
-                 })} />
+                 <AttentionPlants plants={attentionPlants} />
                )}
 
 
@@ -557,17 +552,7 @@ export default function Home() {
                      </div>
                  </Card>
               ) : (
-                 <RecentPlants plants={recentPlants.map(p => {
-                      const lastUpdated = new Date(p.birthDate).toLocaleDateString('pt-BR'); // Use birthDate as proxy
-                      return {
-                          id: p.id,
-                          qrCode: p.qrCode,
-                          strain: p.strain,
-                          status: p.status,
-                          lastUpdated: lastUpdated,
-                          photoUrl: `https://picsum.photos/seed/cannabis-${p.status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/100/100`
-                      };
-                  })} />
+                 <RecentPlants plants={recentPlants} />
               )}
            </div>
 
@@ -601,17 +586,18 @@ export default function Home() {
                      <div className="absolute inset-0 bg-gradient-radial from-transparent via-background/70 to-background/90"></div>
 
                      {/* Focus Box with Pulsing Border */}
-                    <div className="relative w-[70%] h-[70%] border-2 border-primary/50 rounded-lg animate-pulse-border flex items-center justify-center">
+                    <div className="relative w-[70%] h-[70%] border-2 border-primary/50 rounded-lg animate-pulse-border flex items-center justify-center overflow-hidden"> {/* Added overflow-hidden */}
                        {/* Pulsing Corner Brackets */}
-                       <div className="absolute -top-1 -left-1 w-6 h-6 border-t-2 border-l-2 border-accent animate-pulse rounded-tl-md"></div>
-                       <div className="absolute -top-1 -right-1 w-6 h-6 border-t-2 border-r-2 border-accent animate-pulse rounded-tr-md"></div>
-                       <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-2 border-l-2 border-accent animate-pulse rounded-bl-md"></div>
-                       <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-2 border-r-2 border-accent animate-pulse rounded-br-md"></div>
+                       <div className="absolute -top-1 -left-1 w-6 h-6 border-t-2 border-l-2 border-accent animate-pulse rounded-tl-md z-20"></div>
+                       <div className="absolute -top-1 -right-1 w-6 h-6 border-t-2 border-r-2 border-accent animate-pulse rounded-tr-md z-20"></div>
+                       <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-2 border-l-2 border-accent animate-pulse rounded-bl-md z-20"></div>
+                       <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-2 border-r-2 border-accent animate-pulse rounded-br-md z-20"></div>
 
                        {/* Animated Scan Line (only when actively scanning) */}
                        {scannerStatus === 'scanning' && (
                           // Use a div with gradient background for the scan line effect
-                          <div className="absolute w-full h-[2px] bg-gradient-to-r from-transparent via-accent to-transparent animate-scan-line-vertical shadow-[0_0_10px_1px_hsl(var(--accent)/0.6)] rounded-full"></div>
+                          // Apply the animation class here
+                          <div className="absolute bg-gradient-to-r from-transparent via-accent to-transparent shadow-[0_0_10px_1px_hsl(var(--accent)/0.6)] rounded-full animate-scan-line-vertical"></div>
                        )}
                     </div>
                  </div>
@@ -685,4 +671,3 @@ export default function Home() {
     </div>
   );
 }
-
