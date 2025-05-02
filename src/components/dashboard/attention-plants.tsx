@@ -54,7 +54,7 @@ export default function AttentionPlants({ plants }: AttentionPlantsProps) {
                         // Updated hint to be more specific for AI search
                         data-ai-hint={`cannabis plant ${plant.status.toLowerCase().replace(/ /g, '-')}`}
                         // Updated placeholder seed
-                        src={`https://picsum.photos/seed/cannabis-${plant.status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-problem/100/100`}
+                        src={`https://picsum.photos/seed/cannabis-${plant.status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-problem-${plant.id}/100/100`}
                         alt={`Foto de ${plant.strain} precisando de atenção (${attentionReason})`}
                         width={50}
                         height={50}
@@ -79,13 +79,12 @@ export default function AttentionPlants({ plants }: AttentionPlantsProps) {
           </ul>
         )}
       </CardContent>
-      {/* Optional Footer Link - Keep as is unless a specific page exists */}
+      {/* Footer Link to the new /plants page with a filter hint */}
        {plants.length > 0 && (
            <div className="p-4 border-t mt-auto text-center">
               <Button variant="link" size="sm" asChild className="text-destructive hover:text-destructive/80">
-                 {/* Make sure this link points to a valid page if implemented */}
-                 {/* This link likely won't work correctly without a proper backend filter */}
-                 <Link href="/plants?filter=attention">Ver todas as plantas com atenção</Link>
+                 {/* Link to the main plants page; filtering logic is client-side in /plants page */}
+                 <Link href="/plants">Ver todas as plantas com atenção</Link>
               </Button>
            </div>
         )}

@@ -27,15 +27,17 @@ export {
   ImagePlus,
   Leaf,
   Lightbulb,
-  Loader2, // Added Loader2
+  ListFilter, // Added ListFilter
+  Loader2,
   Microscope,
   PanelLeft,
-  Pencil, // Added Pencil
+  Pencil,
   PlusCircle,
   QrCode,
-  RefreshCw, // Added RefreshCw
+  RefreshCw,
   Ruler,
   ScanLine,
+  Search, // Added Search
   Sprout,
   StickyNote,
   TestTube2,
@@ -45,5 +47,5 @@ export {
   VideoOff,
   Warehouse,
   X,
-  XCircle, // Added XCircle
+  XCircle,
 } from 'lucide-react';

@@ -109,7 +109,7 @@ export async function getPlantByQrCode(qrCode: string): Promise<Plant | null> {
     console.log(`Planta encontrada: ${plant.strain} (ID: ${plant.id})`);
     return plant;
   } else {
-    console.log(`Nenhuma planta encontrada para o QR Code: ${qrCode}`);
+    console.warn(`Nenhuma planta encontrada para o QR Code: ${qrCode}`);
     return null;
   }
 }
@@ -220,10 +220,17 @@ export async function getRecentPlants(limit: number = 3): Promise<Plant[]> {
  }
 
 
- // Optional: Function to get all plants (useful for debugging or other features)
+ /**
+  * Recupera todas as plantas do localStorage.
+  * @returns Uma promessa que resolve para um array com todos os objetos Plant.
+  */
  export async function getAllPlants(): Promise<Plant[]> {
     await new Promise(resolve => setTimeout(resolve, 50));
+    console.log('Buscando todas as plantas do localStorage...');
     const plants = loadPlantsFromLocalStorage();
-    return Object.values(plants);
+    const allPlants = Object.values(plants);
+    // Sort alphabetically by strain name for consistent display
+    allPlants.sort((a, b) => a.strain.localeCompare(b.strain));
+    console.log(`Retornando ${allPlants.length} plantas.`);
+    return allPlants;
  }
-

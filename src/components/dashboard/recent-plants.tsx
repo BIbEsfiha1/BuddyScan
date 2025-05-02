@@ -23,10 +23,6 @@ export default function RecentPlants({ plants }: RecentPlantsProps) {
             <History className="h-5 w-5 text-primary" />
             <CardTitle className="text-xl">Plantas Recentes</CardTitle>
         </div>
-        {/* Optional: Link to full plant list */}
-        {/* <Button variant="ghost" size="sm" asChild>
-             <Link href="/plants">Ver Todas <ArrowRight className="ml-1 h-4 w-4" /></Link>
-           </Button> */}
       </CardHeader>
       <CardDescription className="px-6 pb-4 text-muted-foreground">
           Plantas com cadastro mais recente.
@@ -49,7 +45,7 @@ export default function RecentPlants({ plants }: RecentPlantsProps) {
                          // Make hint more specific using plant status
                          data-ai-hint={`cannabis plant ${plant.status.toLowerCase()}`}
                          // Generate placeholder seed based on status for relevance
-                         src={`https://picsum.photos/seed/cannabis-${plant.status.toLowerCase().replace(/ /g, '-')}/100/100`}
+                         src={`https://picsum.photos/seed/cannabis-${plant.status.toLowerCase().replace(/ /g, '-')}-${plant.id}/100/100`}
                          alt={`Foto de ${plant.strain} (${plant.status})`}
                          width={50}
                          height={50}
@@ -73,11 +69,10 @@ export default function RecentPlants({ plants }: RecentPlantsProps) {
           </ul>
         )}
       </CardContent>
-       {/* Optional Footer Link - Ensure this link works if uncommented */}
+       {/* Footer Link to the new /plants page */}
        {plants.length > 0 && (
           <div className="p-4 border-t mt-auto text-center">
               <Button variant="link" size="sm" asChild>
-                 {/* This link likely won't work without a dedicated page/filtering */}
                  <Link href="/plants">Ver todas as plantas</Link>
               </Button>
           </div>
