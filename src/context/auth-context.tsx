@@ -68,15 +68,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Show error message if Firebase initialization failed
   if (error) {
+     // Determine the best message based on the error
+     let errorMessage = `Não foi possível inicializar o Firebase. Verifique as configurações no arquivo \`.env.local\` e o console do navegador para mais detalhes. Mensagem: ${error.message}`;
+     if (error.message?.includes('API Key') || error.message?.includes('api-key')) {
+         errorMessage = "Erro Crítico: Chave de API do Firebase (API Key) inválida ou ausente. Verifique o valor de NEXT_PUBLIC_FIREBASE_API_KEY no seu arquivo .env.local.";
+     } else if (error.message?.includes('Variáveis de ambiente')) {
+          errorMessage = error.message; // Use the specific message about missing vars
+     }
+
      return (
         <div className="flex min-h-screen items-center justify-center bg-background p-4">
             <Alert variant="destructive" className="max-w-lg">
                  <AlertTriangle className="h-4 w-4" />
                  <AlertTitle>Erro de Configuração do Firebase</AlertTitle>
                  <AlertDescription>
-                   Não foi possível inicializar o Firebase. Verifique as configurações no arquivo `.env.local` e o console do navegador para mais detalhes.
-                   <br />
-                   <strong className="mt-2 block">Mensagem:</strong> {error.message}
+                   {errorMessage}
                  </AlertDescription>
             </Alert>
         </div>

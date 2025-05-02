@@ -98,7 +98,9 @@ export default function SignupPage() {
       } else if (error.code === 'auth/network-request-failed') {
            errorMsg = 'Erro de rede. Verifique sua conexão com a internet.';
       } else if (error.code === 'auth/invalid-api-key' || error.code === 'auth/api-key-not-valid') {
-         errorMsg = 'Chave de API do Firebase inválida. Verifique as configurações.';
+         // Specific error for invalid API key
+         errorMsg = 'Erro de Configuração: A chave de API do Firebase é inválida. Verifique o arquivo .env.local.';
+         console.error("Detailed Error: Invalid Firebase API Key. Check NEXT_PUBLIC_FIREBASE_API_KEY.");
       }
       setSubmitError(errorMsg);
       toast({
@@ -188,7 +190,9 @@ export default function SignupPage() {
          } else if (error.code === 'auth/network-request-failed') {
               errorMsg = 'Erro de rede. Verifique sua conexão com a internet.';
          } else if (error.code === 'auth/invalid-api-key' || error.code === 'auth/api-key-not-valid') {
-            errorMsg = 'Chave de API do Firebase inválida. Verifique o valor de NEXT_PUBLIC_FIREBASE_API_KEY.';
+            // Specific error for invalid API key during social login
+            errorMsg = `Erro de Configuração (${providerName}): A chave de API do Firebase é inválida. Verifique o arquivo .env.local.`;
+            console.error("Detailed Error: Invalid Firebase API Key during social login. Check NEXT_PUBLIC_FIREBASE_API_KEY.");
         }
 
 
