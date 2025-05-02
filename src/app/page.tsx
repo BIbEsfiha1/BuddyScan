@@ -4,7 +4,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ScanLine, PlusCircle, VideoOff, Loader2, Sprout, AlertTriangle, History, AlertCircle as AlertCircleIcon, Camera } from '@/components/ui/lucide-icons'; // Use centralized icons
+import {
+    ScanLine, PlusCircle, VideoOff, Loader2, Sprout, AlertTriangle, History,
+    AlertCircle as AlertCircleIcon, Camera, Zap, Package, Home as HomeIcon
+} from '@/components/ui/lucide-icons'; // Use centralized icons
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -78,8 +81,8 @@ export default function Home() {
      try {
        // Use the Firestore service functions
        const [fetchedRecent, fetchedAttention] = await Promise.all([
-         getRecentPlants(3), // Fetch 3 recent plants from Firestore
-         getAttentionPlants(3) // Fetch 3 attention plants from Firestore
+         getRecentPlants(5), // Fetch 5 recent plants
+         getAttentionPlants(5) // Fetch 5 attention plants
        ]);
        console.log("Fetched recent plants:", fetchedRecent);
        console.log("Fetched attention plants:", fetchedAttention);
@@ -172,9 +175,8 @@ export default function Home() {
       streamRef.current = stream;
 
        if (videoRef.current) {
-           // Flip the video horizontally if it's the front-facing camera (common behavior)
+           // Apply mirror transform logic
            const isFrontFacing = stream.getVideoTracks()[0]?.getSettings()?.facingMode === 'user';
-           // Apply transform based on facing mode
            videoRef.current.style.transform = isFrontFacing ? 'scaleX(-1)' : 'scaleX(1)';
 
            videoRef.current.srcObject = stream;
@@ -182,8 +184,6 @@ export default function Home() {
            try {
                 await videoRef.current.play();
                 console.log("Video play initiated.");
-                // IMPORTANT: Move status to initializing AFTER play() promise resolves
-                // This ensures the video events ('playing', 'canplay') might fire correctly
                 setScannerStatus('initializing');
            } catch (playError) {
                console.error("Error trying to play video:", playError);
@@ -207,9 +207,9 @@ export default function Home() {
             streamRef.current = stream;
 
             if (videoRef.current) {
-                // Check if default camera is front-facing and mirror if necessary
+                 // Apply mirror transform logic for default camera
                  const isFrontFacing = stream.getVideoTracks()[0]?.getSettings()?.facingMode === 'user';
-                 videoRef.current.style.transform = isFrontFacing ? 'scaleX(-1)' : 'scaleX(1)'; // Mirror if front
+                 videoRef.current.style.transform = isFrontFacing ? 'scaleX(-1)' : 'scaleX(1)';
 
                 videoRef.current.srcObject = stream;
                 console.log("Video stream attached (default).");
@@ -556,20 +556,14 @@ export default function Home() {
 
 
   return (
-    <div className="flex flex-col min-h-screen p-4 md:p-8 bg-gradient-to-br from-background via-background to-primary/5 text-foreground">
+    <div className="flex flex-col min-h-screen p-4 md:p-8 bg-gradient-to-br from-background via-muted/5 to-primary/10 text-foreground">
       {/* Header Section */}
        <header className="mb-8">
-         <div className="flex items-center gap-3 mb-2">
-             <Image
-                 src="/budscan-logo.png"
-                 alt="BudScan Logo"
-                 width={200}
-                 height={57}
-                 priority
-                 className="h-10 md:h-12 w-auto drop-shadow-sm"
-             />
+         <div className="flex items-center gap-3 mb-1">
+             <HomeIcon className="h-7 w-7 text-primary"/>
+             <h1 className="text-3xl font-bold tracking-tight">Painel BudScan</h1>
          </div>
-         <p className="text-lg text-muted-foreground">Seu painel de controle de cultivo inteligente.</p>
+         <p className="text-lg text-muted-foreground">Seu centro de controle de cultivo inteligente.</p>
        </header>
 
       {/* Main Content Area - Grid Layout */}
@@ -578,31 +572,45 @@ export default function Home() {
           {/* Left Column (Quick Actions & Attention) */}
           <div className="lg:col-span-1 space-y-6">
               {/* Quick Actions Card */}
-             <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 card border border-primary/10">
-               <CardHeader>
-                 <CardTitle className="text-xl font-semibold">Ações Rápidas</CardTitle>
+             <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 card border-primary/10">
+               <CardHeader className="flex flex-row items-center justify-between pb-2">
+                   <div className="flex items-center gap-2">
+                      <Zap className="h-5 w-5 text-primary" />
+                      <CardTitle className="text-xl font-semibold">Ações Rápidas</CardTitle>
+                   </div>
                </CardHeader>
-               <CardContent className="flex flex-col gap-3">
+               <CardContent className="grid grid-cols-1 gap-3 pt-2">
                  <Button
                    size="lg"
-                   className="w-full text-lg font-semibold button justify-start"
+                   className="w-full text-base font-medium button justify-start"
                    onClick={handleRegister}
                    aria-label="Cadastrar Nova Planta"
                    disabled={isDialogOpen}
                  >
                    <PlusCircle className="mr-3 h-5 w-5" />
-                   Cadastrar Planta
+                   Cadastrar Nova Planta
                  </Button>
                  <Button
                    size="lg"
                    variant="secondary"
-                   className="w-full text-lg font-semibold button justify-start"
+                   className="w-full text-base font-medium button justify-start"
                    onClick={handleScanClick}
                    aria-label="Escanear QR Code da Planta"
                    disabled={isDialogOpen}
                  >
                    <ScanLine className="mr-3 h-5 w-5" />
                    Escanear QR Code
+                 </Button>
+                 <Button
+                   size="lg"
+                   variant="outline"
+                   className="w-full text-base font-medium button justify-start"
+                   onClick={() => router.push('/plants')}
+                   aria-label="Ver todas as plantas"
+                   disabled={isDialogOpen}
+                 >
+                   <Package className="mr-3 h-5 w-5" />
+                   Ver Todas as Plantas
                  </Button>
                </CardContent>
              </Card>
@@ -674,7 +682,7 @@ export default function Home() {
                   playsInline // Important for mobile inline playback
                   muted // Mute to avoid feedback loops and allow autoplay
                   autoPlay // Request autoplay
-                  // Removed explicit style, handled by state + mirror logic
+                  // Style is applied via mirror logic in startCamera
               />
 
              {/* Visual Guide Overlay */}
@@ -779,5 +787,3 @@ export default function Home() {
     </div>
   );
 }
-
-    

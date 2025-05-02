@@ -6,7 +6,9 @@ import { getPlantById, updatePlantStatus, CANNABIS_STAGES } from '@/services/pla
 import type { Plant } from '@/services/plant-id';
 import PlantDiary from '@/components/plant/plant-diary';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Leaf, QrCode, Calendar, Warehouse, Loader2, AlertCircle, Sprout, Pencil } from 'lucide-react'; // Added Pencil icon
+import {
+  Leaf, QrCode, CalendarDays, Warehouse, Loader2, AlertCircle, Sprout, Pencil, Home as HomeIcon
+} from '@/components/ui/lucide-icons'; // Use centralized icons, added HomeIcon
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
@@ -171,11 +173,11 @@ export default function PlantPage({ params }: PlantPageProps) {
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
         <Card className="shadow-lg overflow-hidden border-primary/20 card">
-            <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-5 md:p-6">
+            <CardHeader className="bg-gradient-to-r from-card to-muted/30 p-5 md:p-6"> {/* Subtle gradient */}
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     {/* Plant Title and Info */}
-                    <div className="flex items-center gap-3">
-                         <div className="bg-primary/10 p-3 rounded-lg">
+                    <div className="flex items-center gap-4"> {/* Increased gap */}
+                         <div className="bg-primary/10 p-3 rounded-lg shadow-inner"> {/* Inner shadow */}
                             <Leaf className="h-8 w-8 text-primary" />
                          </div>
                          <div>
@@ -188,7 +190,7 @@ export default function PlantPage({ params }: PlantPageProps) {
                          </div>
                     </div>
                     {/* Status Badge and Selector */}
-                    <div className="flex items-center gap-2 self-start sm:self-center">
+                    <div className="flex items-center gap-2 self-start sm:self-center mt-2 sm:mt-0"> {/* Added margin top on small screens */}
                         <Badge variant="secondary" className="text-base px-3 py-1 font-medium shadow-sm flex items-center gap-1.5">
                             Status: {currentStatus}
                         </Badge>
@@ -220,7 +222,7 @@ export default function PlantPage({ params }: PlantPageProps) {
 
             <CardContent className="p-5 md:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-sm">
                 <div className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
-                    <Calendar className="h-5 w-5 text-secondary flex-shrink-0" />
+                    <CalendarDays className="h-5 w-5 text-secondary flex-shrink-0" />
                      {/* Format date from ISO string */}
                      <span className="text-foreground"><strong className="font-medium">Plantada em:</strong> {plant.birthDate ? new Date(plant.birthDate).toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Data desconhecida'}</span>
                 </div>
@@ -243,6 +245,7 @@ export default function PlantPage({ params }: PlantPageProps) {
       <div className="text-center mt-8">
            <Button asChild variant="outline" className="button">
               <Link href="/">
+                 <HomeIcon className="mr-2 h-4 w-4"/> {/* Added icon */}
                  Voltar ao Painel
               </Link>
           </Button>
@@ -250,9 +253,3 @@ export default function PlantPage({ params }: PlantPageProps) {
     </div>
   );
 }
-
-```
-    </content>
-  </change>
-  <change>
-    <file>src/app

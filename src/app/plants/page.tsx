@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Loader2, ListFilter, X, ArrowRight, Sprout, History, Search } from 'lucide-react'; // Added Search
+import { Loader2, Filter, X, ArrowRight, Sprout, Warehouse, Search, Package, ArrowLeft } from '@/components/ui/lucide-icons'; // Use centralized icons
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast'; // Import useToast
@@ -102,17 +102,18 @@ export default function AllPlantsPage() {
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-      <Card className="shadow-lg border-primary/10 card">
+      <Card className="shadow-lg border-primary/10 card bg-gradient-to-r from-card to-muted/20">
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
              <div className="flex items-center gap-3">
-                  <History className="h-7 w-7 text-primary" />
+                  <Package className="h-7 w-7 text-primary" /> {/* Updated Icon */}
                   <div>
-                    <CardTitle className="text-2xl md:text-3xl">Todas as Plantas</CardTitle>
-                    <CardDescription>Visualize e filtre seu inventário de plantas.</CardDescription>
+                    <CardTitle className="text-2xl md:text-3xl">Inventário de Plantas</CardTitle>
+                    <CardDescription>Visualize e filtre todas as suas plantas cadastradas.</CardDescription>
                   </div>
              </div>
              <Button variant="outline" onClick={() => window.history.back()} className="button self-start sm:self-center">
+                <ArrowLeft className="mr-2 h-4 w-4"/> {/* Added Icon */}
                 Voltar
              </Button>
           </div>
@@ -123,14 +124,14 @@ export default function AllPlantsPage() {
       <Card className="shadow-md card">
         <CardHeader>
             <div className="flex items-center gap-2">
-                <ListFilter className="h-5 w-5 text-secondary"/>
+                <Filter className="h-5 w-5 text-secondary"/> {/* Updated Icon */}
                 <CardTitle className="text-xl">Filtros</CardTitle>
             </div>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Search Input */}
-          <div className="space-y-1">
-             <label htmlFor="search-filter" className="text-sm font-medium text-muted-foreground flex items-center gap-1"><Search className="h-4 w-4"/> Pesquisar Variedade</label>
+          <div className="space-y-1.5"> {/* Increased spacing */}
+             <label htmlFor="search-filter" className="text-sm font-medium text-muted-foreground flex items-center gap-1.5"><Search className="h-4 w-4"/> Pesquisar Variedade</label>
             <Input
               id="search-filter"
               placeholder="Nome da variedade..."
@@ -141,8 +142,8 @@ export default function AllPlantsPage() {
           </div>
 
           {/* Status Select */}
-          <div className="space-y-1">
-             <label htmlFor="status-filter" className="text-sm font-medium text-muted-foreground flex items-center gap-1"><Sprout className="h-4 w-4"/> Filtrar por Status</label>
+          <div className="space-y-1.5"> {/* Increased spacing */}
+             <label htmlFor="status-filter" className="text-sm font-medium text-muted-foreground flex items-center gap-1.5"><Sprout className="h-4 w-4"/> Filtrar por Status</label>
             <Select
                 value={selectedFilters.status}
                 onValueChange={(value) => handleFilterChange('status', value)}
@@ -160,8 +161,8 @@ export default function AllPlantsPage() {
           </div>
 
           {/* Grow Room Select */}
-          <div className="space-y-1">
-              <label htmlFor="room-filter" className="text-sm font-medium text-muted-foreground flex items-center gap-1"><Sprout className="h-4 w-4"/> Filtrar por Sala</label>
+          <div className="space-y-1.5"> {/* Increased spacing */}
+              <label htmlFor="room-filter" className="text-sm font-medium text-muted-foreground flex items-center gap-1.5"><Warehouse className="h-4 w-4"/> Filtrar por Sala</label> {/* Updated Icon */}
              <Select
                 value={selectedFilters.growRoom}
                 onValueChange={(value) => handleFilterChange('growRoom', value)}
@@ -217,33 +218,31 @@ export default function AllPlantsPage() {
                  <p className="text-center text-muted-foreground py-10">Nenhuma planta cadastrada ainda.</p>
              )
           ) : (
-            <ul className="divide-y divide-border">
+            <ul className="divide-y divide-border -mx-6"> {/* Negative margin to extend divider */}
               {displayedPlants.map((plant) => (
-                <li key={plant.id} className="py-3 group hover:bg-muted/30 rounded-md transition-colors duration-150">
-                   {/* Link uses plant.id now, assuming qrCode === id */}
-                  <Link href={`/plant/${plant.id}`} className="flex items-center space-x-4 px-2">
+                <li key={plant.id} className="py-4 group hover:bg-muted/30 rounded-md transition-colors duration-150 px-6"> {/* Added padding */}
+                   {/* Link uses plant.id now */}
+                  <Link href={`/plant/${plant.id}`} className="flex items-center space-x-4">
                     <div className="flex-shrink-0">
                       <Image
                         data-ai-hint={`cannabis plant ${plant.status.toLowerCase()}`}
                         src={`https://picsum.photos/seed/cannabis-${plant.status.toLowerCase().replace(/ /g, '-')}-${plant.id}/100/100`}
                         alt={`Foto de ${plant.strain}`}
-                        width={50}
-                        height={50}
-                        className="rounded-md object-cover border border-border/50 aspect-square"
+                        width={60} // Slightly larger image
+                        height={60}
+                        className="rounded-lg object-cover border border-border/50 aspect-square shadow-sm" // Rounded-lg
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-base font-medium text-foreground truncate">{plant.strain}</p>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                         <Badge variant="secondary" className="text-xs px-1.5 py-0.5">{plant.status}</Badge>
-                         <span>·</span>
-                         <span>Sala: {plant.growRoomId}</span>
-                         <span>·</span>
+                      <p className="text-lg font-semibold text-foreground truncate group-hover:text-primary transition-colors">{plant.strain}</p> {/* Larger font */}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground mt-1"> {/* Flex wrap for small screens */}
+                         <Badge variant="secondary" className="text-xs px-1.5 py-0.5 whitespace-nowrap"><Sprout className="inline mr-1 h-3 w-3"/>{plant.status}</Badge>
+                         <span className="flex items-center gap-1 whitespace-nowrap"><Warehouse className="h-3.5 w-3.5"/> Sala: {plant.growRoomId || 'N/A'}</span>
                          {/* Format date from ISO string */}
-                         <span>{`Plantada: ${plant.birthDate ? new Date(plant.birthDate).toLocaleDateString('pt-BR') : 'N/A'}`}</span>
+                         <span className="flex items-center gap-1 whitespace-nowrap"><Sprout className="h-3.5 w-3.5"/>{`Plantada: ${plant.birthDate ? new Date(plant.birthDate).toLocaleDateString('pt-BR') : 'N/A'}`}</span>
                       </div>
                     </div>
-                    <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                    <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors ml-auto" /> {/* Move arrow to far right */}
                   </Link>
                 </li>
               ))}
@@ -254,8 +253,3 @@ export default function AllPlantsPage() {
     </div>
   );
 }
-```
-    </content>
-  </change>
-  <change>
-    <file>src/app

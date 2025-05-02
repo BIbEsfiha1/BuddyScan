@@ -17,7 +17,7 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Leaf, Calendar, Warehouse, Loader2, ArrowLeft, Sprout, CheckCircle, Download } from '@/components/ui/lucide-icons'; // Use centralized icons
+import { Leaf, CalendarDays, Warehouse, Loader2, ArrowLeft, Sprout, CheckCircle, Download, Layers, Home as HomeIcon } from '@/components/ui/lucide-icons'; // Use centralized icons, added HomeIcon
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { addPlant, type Plant } from '@/services/plant-id'; // Import Firestore function
@@ -171,23 +171,19 @@ export default function RegisterPlantPage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background via-muted/50 to-primary/10 text-foreground">
        <Card className="w-full max-w-lg shadow-xl border-primary/20 card">
-         <CardHeader className="relative">
-            <Button variant="ghost" size="icon" className="absolute top-3 left-3 button" asChild>
+         <CardHeader className="relative pb-4"> {/* Reduced padding bottom */}
+            <Button variant="ghost" size="icon" className="absolute top-4 left-4 button" asChild> {/* Adjusted position */}
                <Link href="/" aria-label="Voltar ao Painel">
-                  <ArrowLeft className="h-5 w-5" />
+                  <HomeIcon className="h-5 w-5" />
                </Link>
             </Button>
            <div className="flex flex-col items-center text-center pt-8">
-               <Image
-                   src="/budscan-logo.png"
-                   alt="BudScan Logo"
-                   width={180}
-                   height={51}
-                   priority
-                   className="mb-3"
-               />
-              <CardDescription className="text-muted-foreground mt-1">
-                Preencha os detalhes da nova planta. O QR Code será gerado automaticamente.
+               <div className="bg-primary/10 p-3 rounded-full mb-3 shadow-inner">
+                 <Leaf className="h-8 w-8 text-primary" /> {/* Icon */}
+               </div>
+               <CardTitle className="text-2xl font-bold">Cadastrar Nova Planta</CardTitle>
+              <CardDescription className="text-muted-foreground mt-1 max-w-xs">
+                Preencha os detalhes. Um QR Code único será gerado ao salvar.
               </CardDescription>
            </div>
          </CardHeader>
@@ -228,7 +224,7 @@ export default function RegisterPlantPage() {
                      <Button variant="outline" size="sm" onClick={() => {
                          router.push('/')
                        }} className="mt-5 button">
-                         Ir para o Painel
+                         <HomeIcon className="mr-2 h-4 w-4" /> Ir para o Painel
                      </Button>
                       <Button variant="link" size="sm" onClick={() => {
                           setGeneratedQrCode(null);
@@ -271,7 +267,7 @@ export default function RegisterPlantPage() {
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-secondary" /> Data de Nascimento / Plantio
+                            <CalendarDays className="h-4 w-4 text-secondary" /> Data de Nascimento / Plantio
                         </FormLabel>
                         <FormControl>
                             <Input type="date" {...field} disabled={isSubmitting || !!firebaseInitializationError} className="input appearance-none"/>
@@ -305,7 +301,7 @@ export default function RegisterPlantPage() {
                         render={({ field }) => (
                         <FormItem>
                             <FormLabel className="flex items-center gap-2">
-                            <Sprout className="h-4 w-4 text-secondary" /> Status Inicial
+                            <Layers className="h-4 w-4 text-secondary" /> Status Inicial {/* Updated Icon */}
                             </FormLabel>
                             <FormControl>
                             <Input placeholder="Ex: Plântula, Vegetativo" {...field} disabled={isSubmitting || !!firebaseInitializationError} className="input"/>
@@ -336,7 +332,9 @@ export default function RegisterPlantPage() {
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Cadastrando...
                     </>
                     ) : (
-                    'Cadastrar Planta e Gerar QR Code'
+                      <>
+                       <CheckCircle className="mr-2 h-5 w-5" /> Salvar Planta e Gerar QR Code {/* Updated Icon */}
+                      </>
                     )}
                 </Button>
                 </form>
@@ -347,8 +345,3 @@ export default function RegisterPlantPage() {
     </div>
   );
 }
-```
-    </content>
-  </change>
-  <change>
-    <file>src/

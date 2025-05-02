@@ -21,37 +21,55 @@ export {
   ChevronRight,
   ChevronUp,
   Circle,
+  ClipboardList, // Added for diary/logs
+  Clock, // Added for timestamps
+  Cloud, // Added for cloud save indication
   Download,
-  Droplet, // Corrected: Was Droplets before, changed to Droplet
-  History,
+  Droplet,
+  FileText, // Added for notes/description
+  Filter, // Alternative for ListFilter
+  FlaskConical, // Added for pH
+  Gauge, // Added for measurements like EC/Temp/Humidity
+  Grid, // Added for dashboard view
+  History, // Keep for history
+  Home, // Added for Dashboard link
   ImagePlus,
+  Info, // Added for descriptions/info
+  Layers, // Added for Stage
+  LayoutGrid, // Alternative for dashboard view
   Leaf,
   Lightbulb,
-  ListFilter, // Added ListFilter
+  ListFilter,
   Loader2,
-  Lock, // Added Lock
-  LogIn, // Added LogIn
-  LogOut, // Added LogOut
-  Mail, // Added Mail
+  Lock,
+  LogIn,
+  LogOut,
+  Mail,
   Microscope,
+  Moon, // Added for ThemeToggle
+  MoreVertical, // Added for item actions
+  Package, // Added for Inventory/All Plants
   PanelLeft,
   Pencil,
   PlusCircle,
   QrCode,
   RefreshCw,
-  Ruler,
+  Ruler, // Keep for height
   ScanLine,
-  Search, // Added Search
-  Sprout,
-  StickyNote,
-  TestTube2,
-  Thermometer,
+  Search,
+  Settings, // Added for potential settings page
+  Sprout, // Keep for Plant/Growth related
+  StickyNote, // Keep for notes
+  Sun, // Added for ThemeToggle
+  Thermometer, // Keep for temp
+  Trash2, // Added for delete actions
   Upload,
   User,
-  UserCircle, // Added UserCircle
-  UserPlus, // Added UserPlus
+  UserCircle,
+  UserPlus,
   VideoOff,
-  Warehouse,
+  Warehouse, // Keep for Grow Room
   X,
   XCircle,
+  Zap, // Added for Quick Actions
 } from 'lucide-react';

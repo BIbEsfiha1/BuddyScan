@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { History, ArrowRight } from 'lucide-react';
+import { History, ArrowRight, Sprout, Clock } from '@/components/ui/lucide-icons'; // Use centralized icons, added Clock
 import { Badge } from '@/components/ui/badge';
 import type { Plant } from '@/services/plant-id'; // Import the base Plant type
 
@@ -24,10 +24,10 @@ export default function RecentPlants({ plants }: RecentPlantsProps) {
             <CardTitle className="text-xl">Plantas Recentes</CardTitle>
         </div>
       </CardHeader>
-      <CardDescription className="px-6 pb-4 text-muted-foreground">
+      <CardDescription className="px-6 pb-4 text-muted-foreground text-sm"> {/* Slightly smaller text */}
           Plantas com cadastro mais recente.
       </CardDescription>
-      <CardContent className="flex-1 overflow-y-auto space-y-4 pt-0"> {/* Allow scrolling and space items */}
+      <CardContent className="flex-1 overflow-y-auto space-y-3 pt-0"> {/* Reduced spacing */}
         {plants.length === 0 ? (
           <p className="text-center text-muted-foreground py-6">Nenhuma planta cadastrada ainda.</p>
         ) : (
@@ -40,7 +40,7 @@ export default function RecentPlants({ plants }: RecentPlantsProps) {
                return (
                  <li key={plant.id} className="py-3 group hover:bg-muted/30 rounded-md transition-colors duration-150">
                    {/* Ensure Link points to the correct plant page using plant.id */}
-                   <Link href={`/plant/${plant.id}`} className="flex items-center space-x-4 px-2">
+                   <Link href={`/plant/${plant.id}`} className="flex items-center space-x-3 px-2"> {/* Reduced spacing */}
                      <div className="flex-shrink-0">
                        <Image
                          // Make hint more specific using plant status
@@ -48,18 +48,17 @@ export default function RecentPlants({ plants }: RecentPlantsProps) {
                          // Generate placeholder seed based on status for relevance
                          src={`https://picsum.photos/seed/cannabis-${plant.status.toLowerCase().replace(/ /g, '-')}-${plant.id}/100/100`}
                          alt={`Foto de ${plant.strain} (${plant.status})`}
-                         width={50}
-                         height={50}
-                         className="rounded-md object-cover border border-border/50 aspect-square"
+                         width={48} // Slightly smaller image
+                         height={48}
+                         className="rounded-md object-cover border border-border/50 aspect-square shadow-sm" // Added shadow
                        />
                      </div>
                      <div className="flex-1 min-w-0">
                        <p className="text-base font-medium text-foreground truncate">{plant.strain}</p>
-                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                       <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                           {/* Badge remains secondary for general status */}
-                          <Badge variant="secondary" className="text-xs px-1.5 py-0.5">{plant.status}</Badge>
-                          <span>·</span>
-                          <span>{lastUpdated}</span>
+                          <Badge variant="secondary" className="text-xs px-1.5 py-0.5"><Sprout className="inline mr-1 h-3 w-3"/>{plant.status}</Badge>
+                          <span className="flex items-center gap-0.5"><Clock className="h-3 w-3"/> {lastUpdated}</span>
                        </div>
                      </div>
                      <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
@@ -72,7 +71,7 @@ export default function RecentPlants({ plants }: RecentPlantsProps) {
       </CardContent>
        {/* Footer Link to the new /plants page */}
        {plants.length > 0 && (
-          <div className="p-4 border-t mt-auto text-center">
+          <div className="p-3 border-t mt-auto text-center"> {/* Reduced padding */}
               <Button variant="link" size="sm" asChild>
                  <Link href="/plants">Ver todas as plantas</Link>
               </Button>
@@ -81,4 +80,3 @@ export default function RecentPlants({ plants }: RecentPlantsProps) {
     </Card>
   );
 }
-

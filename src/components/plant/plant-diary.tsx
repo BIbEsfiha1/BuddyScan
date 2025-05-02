@@ -8,9 +8,9 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
 import {
-    Lightbulb, Droplet, Ruler, StickyNote, Thermometer, Microscope, AlertTriangle,
-    Activity, CalendarDays, Bot, User, TestTube2, Loader2, RefreshCw
-} from 'lucide-react'; // Added User, TestTube2
+    Gauge, Droplet, Ruler, StickyNote, Thermometer, Microscope, AlertTriangle,
+    Activity, CalendarDays, Bot, User, FlaskConical, Loader2, RefreshCw, Layers, FileText, Clock, ClipboardList
+} from '@/components/ui/lucide-icons'; // Use centralized icons
 import { Badge } from '@/components/ui/badge';
 import type { DiaryEntry } from '@/types/diary-entry';
 // Import Firestore functions for diary entries
@@ -89,9 +89,9 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
 
       {/* Display existing entries */}
       <Card className="shadow-lg border-primary/10 card">
-        <CardHeader className="flex flex-row justify-between items-center sticky top-0 bg-background/95 backdrop-blur-sm z-10 border-b pb-3 pt-4 px-4">
+        <CardHeader className="flex flex-row justify-between items-center sticky top-0 bg-card/95 backdrop-blur-sm z-10 border-b pb-3 pt-4 px-4 md:px-6"> {/* Slightly more padding */}
             <div>
-                <CardTitle className="text-2xl">Histórico do Diário</CardTitle>
+                <CardTitle className="text-2xl flex items-center gap-2"><History className="h-6 w-6 text-primary"/>Histórico do Diário</CardTitle> {/* Updated Icon */}
                 <CardDescription>Registro cronológico de observações e ações.</CardDescription>
             </div>
              <Button variant="outline" size="sm" onClick={loadEntries} disabled={isLoading || !!firebaseInitializationError} className="button">
@@ -99,7 +99,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                  {isLoading ? 'Atualizando...' : 'Atualizar'}
              </Button>
         </CardHeader>
-        <CardContent className="space-y-6 pt-4 px-4">
+        <CardContent className="space-y-6 pt-6 px-4 md:px-6"> {/* More padding */}
           {/* Display Firebase Init Error first */}
            {firebaseInitializationError && !error && ( // Show only if no other loading error
               <Alert variant="destructive" className="mt-4">
@@ -111,8 +111,8 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
 
            {isLoading && (
               <div className="space-y-6 pt-4">
-                <Skeleton className="h-48 w-full rounded-lg" />
-                <Skeleton className="h-48 w-full rounded-lg" />
+                <Skeleton className="h-56 w-full rounded-lg" /> {/* Taller skeleton */}
+                <Skeleton className="h-56 w-full rounded-lg" />
               </div>
            )}
            {error && !firebaseInitializationError && ( // Show specific loading error if no init error
@@ -126,7 +126,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
 
           {!isLoading && !error && !firebaseInitializationError && entries.length === 0 && (
             <div className="text-center py-10 text-muted-foreground border border-dashed rounded-lg mt-4">
-                <CalendarDays className="h-12 w-12 mx-auto mb-3 text-secondary/50"/>
+                <ClipboardList className="h-12 w-12 mx-auto mb-3 text-secondary/50"/> {/* Updated Icon */}
                 <p className="font-medium">Nenhuma entrada no diário ainda.</p>
                 <p className="text-sm">Adicione a primeira entrada usando o formulário acima!</p>
             </div>
@@ -136,32 +136,32 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
           {!isLoading && !error && !firebaseInitializationError && entries.length > 0 && (
             <div className="space-y-6 mt-4">
                 {entries.map((entry) => (
-                  <Card key={entry.id} className="border shadow-md overflow-hidden bg-card/60 card">
-                    <CardHeader className="bg-muted/40 p-3 px-4 flex flex-row justify-between items-center">
+                  <Card key={entry.id} className="border shadow-md overflow-hidden bg-card/80 hover:shadow-lg transition-shadow card"> {/* Added hover shadow */}
+                    <CardHeader className="bg-muted/40 p-3 px-4 flex flex-row justify-between items-center border-b"> {/* Added border */}
                        <div className="flex items-center gap-2">
-                          <CalendarDays className="h-5 w-5 text-primary"/>
+                          <Clock className="h-5 w-5 text-primary"/> {/* Updated Icon */}
                           <span className="font-semibold text-sm text-foreground/90">
                              {/* Format date from ISO string */}
                              {entry.timestamp ? new Date(entry.timestamp).toLocaleString('pt-BR', { dateStyle: 'medium', timeStyle: 'short' }) : 'Data inválida'}
                           </span>
                        </div>
-                      {entry.stage && <Badge variant="outline" className="text-xs px-2 py-0.5">{entry.stage}</Badge>}
+                      {entry.stage && <Badge variant="outline" className="text-xs px-2 py-0.5"><Layers className="inline mr-1 h-3 w-3"/>{entry.stage}</Badge>} {/* Added icon */}
                     </CardHeader>
                     <CardContent className="p-4 space-y-4">
 
                       {/* Sensor/Measurement Data */}
                       {(entry.heightCm || entry.ec !== null || entry.ph !== null || entry.temp !== null || entry.humidity !== null) && (
-                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-2 text-xs text-muted-foreground border-b pb-3 mb-3">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-3 text-sm text-muted-foreground border-b pb-4 mb-4"> {/* Increased spacing */}
                               {entry.heightCm && <div className="flex items-center gap-1.5"><Ruler className="h-4 w-4 text-secondary" /> <span>{entry.heightCm} cm</span></div>}
-                              {entry.ec !== null && typeof entry.ec !== 'undefined' && <div className="flex items-center gap-1.5"><Activity className="h-4 w-4 text-secondary" /> <span>EC: {entry.ec}</span></div>}
-                              {entry.ph !== null && typeof entry.ph !== 'undefined' && <div className="flex items-center gap-1.5"><TestTube2 className="h-4 w-4 text-secondary" /> <span>pH: {entry.ph}</span></div>}
+                              {entry.ec !== null && typeof entry.ec !== 'undefined' && <div className="flex items-center gap-1.5"><Gauge className="h-4 w-4 text-secondary" /> <span>EC: {entry.ec}</span></div>}
+                              {entry.ph !== null && typeof entry.ph !== 'undefined' && <div className="flex items-center gap-1.5"><FlaskConical className="h-4 w-4 text-secondary" /> <span>pH: {entry.ph}</span></div>}
                               {entry.temp !== null && typeof entry.temp !== 'undefined' && <div className="flex items-center gap-1.5"><Thermometer className="h-4 w-4 text-secondary" /> <span>{entry.temp}°C</span></div>}
                               {entry.humidity !== null && typeof entry.humidity !== 'undefined' && <div className="flex items-center gap-1.5"><Droplet className="h-4 w-4 text-secondary" /> <span>{entry.humidity}%</span></div>}
                           </div>
                       )}
 
                        {/* Photo and AI Analysis Side-by-Side */}
-                       <div className="flex flex-col lg:flex-row gap-4">
+                       <div className="flex flex-col lg:flex-row gap-6"> {/* Increased gap */}
                            {/* Photo */}
                            {entry.photoUrl && (
                              <div className="lg:w-1/2 flex-shrink-0">
@@ -200,7 +200,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                                 {/* Note */}
                                 {entry.note && (
                                    <div className="text-sm text-foreground space-y-2">
-                                     <h4 className="font-semibold flex items-center gap-1.5"><StickyNote className="h-4 w-4 text-secondary" /> Observações</h4>
+                                     <h4 className="font-semibold flex items-center gap-1.5"><FileText className="h-4 w-4 text-secondary" /> Observações</h4> {/* Updated Icon */}
                                       <p className="pl-1 leading-relaxed whitespace-pre-wrap">{entry.note}</p>
                                    </div>
                                 )}
@@ -225,8 +225,3 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
     </div>
   );
 }
-```
-    </content>
-  </change>
-  <change>
-    <file>src/components/plant/diary-entry-form

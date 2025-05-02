@@ -18,46 +18,46 @@ body {
     --popover-foreground: 240 10% 3.9%; /* Dark Gray */
     --primary: 120 45% 45%; /* Slightly richer green */
     --primary-foreground: 0 0% 100%; /* White */
-    --secondary: 35 30% 55%; /* Slightly warmer brown */
+    --secondary: 35 40% 50%; /* Slightly warmer brown */
     --secondary-foreground: 0 0% 100%; /* White */
-    --muted: 240 4.8% 95.9%; /* Light Gray */
-    --muted-foreground: 240 3.8% 46.1%; /* Mid Gray */
-    --accent: 90 60% 65%; /* Softer lime green */
-    --accent-foreground: 90 100% 15%; /* Darker green for contrast */
-    --destructive: 0 74.2% 50.2%; /* Adjusted destructive for better visibility */
+    --muted: 240 5% 96%; /* Lighter Gray */
+    --muted-foreground: 240 4% 48%; /* Mid Gray */
+    --accent: 90 65% 60%; /* Softer lime green */
+    --accent-foreground: 90 100% 10%; /* Darker green for contrast */
+    --destructive: 0 74.2% 50.2%; /* Adjusted destructive */
     --destructive-foreground: 0 0% 98%; /* Off-white */
-    --border: 240 5.9% 90%; /* Light Gray Border */
-    --input: 240 5.9% 90%; /* Light Gray Input */
+    --border: 240 6% 90%; /* Light Gray Border */
+    --input: 240 6% 90%; /* Light Gray Input */
     --ring: 120 45% 45%; /* Primary Green for rings */
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.75rem; /* Increased radius for softer corners */
+    --radius: 0.8rem; /* Slightly larger radius */
   }
 
   /* Dark theme variables applied by .dark class */
    .dark {
-    --background: 240 5% 12%; /* Darker background */
-    --foreground: 0 0% 95%; /* Slightly off-white foreground */
-    --card: 240 4% 16%; /* Slightly lighter card background */
-    --card-foreground: 0 0% 95%;
-    --popover: 240 4% 14%; /* Slightly darker popover */
-    --popover-foreground: 0 0% 95%;
-    --primary: 120 50% 55%; /* Brighter green for dark mode */
+    --background: 240 6% 10%; /* Very Dark Gray/Almost Black */
+    --foreground: 0 0% 96%; /* Slightly off-white */
+    --card: 240 5% 14%; /* Darker card */
+    --card-foreground: 0 0% 96%;
+    --popover: 240 5% 12%; /* Slightly darker popover */
+    --popover-foreground: 0 0% 96%;
+    --primary: 120 55% 58%; /* Brighter green */
     --primary-foreground: 0 0% 100%; /* White */
-    --secondary: 35 35% 60%; /* Lighter brown for dark mode */
+    --secondary: 35 40% 55%; /* Lighter brown */
     --secondary-foreground: 0 0% 100%; /* White */
-    --muted: 240 3.7% 22%; /* Adjusted muted */
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 90 65% 70%; /* Brighter lime accent */
-    --accent-foreground: 90 100% 10%; /* Dark Green/Black for contrast on lime */
-    --destructive: 0 62.8% 55.6%; /* Adjusted destructive, slightly brighter */
+    --muted: 240 4% 18%; /* Dark Muted */
+    --muted-foreground: 240 5% 65%;
+    --accent: 90 70% 65%; /* Brighter lime accent */
+    --accent-foreground: 90 100% 8%; /* Very Dark Green/Black */
+    --destructive: 0 65% 55%; /* Adjusted destructive */
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 28%; /* Slightly lighter border */
-    --input: 240 3.7% 25%;
-    --ring: 120 50% 55%; /* Primary Green for rings */
+    --border: 240 4% 25%; /* Darker Border */
+    --input: 240 4% 22%; /* Darker Input */
+    --ring: 120 55% 58%; /* Primary Green for rings */
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
@@ -72,10 +72,9 @@ body {
     @apply border-border; /* Apply border color globally */
   }
   body {
-     @apply bg-background text-foreground antialiased; /* Ensure background and text colors */
-     /* Optional: Add subtle background pattern */
-     /* background-image: radial-gradient(hsl(var(--muted)) 1px, transparent 1px);
-     background-size: 16px 16px; */
+     @apply bg-background text-foreground antialiased text-base; /* Ensure background and text colors, increase base font size */
+     /* Optional: Add subtle background pattern for dark mode */
+     /* @apply dark:bg-[radial-gradient(hsl(var(--muted)_/_0.1)_1px,transparent_1px)] dark:bg-[size:16px_16px]; */
   }
   /* Add focus ring styling */
    *:focus-visible {
@@ -86,22 +85,27 @@ body {
 @layer components {
  /* Add base styling for common elements passed via className */
   .button {
+     /* Keep button styles from globals */
      @apply transition-all duration-200 ease-in-out transform hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg;
   }
   .card {
-     @apply rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden transition-shadow duration-300 ease-in-out;
+     /* Refined card style */
+     @apply rounded-lg border bg-card text-card-foreground shadow-md overflow-hidden transition-shadow duration-300 ease-in-out;
   }
    .card:hover {
-      @apply shadow-xl; /* Keep existing hover effect */
+      @apply shadow-lg; /* Softened hover shadow */
    }
    .input {
-       @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground transition-all duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:shadow-inner disabled:cursor-not-allowed disabled:opacity-50 md:text-sm;
+       /* Refined input style */
+       @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground transition-all duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm;
     }
     .textarea {
-       @apply flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground transition-all duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:shadow-inner disabled:cursor-not-allowed disabled:opacity-50 md:text-sm;
+       /* Refined textarea style */
+       @apply flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground transition-all duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm;
     }
     .dialog-content {
-        @apply fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg;
+        /* Refined dialog style */
+        @apply fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg;
     }
 }
 
@@ -110,61 +114,58 @@ body {
 @keyframes scan-line-vertical {
   0% {
     transform: translateY(0);
-    opacity: 0.8;
-    filter: drop-shadow(0 0 6px hsla(var(--accent) / 0.7)); /* Glow effect */
+    opacity: 0.6; /* Slightly softer */
+    filter: drop-shadow(0 0 5px hsla(var(--accent) / 0.6)); /* Softer glow */
   }
   50% {
     transform: translateY(calc(100% - 2px));
     opacity: 0.8;
-    filter: drop-shadow(0 0 10px hsla(var(--accent) / 0.8)); /* Brighter glow at bottom */
+    filter: drop-shadow(0 0 8px hsla(var(--accent) / 0.8)); /* Brighter glow at bottom */
   }
   100% {
     transform: translateY(0);
-    opacity: 0.8;
-    filter: drop-shadow(0 0 6px hsla(var(--accent) / 0.7));
+    opacity: 0.6; /* Slightly softer */
+    filter: drop-shadow(0 0 5px hsla(var(--accent) / 0.6));
   }
 }
 
 .animate-scan-line-vertical {
-  animation: scan-line-vertical 2.8s cubic-bezier(0.5, 0, 0.5, 1) infinite; /* Faster, different easing */
+  animation: scan-line-vertical 2.5s cubic-bezier(0.5, 0, 0.5, 1) infinite; /* Faster, smoother easing */
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
-  height: 2px;
+  height: 2px; /* Slightly thinner */
   z-index: 10;
-  /* Gradient remains defined inline for dynamic color, but ensure it's visible */
-  /* Example static gradient (replace hsl var if using inline styles): */
-  /* background: linear-gradient(90deg, transparent, hsl(var(--accent)), transparent); */
-  /* Add a slight blur for a softer effect */
+  background: linear-gradient(90deg, transparent, hsl(var(--accent)), transparent);
   filter: blur(0.5px);
 }
 
-/* Keyframe for pulsing border - Remains same */
+/* Keyframe for pulsing border - Keep subtle */
 @keyframes pulse-border {
-  0%, 100% { border-color: hsla(var(--primary) / 0.5); box-shadow: 0 0 10px 2px hsla(var(--primary) / 0.2); }
-  50% { border-color: hsla(var(--primary) / 0.8); box-shadow: 0 0 18px 4px hsla(var(--primary) / 0.3); }
+  0%, 100% { border-color: hsla(var(--primary) / 0.4); box-shadow: 0 0 8px 1px hsla(var(--primary) / 0.15); }
+  50% { border-color: hsla(var(--primary) / 0.7); box-shadow: 0 0 14px 3px hsla(var(--primary) / 0.25); }
 }
 
 .animate-pulse-border {
-  animation: pulse-border 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: pulse-border 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite; /* Slightly slower */
 }
 
 /* Keyframe for pulsing corners - Enhanced */
 @keyframes pulse-corners {
   0%, 100% {
-    border-color: hsla(var(--accent) / 0.7);
-    box-shadow: 0 0 8px 1px hsla(var(--accent) / 0.3);
-    opacity: 0.8;
+    border-color: hsla(var(--accent) / 0.6);
+    box-shadow: 0 0 6px 1px hsla(var(--accent) / 0.25);
+    opacity: 0.7;
   }
   50% {
-    border-color: hsla(var(--accent) / 1);
-    box-shadow: 0 0 14px 2px hsla(var(--accent) / 0.4);
+    border-color: hsla(var(--accent) / 0.9);
+    box-shadow: 0 0 12px 2px hsla(var(--accent) / 0.35);
     opacity: 1;
   }
 }
 .animate-pulse-corners {
-  animation: pulse-corners 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: pulse-corners 1.9s cubic-bezier(0.4, 0, 0.6, 1) infinite; /* Slightly slower */
 }
 
 /* Subtle background grid/scan effect (optional) */
@@ -174,11 +175,10 @@ body {
 }
 
 .scanner-background-effect {
+    /* Soft grid lines */
     background-image:
-        linear-gradient(hsla(var(--primary) / 0.05) 1px, transparent 1px),
-        linear-gradient(to right, hsla(var(--primary) / 0.05) 1px, transparent 1px);
-    background-size: 20px 20px;
-    /* animation: subtle-scan-bg 10s linear infinite; */ /* Can be too distracting, keep subtle */
+        linear-gradient(hsla(var(--primary) / 0.03) 1px, transparent 1px),
+        linear-gradient(to right, hsla(var(--primary) / 0.03) 1px, transparent 1px);
+    background-size: 25px 25px; /* Larger grid squares */
+    /* animation: subtle-scan-bg 15s linear infinite; */ /* Can be too distracting, keep subtle */
 }
-
-    

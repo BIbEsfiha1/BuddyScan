@@ -18,7 +18,10 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Camera, Leaf, Bot, Loader2, AlertCircle, ImagePlus, RefreshCw, XCircle, VideoOff, Download } from 'lucide-react'; // Removed Upload
+import {
+    Camera, Leaf, Bot, Loader2, AlertCircle, ImagePlus, RefreshCw, XCircle, VideoOff,
+    Download, ClipboardList, Gauge, FlaskConical, Thermometer, Droplet, Ruler, Layers
+} from '@/components/ui/lucide-icons'; // Use centralized icons
 import Image from 'next/image';
 import { analyzePlantPhoto, type AnalyzePlantPhotoOutput } from '@/ai/flows/analyze-plant-photo';
 import type { DiaryEntry } from '@/types/diary-entry';
@@ -385,9 +388,9 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
     <Card className="shadow-lg border border-primary/10 card">
       <CardHeader className="pb-4">
         <CardTitle className="text-2xl flex items-center gap-2">
-            <Leaf className="text-primary h-6 w-6" /> Adicionar Nova Entrada no Diário
+            <ClipboardList className="text-primary h-6 w-6" /> Adicionar Nova Entrada
         </CardTitle>
-        <CardDescription>Registre observações, medições e adicione uma foto para análise pela IA.</CardDescription>
+        <CardDescription>Registre observações, medições e adicione uma foto para análise.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -424,7 +427,7 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
             />
 
             {/* Measurement Fields */}
-             <Card className="bg-muted/30 border border-border/50 p-4">
+             <Card className="bg-muted/30 border border-border/50 p-4 rounded-lg"> {/* Added rounded-lg */}
                  <Label className="text-base font-medium mb-3 block">Medições (Opcional)</Label>
                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-5">
                      <FormField
@@ -432,7 +435,7 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
                        name="stage"
                        render={({ field }) => (
                          <FormItem>
-                           <FormLabel>Estágio</FormLabel>
+                           <FormLabel className="flex items-center gap-1.5"><Layers className="h-4 w-4 text-secondary"/>Estágio</FormLabel>
                            <FormControl>
                              <Input placeholder="ex: Floração S3" {...field} disabled={isDisabled} className="input"/>
                            </FormControl>
@@ -445,7 +448,7 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
                         name="heightCm"
                         render={({ field }) => (
                            <FormItem>
-                             <FormLabel>Altura (cm)</FormLabel>
+                             <FormLabel className="flex items-center gap-1.5"><Ruler className="h-4 w-4 text-secondary"/>Altura (cm)</FormLabel>
                              <FormControl>
                                 <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isDisabled} className="input"/>
                              </FormControl>
@@ -458,7 +461,7 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
                          name="ec"
                          render={({ field }) => (
                              <FormItem>
-                                 <FormLabel>EC</FormLabel>
+                                 <FormLabel className="flex items-center gap-1.5"><Gauge className="h-4 w-4 text-secondary"/>EC</FormLabel>
                                  <FormControl>
                                      <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isDisabled} className="input"/>
                                  </FormControl>
@@ -471,7 +474,7 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
                          name="ph"
                          render={({ field }) => (
                              <FormItem>
-                                 <FormLabel>pH</FormLabel>
+                                 <FormLabel className="flex items-center gap-1.5"><FlaskConical className="h-4 w-4 text-secondary"/>pH</FormLabel>
                                  <FormControl>
                                      <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isDisabled} className="input"/>
                                  </FormControl>
@@ -484,7 +487,7 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
                          name="temp"
                          render={({ field }) => (
                              <FormItem>
-                                 <FormLabel>Temp (°C)</FormLabel>
+                                 <FormLabel className="flex items-center gap-1.5"><Thermometer className="h-4 w-4 text-secondary"/>Temp (°C)</FormLabel>
                                  <FormControl>
                                      <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isDisabled} className="input"/>
                                  </FormControl>
@@ -497,7 +500,7 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
                          name="humidity"
                          render={({ field }) => (
                              <FormItem>
-                                 <FormLabel>Umidade (%)</FormLabel>
+                                 <FormLabel className="flex items-center gap-1.5"><Droplet className="h-4 w-4 text-secondary"/>Umidade (%)</FormLabel>
                                  <FormControl>
                                      <Input type="number" step="1" placeholder="ex: 55" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isDisabled} className="input"/>
                                  </FormControl>
@@ -510,7 +513,7 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
 
 
             {/* Photo Section - Updated for Camera */}
-             <Card className="bg-muted/30 border border-border/50 p-4">
+             <Card className="bg-muted/30 border border-border/50 p-4 rounded-lg"> {/* Added rounded-lg */}
                  <Label className="text-base font-medium mb-3 block">Foto da Planta (Opcional)</Label>
                 <div className="flex flex-col md:flex-row items-start gap-4">
                      {/* Camera/Preview Area */}
@@ -563,21 +566,22 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
                                 />
                                 <Button
                                      variant="outline"
-                                     size="sm"
-                                     className="absolute bottom-2 right-2 z-10 opacity-80 hover:opacity-100 button"
-                                     onClick={() => { setPhotoPreview(null); startCamera(); }}
+                                     size="icon" // Changed to icon size
+                                     className="absolute top-2 right-2 z-10 opacity-80 hover:opacity-100 button rounded-full" // Rounded-full
+                                     onClick={() => { setPhotoPreview(null); setAnalysisResult(null); setAnalysisError(null); }} // Clear preview and analysis
                                      disabled={isDisabled}
+                                     aria-label="Remover foto"
                                 >
-                                     <RefreshCw className="mr-2 h-4 w-4" /> Retirar Foto
+                                     <XCircle className="h-5 w-5" />
                                 </Button>
                              </div>
                         )}
 
                         {!showCameraView && !photoPreview && (
-                           <div className="flex flex-col items-center text-muted-foreground p-4">
-                                <Camera className="h-12 w-12 mb-3 text-secondary/50" />
+                           <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4"> {/* Center content */}
+                                <ImagePlus className="h-12 w-12 mb-3 text-secondary/50" /> {/* Updated Icon */}
                                 <span className="text-sm font-medium">Adicionar Foto</span>
-                                <span className="text-xs mt-1 text-center">Clique abaixo para ativar a câmera e capturar uma imagem.</span>
+                                <span className="text-xs mt-1 text-center">Use a câmera ou selecione um arquivo.</span>
                                  <Button
                                      type="button"
                                      variant="outline"
@@ -679,7 +683,9 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
                        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Salvando Entrada...
                      </>
                    ) : (
-                     'Salvar Entrada no Diário'
+                      <>
+                        <CheckCircle className="mr-2 h-5 w-5" /> Salvar Entrada no Diário {/* Updated Icon */}
+                      </>
                    )}
                 </Button>
             </div>
@@ -689,9 +695,3 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
     </Card>
   );
 }
-
-```
-    </content>
-  </change>
-  <change>
-    
