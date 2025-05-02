@@ -29,6 +29,10 @@ export {
   Lightbulb,
   ListFilter, // Added ListFilter
   Loader2,
+  Lock, // Added Lock
+  LogIn, // Added LogIn
+  LogOut, // Added LogOut
+  Mail, // Added Mail
   Microscope,
   PanelLeft,
   Pencil,
@@ -44,6 +48,8 @@ export {
   Thermometer,
   Upload,
   User,
+  UserCircle, // Added UserCircle
+  UserPlus, // Added UserPlus
   VideoOff,
   Warehouse,
   X,

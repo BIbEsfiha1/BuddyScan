@@ -2,9 +2,11 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google'; // Use Inter or Geist as preferred
 import './globals.css';
-import { Toaster } from '@/components/ui/toaster'; // Import Toaster
-import { ThemeProvider } from '@/components/theme-provider'; // Import ThemeProvider
-import ThemeToggle from '@/components/theme-toggle'; // Import ThemeToggle
+import { Toaster } from '@/components/ui/toaster';
+import { ThemeProvider } from '@/components/theme-provider';
+import ThemeToggle from '@/components/theme-toggle';
+import { AuthProvider } from '@/context/auth-context'; // Import AuthProvider
+import AppHeader from '@/components/app-header'; // Import the new AppHeader
 
 const inter = Inter({
   variable: '--font-inter',
@@ -13,7 +15,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: 'CannaLog',
-  description: 'Diário e Análise de Plantas de Cannabis', // Translated description
+  description: 'Diário e Análise de Plantas de Cannabis',
 };
 
 export default function RootLayout({
@@ -22,24 +24,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // Set lang to pt-BR. Dark theme is applied via globals.css :root and .dark selectors
     <html lang="pt-BR" suppressHydrationWarning>
-      {/* No whitespace or comments directly inside <html> */}
       <body className={`${inter.variable} font-sans antialiased bg-background text-foreground`}>
         <ThemeProvider
-            attribute="class"
-            defaultTheme="dark" // Default to dark theme as requested
-            enableSystem
-            disableTransitionOnChange
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
         >
-            <div className="relative min-h-screen">
-              {/* Place ThemeToggle in a fixed position (e.g., top right) */}
-              <div className="absolute top-4 right-4 z-50">
-                <ThemeToggle />
-              </div>
-              {children}
+          <AuthProvider> {/* Wrap content with AuthProvider */}
+            <div className="relative flex min-h-screen flex-col">
+              {/* Render header conditionally based on auth state (logic inside AppHeader) */}
+              <AppHeader />
+              {/* Main content */}
+              <main className="flex-1">{children}</main>
             </div>
-            <Toaster /> {/* Add Toaster here */}
+            <Toaster />
+          </AuthProvider> {/* Close AuthProvider */}
         </ThemeProvider>
       </body>
     </html>

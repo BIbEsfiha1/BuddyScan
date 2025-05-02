@@ -1,3 +1,4 @@
+
 /**
  * Representa uma única entrada no diário de uma planta.
  */
@@ -15,10 +16,9 @@ export interface DiaryEntry {
    */
   timestamp: string;
   /**
-   * ID do usuário que criou a entrada.
-   * Considere vincular a um tipo User posteriormente.
+   * ID do usuário (Firebase UID) que criou a entrada.
    */
-  authorId: string; // Keep as string for simplicity for now
+  authorId: string;
   /**
    * Notas textuais ou observações.
    */
@@ -26,40 +26,36 @@ export interface DiaryEntry {
   /**
    * Estágio de crescimento (ex: Plântula, Vegetativo, Floração, Colhida).
    */
-  stage?: string | null; // Allow null
+  stage?: string | null;
   /**
    * Altura da planta em centímetros.
    */
-  heightCm?: number | null; // Allow null
+  heightCm?: number | null;
   /**
    * Leitura de Condutividade Elétrica (EC).
    */
-  ec?: number | null; // Allow null
+  ec?: number | null;
   /**
    * Leitura do nível de pH.
    */
-  ph?: number | null; // Allow null
+  ph?: number | null;
   /**
    * Leitura de temperatura (°C).
    */
-  temp?: number | null; // Allow null
+  temp?: number | null;
   /**
    * Leitura de umidade (%).
    */
-  humidity?: number | null; // Allow null
+  humidity?: number | null;
   /**
    * URL de uma foto associada (opcional).
-   * Em um aplicativo real, isso pode apontar para armazenamento em nuvem.
+   * Pode ser um data URI ou URL para armazenamento em nuvem.
    */
-  photoUrl?: string | null; // Store URL if uploaded, otherwise null
+  photoUrl?: string | null;
   /**
    * Resumo gerado pela análise de IA da foto (opcional).
    */
   aiSummary?: string | null;
-   /**
-   * Resposta JSON bruta da análise de IA (opcional, para depuração/auditoria).
-   */
-   // aiRawJson?: string | null; // Considere adicionar mais tarde, se necessário
 }
 
 
@@ -80,12 +76,11 @@ export function loadDiaryEntriesFromLocalStorage(plantId: string): DiaryEntry[] 
     const storedEntries = localStorage.getItem(key);
     if (storedEntries) {
       const entries: DiaryEntry[] = JSON.parse(storedEntries);
-      // Ensure sorting (newest first) as data might be saved unsorted
+      // Ensure sorting (newest first)
       return entries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     }
   } catch (error) {
     console.error(`Error loading diary entries for plant ${plantId} from localStorage:`, error);
-    // Optionally clear corrupted data: localStorage.removeItem(key);
   }
   return [];
 }
@@ -122,7 +117,7 @@ export function addDiaryEntryToLocalStorage(plantId: string, newEntry: DiaryEntr
         console.warn(`Attempted to add diary entry for plant ${plantId} to localStorage on the server.`);
         return;
     }
-    console.log(`Adding diary entry for plant ${plantId}:`, newEntry);
+    console.log(`Adding diary entry for plant ${plantId} by user ${newEntry.authorId}:`, newEntry);
     const existingEntries = loadDiaryEntriesFromLocalStorage(plantId);
     const updatedEntries = [newEntry, ...existingEntries]; // Add new entry to the beginning
     saveDiaryEntriesToLocalStorage(plantId, updatedEntries); // Save (will also sort)

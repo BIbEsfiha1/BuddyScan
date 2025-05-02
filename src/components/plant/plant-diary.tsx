@@ -17,7 +17,7 @@ import type { DiaryEntry } from '@/types/diary-entry';
 import { loadDiaryEntriesFromLocalStorage, addDiaryEntryToLocalStorage } from '@/types/diary-entry';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert components
 import { Button } from '@/components/ui/button'; // Import Button for refresh
-
+import { useAuth } from '@/context/auth-context'; // Import useAuth
 
 interface PlantDiaryProps {
   plantId: string;
@@ -27,6 +27,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user, userId } = useAuth(); // Get user info
 
   // Use useCallback to memoize the load function
   const loadEntries = useCallback(async () => {
@@ -62,79 +63,88 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
    // Handler for when DiaryEntryForm submits a new entry
    const handleNewEntry = (newEntry: DiaryEntry) => {
        console.log('Handling new entry in PlantDiary:', newEntry);
-       try {
-           addDiaryEntryToLocalStorage(plantId, newEntry);
-           // Optimistically update the state immediately
-           setEntries(prevEntries => [newEntry, ...prevEntries].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-       } catch (err: any) {
-           console.error("Erro ao adicionar nova entrada no diário (localStorage):", err);
-            setError(`Falha ao salvar a nova entrada no diário: ${err.message}`);
-           // Optionally: trigger a full reload to ensure consistency
-           // loadEntries();
-       }
+       // The entry is already added to localStorage by the form's submit handler
+       // We just need to update the local state optimistically
+       setEntries(prevEntries => [newEntry, ...prevEntries].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
    };
 
 
   return (
-    <div className="space-y-8"> {/* Increased spacing */}
-      {/* Form to add new entry */}
-       <DiaryEntryForm plantId={plantId} onNewEntry={handleNewEntry} />
+    <div className="space-y-8">
+      {/* Form to add new entry - Only show if user is logged in */}
+       {user ? (
+           <DiaryEntryForm plantId={plantId} onNewEntry={handleNewEntry} />
+       ) : (
+           <Alert variant="default" className="border-primary/20 bg-primary/5">
+               <AlertTriangle className="h-4 w-4 text-primary" />
+               <AlertTitle>Login Necessário</AlertTitle>
+               <AlertDescription>
+                  Você precisa estar logado para adicionar novas entradas no diário.
+                  <Button variant="link" asChild className="p-0 h-auto ml-1">
+                      <a href="/login">Fazer Login</a>
+                  </Button>
+               </AlertDescription>
+           </Alert>
+       )}
 
 
       {/* Display existing entries */}
-      <Card className="shadow-lg border-primary/10 card"> {/* Adjusted border, added base card class */}
-        <CardHeader className="flex flex-row justify-between items-center sticky top-0 bg-background/95 backdrop-blur-sm z-10 border-b pb-3 pt-4 px-4"> {/* Sticky header */}
+      <Card className="shadow-lg border-primary/10 card">
+        <CardHeader className="flex flex-row justify-between items-center sticky top-0 bg-background/95 backdrop-blur-sm z-10 border-b pb-3 pt-4 px-4">
             <div>
-                <CardTitle className="text-2xl">Histórico do Diário</CardTitle> {/* Translated */}
-                <CardDescription>Registro cronológico de observações e ações.</CardDescription> {/* Translated */}
+                <CardTitle className="text-2xl">Histórico do Diário</CardTitle>
+                <CardDescription>Registro cronológico de observações e ações.</CardDescription>
             </div>
              <Button variant="outline" size="sm" onClick={loadEntries} disabled={isLoading} className="button">
                  {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                  {isLoading ? 'Atualizando...' : 'Atualizar'}
              </Button>
         </CardHeader>
-        <CardContent className="space-y-6 pt-4 px-4"> {/* Adjust padding */}
+        <CardContent className="space-y-6 pt-4 px-4">
           {isLoading && (
-             <div className="space-y-6 pt-4"> {/* Wrap skeletons, add padding top */}
-               <Skeleton className="h-48 w-full rounded-lg" /> {/* Slightly smaller skeleton */}
+             <div className="space-y-6 pt-4">
+               <Skeleton className="h-48 w-full rounded-lg" />
                <Skeleton className="h-48 w-full rounded-lg" />
              </div>
           )}
           {error && (
-             <Alert variant="destructive" className="mt-4"> {/* Add margin top */}
+             <Alert variant="destructive" className="mt-4">
                 <AlertTriangle className="h-4 w-4" />
-               <AlertTitle>Erro ao Carregar Diário</AlertTitle> {/* Translated */}
+               <AlertTitle>Erro ao Carregar Diário</AlertTitle>
                <AlertDescription>{error}</AlertDescription>
              </Alert>
           )}
 
           {!isLoading && !error && entries.length === 0 && (
-            <div className="text-center py-10 text-muted-foreground border border-dashed rounded-lg mt-4"> {/* Add margin top */}
+            <div className="text-center py-10 text-muted-foreground border border-dashed rounded-lg mt-4">
                 <CalendarDays className="h-12 w-12 mx-auto mb-3 text-secondary/50"/>
                 <p className="font-medium">Nenhuma entrada no diário ainda.</p>
-                <p className="text-sm">Adicione a primeira entrada usando o formulário acima!</p> {/* Translated */}
+                 {user ? (
+                      <p className="text-sm">Adicione a primeira entrada usando o formulário acima!</p>
+                  ) : (
+                       <p className="text-sm">Faça login para começar a adicionar entradas.</p>
+                  )}
             </div>
           )}
 
           {/* Entries List */}
           {!isLoading && !error && entries.length > 0 && (
-            <div className="space-y-6 mt-4"> {/* Add margin top */}
+            <div className="space-y-6 mt-4">
                 {entries.map((entry) => (
-                  <Card key={entry.id} className="border shadow-md overflow-hidden bg-card/60 card"> {/* Subtle bg, added base card class */}
-                    <CardHeader className="bg-muted/40 p-3 px-4 flex flex-row justify-between items-center"> {/* Use flex row */}
+                  <Card key={entry.id} className="border shadow-md overflow-hidden bg-card/60 card">
+                    <CardHeader className="bg-muted/40 p-3 px-4 flex flex-row justify-between items-center">
                        <div className="flex items-center gap-2">
                           <CalendarDays className="h-5 w-5 text-primary"/>
                           <span className="font-semibold text-sm text-foreground/90">
-                            {/* Use locale from RootLayout */}
-                            {new Date(entry.timestamp).toLocaleString('pt-BR', { dateStyle: 'medium', timeStyle: 'short' })} {/* Formatted Date */}
+                            {new Date(entry.timestamp).toLocaleString('pt-BR', { dateStyle: 'medium', timeStyle: 'short' })}
                           </span>
                        </div>
                       {entry.stage && <Badge variant="outline" className="text-xs px-2 py-0.5">{entry.stage}</Badge>}
                     </CardHeader>
                     <CardContent className="p-4 space-y-4">
 
-                      {/* Sensor/Measurement Data - Improved Layout */}
-                      {(entry.heightCm || entry.ec !== null || entry.ph !== null || entry.temp !== null || entry.humidity !== null) && ( // Check for null as well as undefined/0
+                      {/* Sensor/Measurement Data */}
+                      {(entry.heightCm || entry.ec !== null || entry.ph !== null || entry.temp !== null || entry.humidity !== null) && (
                           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-2 text-xs text-muted-foreground border-b pb-3 mb-3">
                               {entry.heightCm && <div className="flex items-center gap-1.5"><Ruler className="h-4 w-4 text-secondary" /> <span>{entry.heightCm} cm</span></div>}
                               {entry.ec !== null && typeof entry.ec !== 'undefined' && <div className="flex items-center gap-1.5"><Activity className="h-4 w-4 text-secondary" /> <span>EC: {entry.ec}</span></div>}
@@ -144,24 +154,23 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                           </div>
                       )}
 
-                       {/* Photo and AI Analysis Side-by-Side (on larger screens) */}
+                       {/* Photo and AI Analysis Side-by-Side */}
                        <div className="flex flex-col lg:flex-row gap-4">
                            {/* Photo */}
                            {entry.photoUrl && (
                              <div className="lg:w-1/2 flex-shrink-0">
-                                {/* Use placeholder if photoUrl is not a valid URL (like picsum) */}
+                               {/* Display Data URI directly */}
                                <Image
-                                  data-ai-hint={entry.aiSummary ? `cannabis analysis ${entry.stage?.toLowerCase()}` : `cannabis plant ${entry.stage?.toLowerCase()} diary photo`} // Contextual hint
-                                  src={entry.photoUrl.startsWith('http') ? entry.photoUrl : `https://picsum.photos/seed/cannabis-diary-${entry.id}/400/300`} // Fallback placeholder
-                                  alt={`Foto da planta em ${new Date(entry.timestamp).toLocaleDateString('pt-BR')}`} // Translated
+                                  data-ai-hint={entry.aiSummary ? `cannabis analysis ${entry.stage?.toLowerCase()}` : `cannabis plant ${entry.stage?.toLowerCase()} diary photo`}
+                                  src={entry.photoUrl} // Assume it's a Data URI
+                                  alt={`Foto da planta em ${new Date(entry.timestamp).toLocaleDateString('pt-BR')}`}
                                   width={400}
                                   height={300}
-                                  className="rounded-lg shadow-md w-full h-auto object-cover border" // Responsive image
+                                  className="rounded-lg shadow-md w-full h-auto object-cover border"
                                   onError={(e) => {
-                                     // If the provided URL fails, replace with a generic placeholder
-                                     console.warn(`Failed to load image: ${entry.photoUrl}. Using placeholder.`);
+                                     console.warn(`Failed to load image (data URI or URL): ${entry.photoUrl}. Using placeholder.`);
                                      (e.target as HTMLImageElement).src = `https://picsum.photos/seed/cannabis-placeholder/400/300`;
-                                     (e.target as HTMLImageElement).srcset = ''; // Clear srcset if it exists
+                                     (e.target as HTMLImageElement).srcset = '';
                                   }}
                                 />
                              </div>
@@ -173,7 +182,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                                  <Card className="bg-accent/10 border-accent shadow-sm mb-4">
                                     <CardHeader className="p-3">
                                         <CardTitle className="text-base font-semibold flex items-center gap-2 text-accent-foreground/90">
-                                            <Bot className="h-5 w-5" /> Análise da IA {/* Translated */}
+                                            <Bot className="h-5 w-5" /> Análise da IA
                                         </CardTitle>
                                     </CardHeader>
                                    <CardContent className="p-3 pt-0 text-sm text-accent-foreground/80">
@@ -186,7 +195,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                                 {entry.note && (
                                    <div className="text-sm text-foreground space-y-2">
                                      <h4 className="font-semibold flex items-center gap-1.5"><StickyNote className="h-4 w-4 text-secondary" /> Observações</h4>
-                                      <p className="pl-1 leading-relaxed whitespace-pre-wrap">{entry.note}</p> {/* Preserve whitespace */}
+                                      <p className="pl-1 leading-relaxed whitespace-pre-wrap">{entry.note}</p>
                                    </div>
                                 )}
                            </div>
@@ -195,7 +204,12 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
 
                         {/* Author */}
                         <div className="text-xs text-muted-foreground text-right pt-2 border-t mt-4 flex justify-end items-center gap-1">
-                           <User className="h-3.5 w-3.5"/> Registrado por: <span className="font-medium">{entry.authorId}</span> {/* Translated */}
+                           <User className="h-3.5 w-3.5"/>
+                            {/* Display email if available, otherwise just the ID */}
+                            Registrado por: <span className="font-medium" title={entry.authorId}>
+                                {/* Enhance later to fetch display name if available */}
+                                {user && entry.authorId === user.uid ? user.email : `Usuário (${entry.authorId.substring(0, 6)}...)`}
+                           </span>
                         </div>
                     </CardContent>
                   </Card>
