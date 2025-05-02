@@ -535,8 +535,9 @@ export default function Home() {
        <header className="mb-8">
          <div className="flex items-center gap-3 mb-2">
              {/* Use BudScan Logo Image */}
+             {/* Ensure budscan-logo.png exists in the /public folder */}
              <Image
-                 src="/budscan-logo.png" // Path to the logo in the public folder - Confirmed path
+                 src="/budscan-logo.png" // Path to the logo in the public folder - CONFIRMED PATH USAGE
                  alt="BudScan Logo"
                  width={200} // Adjust width as needed for main page heading
                  height={57} // Adjust height proportionally

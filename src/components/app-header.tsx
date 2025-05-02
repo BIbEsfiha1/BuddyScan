@@ -15,8 +15,9 @@
          {/* Logo/Brand - Use Image component */}
          <Link href="/" className="flex items-center mr-6">
            {/* Use Next Image for optimization */}
+           {/* Ensure budscan-logo.png exists in the /public folder */}
            <Image
-               src="/budscan-logo.png" // Path to the logo in the public folder
+               src="/budscan-logo.png" // Path to the logo in the public folder - CONFIRMED PATH USAGE
                alt="BudScan Logo"
                width={140} // Adjust width as needed
                height={40} // Adjust height as needed

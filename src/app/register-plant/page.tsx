@@ -167,8 +167,9 @@ export default function RegisterPlantPage() {
             </Button>
            <div className="flex flex-col items-center text-center pt-8">
               {/* Replace Sprout icon and CardTitle with BudScan Logo */}
+              {/* Ensure budscan-logo.png exists in the /public folder */}
                <Image
-                   src="/budscan-logo.png" // Confirmed path
+                   src="/budscan-logo.png" // Path to the logo in the public folder - CONFIRMED PATH USAGE
                    alt="BudScan Logo"
                    width={180} // Adjust size as needed for this context
                    height={51}
