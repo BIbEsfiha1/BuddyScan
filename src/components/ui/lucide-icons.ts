@@ -10,7 +10,10 @@ export {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  BarChart, // Ensure BarChart is included
   Bot,
+  BookOpenText, // Added for Landing Page Features
+  BrainCircuit, // Added for Landing Page Features
   Calendar,
   CalendarDays,
   Camera,
@@ -56,7 +59,7 @@ export {
   QrCode,
   RefreshCw,
   Ruler, // Keep for height
-  ScanLine,
+  ScanLine, // Added for Landing Page Features
   Search,
   Settings, // Added for potential settings page
   Sprout, // Keep for Plant/Growth related
