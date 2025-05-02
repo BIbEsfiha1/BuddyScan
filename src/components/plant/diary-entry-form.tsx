@@ -191,14 +191,6 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     }
   };
 
-  // Helper to ensure value passed to Input is a string or empty string (REMOVED - No longer needed)
-  // const formatNumericValue = (value: unknown): string => {
-  //     if (value === null || value === undefined || isNaN(Number(value))) {
-  //       return '';
-  //     }
-  //     return String(value);
-  // };
-
 
   return (
     <Card className="shadow-lg border border-primary/20">
@@ -315,8 +307,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                        <FormItem>
                          <FormLabel>Altura (cm)</FormLabel> {/* Translated */}
                          <FormControl>
-                           {/* RHF handles value; Zod preprocesses it */}
-                            <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} disabled={isSubmitting} />
+                            <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} value={field.value ?? ''} disabled={isSubmitting} />
                          </FormControl>
                          <FormMessage />
                        </FormItem>
@@ -329,8 +320,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>EC</FormLabel>
                              <FormControl>
-                                {/* RHF handles value; Zod preprocesses it */}
-                                 <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} disabled={isSubmitting} />
+                                 <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} value={field.value ?? ''} disabled={isSubmitting} />
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -343,8 +333,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>pH</FormLabel>
                              <FormControl>
-                                {/* RHF handles value; Zod preprocesses it */}
-                                 <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} disabled={isSubmitting}/>
+                                 <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} value={field.value ?? ''} disabled={isSubmitting}/>
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -357,8 +346,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>Temp (°C)</FormLabel>
                              <FormControl>
-                                {/* RHF handles value; Zod preprocesses it */}
-                                 <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} disabled={isSubmitting}/>
+                                 <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} value={field.value ?? ''} disabled={isSubmitting}/>
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -371,8 +359,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>Umidade (%)</FormLabel> {/* Translated */}
                              <FormControl>
-                                {/* RHF handles value; Zod preprocesses it */}
-                                 <Input type="number" step="1" placeholder="ex: 55" {...field} disabled={isSubmitting} />
+                                 <Input type="number" step="1" placeholder="ex: 55" {...field} value={field.value ?? ''} disabled={isSubmitting} />
                              </FormControl>
                              <FormMessage />
                          </FormItem>
