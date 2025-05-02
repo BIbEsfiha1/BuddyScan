@@ -23,8 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     // Set lang to pt-BR. Dark theme is applied via globals.css :root and .dark selectors
-    <html lang="pt-BR" suppressHydrationWarning> {/* No whitespace here */}
-      {/* Add font variable and antialiased class for better font rendering */}
+    <html lang="pt-BR" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased bg-background text-foreground`}>
         <ThemeProvider
             attribute="class"
