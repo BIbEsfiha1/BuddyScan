@@ -584,41 +584,37 @@ export default function Home() {
           </DialogHeader>
 
           {/* Container for video and overlays */}
-          <div className="relative mt-4 aspect-square w-full max-w-[400px] mx-auto overflow-hidden rounded-lg border-2 border-primary/30 bg-muted shadow-inner">
-            {/* Video element - Always render */}
-            <video
-              ref={videoRef}
-              // Keep mirrored for natural user experience
-              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${scannerStatus === 'scanning' || scannerStatus === 'initializing' || scannerStatus === 'stopped' ? 'opacity-100' : 'opacity-0'}`}
-              playsInline // Essential for iOS Safari
-              muted // Required for autoplay in most browsers
-              // Do NOT apply scale-x-[-1] here, apply it to the container if needed
-            />
+           <div className="relative mt-4 aspect-square w-full max-w-[400px] mx-auto overflow-hidden rounded-lg bg-muted shadow-inner">
+              {/* Video element - Always render, ensure it covers the container */}
+              <video
+                  ref={videoRef}
+                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${scannerStatus === 'scanning' || scannerStatus === 'initializing' || scannerStatus === 'stopped' ? 'opacity-100' : 'opacity-0'}`}
+                  playsInline // Essential for iOS Safari
+                  muted // Required for autoplay in most browsers
+                  // No scale transform needed here
+              />
 
              {/* Visual Guide Overlay - Show ONLY when scanning or initializing */}
              {(scannerStatus === 'scanning' || scannerStatus === 'initializing') && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    {/* Faded Mask for focus effect */}
-                    <div className="absolute inset-0 bg-gradient-radial from-transparent via-background/60 to-background/80"></div>
+                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                     {/* Outer Mask for focus effect */}
+                     <div className="absolute inset-0 bg-gradient-radial from-transparent via-background/70 to-background/90"></div>
 
-                    {/* Focus Box */}
-                    <div className="relative w-[70%] h-[70%] border-4 border-dashed border-primary/50 rounded-lg shadow-[0_0_30px_10px_hsl(var(--background)/0.5)] flex items-center justify-center">
-                      {/* Optional: Inner Crosshair or Lines */}
-                      {/* <div className="absolute w-1/2 h-[2px] bg-primary/30 top-1/2 left-1/4 -translate-y-1/2"></div>
-                      <div className="absolute h-1/2 w-[2px] bg-primary/30 left-1/2 top-1/4 -translate-x-1/2"></div> */}
-                       {/* Pulsing Corner Brackets for focus */}
-                        <div className="absolute top-[-4px] left-[-4px] w-8 h-8 border-t-4 border-l-4 border-accent animate-pulse rounded-tl-lg"></div>
-                        <div className="absolute top-[-4px] right-[-4px] w-8 h-8 border-t-4 border-r-4 border-accent animate-pulse rounded-tr-lg"></div>
-                        <div className="absolute bottom-[-4px] left-[-4px] w-8 h-8 border-b-4 border-l-4 border-accent animate-pulse rounded-bl-lg"></div>
-                        <div className="absolute bottom-[-4px] right-[-4px] w-8 h-8 border-b-4 border-r-4 border-accent animate-pulse rounded-br-lg"></div>
+                     {/* Focus Box with Pulsing Border */}
+                    <div className="relative w-[70%] h-[70%] border-2 border-primary/50 rounded-lg animate-pulse-border flex items-center justify-center">
+                       {/* Pulsing Corner Brackets */}
+                       <div className="absolute -top-1 -left-1 w-6 h-6 border-t-2 border-l-2 border-accent animate-pulse rounded-tl-md"></div>
+                       <div className="absolute -top-1 -right-1 w-6 h-6 border-t-2 border-r-2 border-accent animate-pulse rounded-tr-md"></div>
+                       <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-2 border-l-2 border-accent animate-pulse rounded-bl-md"></div>
+                       <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-2 border-r-2 border-accent animate-pulse rounded-br-md"></div>
+
+                       {/* Animated Scan Line (only when actively scanning) */}
+                       {scannerStatus === 'scanning' && (
+                          // Use a div with gradient background for the scan line effect
+                          <div className="absolute w-full h-[2px] bg-gradient-to-r from-transparent via-accent to-transparent animate-scan-line-vertical shadow-[0_0_10px_1px_hsl(var(--accent)/0.6)] rounded-full"></div>
+                       )}
                     </div>
-
-
-                    {/* Animated Scan Line (only when actively scanning) */}
-                    {scannerStatus === 'scanning' && (
-                       <div className="absolute w-[70%] h-1.5 bg-gradient-to-r from-transparent via-accent/80 to-transparent animate-scan-line-vertical shadow-[0_0_15px_2px_hsl(var(--accent)/0.5)] rounded-full"></div>
-                    )}
-                </div>
+                 </div>
              )}
 
              {/* Status Overlay (Loading, Permission Denied, Error) - Show when NOT scanning/stopped/idle */}
