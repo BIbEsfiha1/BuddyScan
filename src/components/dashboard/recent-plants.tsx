@@ -12,7 +12,7 @@ interface PlantSummary {
   id: string;
   qrCode: string;
   strain: string;
-  status: string;
+  status: string; // e.g., 'Vegetativo', 'Floração', 'Colheita', 'Secagem'
   lastUpdated: string; // Could be a date string or relative time
   photoUrl?: string | null;
 }
@@ -44,12 +44,15 @@ export default function RecentPlants({ plants }: RecentPlantsProps) {
           <ul className="divide-y divide-border">
             {plants.map((plant) => (
               <li key={plant.id} className="py-3 group hover:bg-muted/30 rounded-md transition-colors duration-150">
+                {/* Ensure Link points to the correct plant page using qrCode */}
                 <Link href={`/plant/${plant.qrCode}`} className="flex items-center space-x-4 px-2">
                   <div className="flex-shrink-0">
                     <Image
-                      data-ai-hint={`cannabis plant ${plant.status}`}
-                      src={plant.photoUrl || 'https://picsum.photos/seed/cannabis-placeholder/100/100'} // Placeholder if no photo
-                      alt={`Foto de ${plant.strain}`}
+                      // Make hint more specific using plant status
+                      data-ai-hint={`cannabis plant ${plant.status.toLowerCase()}`}
+                      // Generate placeholder seed based on status for relevance
+                      src={plant.photoUrl || `https://picsum.photos/seed/cannabis-${plant.status.toLowerCase().replace(/ /g, '-')}/100/100`}
+                      alt={`Foto de ${plant.strain} (${plant.status})`}
                       width={50}
                       height={50}
                       className="rounded-md object-cover border border-border/50 aspect-square"
@@ -58,6 +61,7 @@ export default function RecentPlants({ plants }: RecentPlantsProps) {
                   <div className="flex-1 min-w-0">
                     <p className="text-base font-medium text-foreground truncate">{plant.strain}</p>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                       {/* Badge remains secondary for general status */}
                        <Badge variant="secondary" className="text-xs px-1.5 py-0.5">{plant.status}</Badge>
                        <span>·</span>
                        <span>Última att: {plant.lastUpdated}</span>
@@ -70,10 +74,11 @@ export default function RecentPlants({ plants }: RecentPlantsProps) {
           </ul>
         )}
       </CardContent>
-       {/* Optional Footer Link */}
+       {/* Optional Footer Link - Ensure this link works if uncommented */}
        {plants.length > 0 && (
           <div className="p-4 border-t mt-auto text-center">
               <Button variant="link" size="sm" asChild>
+                 {/* Make sure '/plants' is a valid route if implemented */}
                  <Link href="/plants">Ver todas as plantas</Link>
               </Button>
           </div>

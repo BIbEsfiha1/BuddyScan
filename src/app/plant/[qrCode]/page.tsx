@@ -2,9 +2,12 @@ import { getPlantByQrCode } from '@/services/plant-id';
 import type { Plant } from '@/services/plant-id';
 import PlantDiary from '@/components/plant/plant-diary';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Leaf, QrCode, Calendar, Thermometer, Droplet, Activity, AlertCircle, Sprout } from 'lucide-react'; // Added AlertCircle and Sprout
+import { Leaf, QrCode, Calendar, Thermometer, Droplet, Activity, AlertCircle, Sprout, Warehouse } from 'lucide-react'; // Added Warehouse icon
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator'; // Import Separator
+import Link from 'next/link'; // Import Link for navigation
+import { Button } from '@/components/ui/button'; // Import Button
+
 
 // Define expected params structure
 interface PlantPageProps {
@@ -19,9 +22,10 @@ export default async function PlantPage({ params }: PlantPageProps) {
   let error: string | null = null;
 
   try {
+    // Use the actual qrCode from params to fetch data
     plant = await getPlantByQrCode(qrCode);
     if (!plant) {
-      error = 'Planta não encontrada para o QR code fornecido.'; // Translated
+      error = `Planta não encontrada para o QR code: ${qrCode}`; // More specific error
     }
   } catch (e) {
     console.error('Falha ao buscar dados da planta:', e); // Translated
@@ -31,7 +35,7 @@ export default async function PlantPage({ params }: PlantPageProps) {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background via-muted/50 to-destructive/10"> {/* Added subtle gradient */}
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background via-muted/50 to-destructive/10"> {/* Added subtle gradient */}
         <Card className="w-full max-w-md text-center shadow-xl border-destructive/50 card"> {/* Added base card class */}
            <CardHeader>
              <div className="mx-auto bg-destructive/10 rounded-full p-3 w-fit mb-3">
@@ -39,8 +43,11 @@ export default async function PlantPage({ params }: PlantPageProps) {
              </div>
              <CardTitle className="text-destructive text-2xl">Erro ao Carregar Planta</CardTitle> {/* Translated & Improved */}
            </CardHeader>
-           <CardContent>
+           <CardContent className="space-y-4">
              <p className="text-muted-foreground">{error}</p>
+              <Button asChild variant="secondary">
+                  <Link href="/">Voltar ao Painel</Link>
+              </Button>
            </CardContent>
          </Card>
       </div>
@@ -48,15 +55,21 @@ export default async function PlantPage({ params }: PlantPageProps) {
   }
 
   if (!plant) {
-     // This case should ideally be handled by the error block above,
-     // but it's good practice for type safety. Shows a loading state.
+     // Loading state or fallback if getPlantByQrCode returns null without error
+     // This might happen if the mock function returns null for an unknown QR code
      return (
-        <div className="flex items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background to-secondary/10">
-          <Card className="w-full max-w-md text-center shadow-lg card"> {/* Added base card class */}
+        <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background to-secondary/10">
+          <Card className="w-full max-w-md text-center shadow-lg card">
              <CardHeader>
                 <Sprout className="h-12 w-12 text-primary animate-pulse mx-auto mb-4" /> {/* Loading Icon */}
-               <CardTitle className="text-xl text-muted-foreground">Carregando Dados da Planta...</CardTitle> {/* Translated */}
+                <CardTitle className="text-xl text-muted-foreground">Carregando Dados da Planta...</CardTitle>
              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-muted-foreground">Tentando encontrar detalhes para QR Code: {qrCode}</p>
+                <Button asChild variant="secondary">
+                    <Link href="/">Voltar ao Painel</Link>
+                </Button>
+              </CardContent>
            </Card>
         </div>
       );
@@ -77,12 +90,12 @@ export default async function PlantPage({ params }: PlantPageProps) {
                                {plant.strain}
                              </CardTitle>
                              <CardDescription className="text-muted-foreground flex items-center gap-1.5 mt-1 text-sm">
-                               <QrCode className="h-4 w-4" /> ID: {plant.id} (QR: {plant.qrCode}) {/* Translated */}
+                               <QrCode className="h-4 w-4" /> ID: {plant.id} (QR: {plant.qrCode})
                              </CardDescription>
                          </div>
                     </div>
                      <Badge variant="secondary" className="self-start sm:self-center text-base px-4 py-1.5 font-medium shadow-sm"> {/* Larger badge */}
-                        Status: {plant.status} {/* Translated */}
+                        Status: {plant.status}
                     </Badge>
                 </div>
 
@@ -91,14 +104,14 @@ export default async function PlantPage({ params }: PlantPageProps) {
             <Separator /> {/* Separator between header and content */}
 
             <CardContent className="p-5 md:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-sm"> {/* Adjusted grid gap */}
-                {/* Info Item Component (Optional Refactor) */}
+                {/* Info Item */}
                 <div className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors"> {/* Hover effect */}
                     <Calendar className="h-5 w-5 text-secondary flex-shrink-0" />
-                    <span className="text-foreground"><strong className="font-medium">Plantada em:</strong> {new Date(plant.birthDate).toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric' })}</span> {/* Translated & Formatted */}
+                    <span className="text-foreground"><strong className="font-medium">Plantada em:</strong> {new Date(plant.birthDate).toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
                 </div>
                  <div className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-warehouse text-secondary flex-shrink-0"><path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3 6.5l8-4.2a2 2 0 0 1 2 0l8 4.2a2 2 0 0 1 1 1.85Z"/><path d="M22 22V8"/><path d="M12 22V8"/><path d="M2 22V8"/><path d="M12 13H2"/><path d="M12 8H2"/></svg>
-                    <span className="text-foreground"><strong className="font-medium">Sala de Cultivo:</strong> {plant.growRoomId}</span> {/* Translated */}
+                   <Warehouse className="h-5 w-5 text-secondary flex-shrink-0" /> {/* Use Warehouse icon */}
+                    <span className="text-foreground"><strong className="font-medium">Sala de Cultivo:</strong> {plant.growRoomId}</span>
                 </div>
                 {/* Add more details if needed - using consistent styling */}
                  {/* Example placeholders for potential future data */}
@@ -125,6 +138,15 @@ export default async function PlantPage({ params }: PlantPageProps) {
 
       {/* Pass plant ID to the diary component */}
       <PlantDiary plantId={plant.id} />
+
+      {/* Back to Dashboard Button */}
+      <div className="text-center mt-8">
+          <Button asChild variant="outline">
+              <Link href="/">
+                 Voltar ao Painel
+              </Link>
+          </Button>
+      </div>
     </div>
   );
 }

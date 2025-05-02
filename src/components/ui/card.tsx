@@ -9,7 +9,8 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden", // Added overflow-hidden
+      // Base card styles from globals.css are applied via the 'card' class added where used
+      "rounded-lg border bg-card text-card-foreground shadow-sm", // Basic structure
       className
     )}
     {...props}
@@ -23,20 +24,20 @@ const CardHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("flex flex-col space-y-1.5 p-6", className)} // Consistent padding
+    className={cn("flex flex-col space-y-1.5 p-6", className)} // Default padding
     {...props}
   />
 ))
 CardHeader.displayName = "CardHeader"
 
 const CardTitle = React.forwardRef<
-  HTMLParagraphElement, // Changed to p for semantic correctness, can be div if needed
-  React.HTMLAttributes<HTMLHeadingElement> // Keep heading attributes for compatibility
+  HTMLHeadingElement, // Use h3 or appropriate heading level
+  React.HTMLAttributes<HTMLHeadingElement>
 >(({ className, ...props }, ref) => (
-  <p // Changed to p
+  <h3 // Use a heading tag for semantic meaning
     ref={ref}
     className={cn(
-      "text-xl font-semibold leading-none tracking-tight", // Adjusted size
+      "text-lg font-semibold leading-none tracking-tight", // Adjusted size (can be overridden)
       className
     )}
     {...props}
@@ -48,7 +49,7 @@ const CardDescription = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, ...props }, ref) => (
-  <p // Ensure it's a p tag
+  <p
     ref={ref}
     className={cn("text-sm text-muted-foreground", className)}
     {...props}
@@ -60,7 +61,8 @@ const CardContent = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("p-6", className)} {...props} /> // Consistent padding, removed pt-0
+  // Default padding, removed pt-0 which might be specific to some layouts
+  <div ref={ref} className={cn("p-6", className)} {...props} />
 ))
 CardContent.displayName = "CardContent"
 
@@ -70,7 +72,8 @@ const CardFooter = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("flex items-center p-6 pt-0", className)} // Consistent padding, keep pt-0 for footers
+    // Keep pt-0 for footers as it's common, but allow override
+    className={cn("flex items-center p-6 pt-0", className)}
     {...props}
   />
 ))

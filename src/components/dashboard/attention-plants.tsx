@@ -49,12 +49,15 @@ export default function AttentionPlants({ plants }: AttentionPlantsProps) {
           <ul className="divide-y divide-border">
             {plants.map((plant) => (
               <li key={plant.id} className="py-3 group hover:bg-destructive/5 rounded-md transition-colors duration-150">
+                {/* Ensure Link points to the correct plant page using qrCode */}
                 <Link href={`/plant/${plant.qrCode}`} className="flex items-center space-x-4 px-2">
                    <div className="flex-shrink-0">
                     <Image
-                      data-ai-hint={`cannabis plant issue ${plant.attentionReason}`}
-                      src={plant.photoUrl || 'https://picsum.photos/seed/cannabis-placeholder-issue/100/100'} // Placeholder
-                      alt={`Foto de ${plant.strain} precisando de atenção`}
+                      // Updated hint to be more specific for AI search
+                      data-ai-hint={`cannabis plant ${plant.attentionReason.toLowerCase().replace(/ /g, '-')}`}
+                      // Updated placeholder seed
+                      src={plant.photoUrl || `https://picsum.photos/seed/cannabis-${plant.attentionReason.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/100/100`}
+                      alt={`Foto de ${plant.strain} precisando de atenção (${plant.attentionReason})`}
                       width={50}
                       height={50}
                       className="rounded-md object-cover border border-destructive/50 aspect-square" // Destructive hint on border
@@ -64,6 +67,7 @@ export default function AttentionPlants({ plants }: AttentionPlantsProps) {
                     <p className="text-base font-medium text-foreground truncate">{plant.strain}</p>
                      <p className="text-sm text-destructive font-medium truncate">{plant.attentionReason}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                       {/* Use destructive badge for attention status */}
                        <Badge variant="destructive" className="text-xs px-1.5 py-0.5">{plant.status}</Badge>
                        <span>·</span>
                        <span>Última att: {plant.lastUpdated}</span>
@@ -76,10 +80,11 @@ export default function AttentionPlants({ plants }: AttentionPlantsProps) {
           </ul>
         )}
       </CardContent>
-      {/* Optional Footer Link */}
+      {/* Optional Footer Link - Keep as is unless a specific page exists */}
        {plants.length > 0 && (
            <div className="p-4 border-t mt-auto text-center">
               <Button variant="link" size="sm" asChild className="text-destructive hover:text-destructive/80">
+                 {/* Make sure this link points to a valid page if implemented */}
                  <Link href="/plants?filter=attention">Ver todas as plantas com atenção</Link>
               </Button>
            </div>

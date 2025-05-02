@@ -23,6 +23,7 @@ import { analyzePlantPhoto, type AnalyzePlantPhotoOutput } from '@/ai/flows/anal
 import type { DiaryEntry } from '@/types/diary-entry';
 import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label'; // Import Label explicitly
+import { useToast } from '@/hooks/use-toast'; // Import useToast
 
 
 const diaryEntrySchema = z.object({
@@ -68,6 +69,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const { toast } = useToast(); // Initialize toast
 
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -89,27 +91,62 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Basic validation (can be expanded)
+      // Basic validation
       if (!file.type.startsWith('image/')) {
-           // TODO: Use toast for user feedback
+           toast({ // Use toast for user feedback
+                variant: "destructive",
+                title: "Tipo de Arquivo Inválido",
+                description: "Por favor, selecione um arquivo de imagem (JPEG, PNG, GIF, etc.).",
+           });
            console.error("Arquivo selecionado não é uma imagem.");
-           setAnalysisError('Por favor, selecione um arquivo de imagem válido (JPEG, PNG, GIF, etc.).');
+           setAnalysisError('Por favor, selecione um arquivo de imagem válido.'); // Keep analysisError state if needed
+           // Clear file input value
+           if (fileInputRef.current) fileInputRef.current.value = '';
            return;
       }
-       if (file.size > 5 * 1024 * 1024) { // Example: 5MB limit
+       if (file.size > 5 * 1024 * 1024) { // 5MB limit
+            toast({ // Use toast for user feedback
+                variant: "destructive",
+                title: "Arquivo Muito Grande",
+                description: `O arquivo excede o limite de 5MB (${(file.size / (1024*1024)).toFixed(2)}MB).`,
+            });
            console.error("Arquivo muito grande.");
             setAnalysisError('A imagem é muito grande. O limite é 5MB.');
+           // Clear file input value
+           if (fileInputRef.current) fileInputRef.current.value = '';
            return;
        }
 
       setPhotoFile(file);
        setAnalysisError(null); // Clear previous errors
+       setAnalysisResult(null); // Reset analysis if new photo is selected
+       // Reset preview before reading new file
+       setPhotoPreview(null);
+
       const reader = new FileReader();
       reader.onloadend = () => {
         setPhotoPreview(reader.result as string);
-        setAnalysisResult(null); // Reset analysis if new photo is selected
       };
+      reader.onerror = () => {
+        console.error("Erro ao ler o arquivo.");
+        toast({
+            variant: "destructive",
+            title: "Erro ao Ler Arquivo",
+            description: "Não foi possível pré-visualizar a imagem.",
+        });
+         setAnalysisError('Erro ao carregar a pré-visualização da imagem.');
+         setPhotoFile(null);
+         setPhotoPreview(null);
+         if (fileInputRef.current) fileInputRef.current.value = '';
+      }
       reader.readAsDataURL(file);
+    } else {
+        // Handle case where user cancels file selection
+        setPhotoFile(null);
+        setPhotoPreview(null);
+        setAnalysisResult(null);
+        setAnalysisError(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -118,7 +155,14 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
   };
 
   const handleAnalyzePhoto = async () => {
-    if (!photoPreview) return;
+    if (!photoPreview) {
+        toast({
+            variant: "destructive",
+            title: "Nenhuma Foto",
+            description: "Selecione uma foto antes de analisar.",
+        });
+        return;
+    }
 
     setIsAnalyzing(true);
     setAnalysisError(null);
@@ -127,13 +171,24 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     try {
         // Ensure photoPreview is a valid data URI string
        if (typeof photoPreview !== 'string' || !photoPreview.startsWith('data:image')) {
-         throw new Error('Dados de imagem inválidos para análise.'); // Translated
+         throw new Error('Dados de imagem inválidos para análise.');
        }
        const result = await analyzePlantPhoto({ photoDataUri: photoPreview });
        setAnalysisResult(result);
+       toast({
+           title: "Análise Concluída",
+           description: "A IA analisou a foto.",
+           variant: "default", // Use default or success variant
+       });
     } catch (error) {
-      console.error('Erro na Análise de IA:', error); // Translated
-      setAnalysisError('Falha ao analisar a foto. Verifique sua conexão ou tente uma imagem diferente.'); // Translated & Improved message
+      console.error('Erro na Análise de IA:', error);
+      const errorMsg = 'Falha ao analisar a foto. Verifique sua conexão ou tente uma imagem diferente.';
+      setAnalysisError(errorMsg);
+      toast({
+          variant: "destructive",
+          title: "Erro na Análise",
+          description: errorMsg,
+      });
     } finally {
       setIsAnalyzing(false);
     }
@@ -145,44 +200,45 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
      setUploadProgress(0); // Start progress
 
 
-    // TODO: Replace with actual backend submission logic
-    console.log('Enviando dados:', data); // Translated
-    console.log('Arquivo da foto:', photoFile); // Translated
-    console.log('Resultado da análise:', analysisResult); // Translated
+    // TODO: Replace with actual backend submission logic (e.g., Firebase Storage & Firestore)
+    console.log('Enviando dados:', data);
+    console.log('Arquivo da foto:', photoFile);
+    console.log('Resultado da análise:', analysisResult);
 
     // Simulate upload/save process
     try {
-        // 1. Upload photo if exists (simulate progress)
+        // 1. Simulate photo upload if exists (replace with actual upload)
         let photoUrl = null;
         if (photoFile && photoPreview) {
-          // Simulate upload delay and progress
+          console.log('Simulando upload da foto...');
+          // In real app: call upload function (e.g., uploadBytesResumable to Firebase Storage)
+          // Listen to progress updates and call setUploadProgress
           for (let i = 1; i <= 5; i++) {
-            await new Promise(res => setTimeout(res, 300));
-             if (!isSubmitting) throw new Error("Submissão cancelada"); // Check if cancelled during upload
+            await new Promise(res => setTimeout(res, 200)); // Shorter delay
+             if (!isSubmitting) throw new Error("Submissão cancelada");
             setUploadProgress(i * 20);
           }
-          // In real app, get URL from upload response
-          // Use a more descriptive seed for the placeholder image
-          // Ensure the image seed reflects the cannabis context
-          photoUrl = `https://picsum.photos/seed/cannabis-plant-entry-${Date.now()}/400/300`; // Larger image
-          console.log('Upload simulado da foto concluído.'); // Translated
+          // In real app, get URL from upload response (e.g., getDownloadURL)
+          // Using a cannabis-related seed for placeholder
+          photoUrl = `https://picsum.photos/seed/cannabis-plant-diary-${Date.now()}/400/300`;
+          console.log('Upload simulado da foto concluído:', photoUrl);
         } else {
-            // Simulate minimal delay even without upload
+            // No photo to upload, still simulate some processing time
             await new Promise(res => setTimeout(res, 100));
              if (!isSubmitting) throw new Error("Submissão cancelada");
-            setUploadProgress(100); // No photo to upload
+            setUploadProgress(100); // Indicate completion even without upload
+            console.log('Nenhuma foto para enviar.');
         }
 
 
         // 2. Construct the new DiaryEntry object
         const newEntry: DiaryEntry = {
-            id: `entry-${Date.now()}`, // Temporary ID
+            id: `entry-${Date.now()}`, // Temporary ID - replace with ID from backend save
             plantId: plantId,
             timestamp: new Date().toISOString(),
-            authorId: 'usuario-atual', // Replace with actual user ID // Translated
+            authorId: 'simulated-user-id', // Replace with actual authenticated user ID
             note: data.note,
-            stage: data.stage,
-            // Ensure optional number fields are null if undefined or null
+            stage: data.stage || null, // Ensure null if undefined
             heightCm: data.heightCm ?? null,
             ec: data.ec ?? null,
             ph: data.ph ?? null,
@@ -192,26 +248,48 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
             aiSummary: analysisResult?.analysisResult || null,
         };
 
-        // 3. Simulate saving to backend
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // 3. Simulate saving entry data to backend (e.g., addDoc to Firestore)
+        console.log('Simulando salvamento da entrada no banco de dados...');
+        await new Promise(resolve => setTimeout(resolve, 300)); // Simulate save delay
          if (!isSubmitting) throw new Error("Submissão cancelada");
-        console.log('Salvamento simulado concluído:', newEntry); // Translated
+        console.log('Salvamento simulado concluído:', newEntry);
 
 
-        // 4. Call the callback to update the UI
+        // 4. Call the callback to update the UI optimistically
         onNewEntry(newEntry);
 
-        // 5. Reset form state
+        // 5. Show success toast
+         toast({
+           title: "Entrada Salva",
+           description: "Sua entrada no diário foi adicionada com sucesso.",
+           variant: "default", // Or a success variant if defined
+         });
+
+        // 6. Reset form state completely
         form.reset();
         setPhotoPreview(null);
         setPhotoFile(null);
         setAnalysisResult(null);
         setAnalysisError(null);
+        if (fileInputRef.current) fileInputRef.current.value = ''; // Clear file input
 
     } catch (error: any) {
-        console.error('Erro no envio:', error); // Translated
+        console.error('Erro no envio:', error);
          if (error.message !== "Submissão cancelada") {
-            setSubmitError('Falha ao salvar a entrada do diário. Por favor, tente novamente.'); // Translated
+            const errorMsg = 'Falha ao salvar a entrada do diário. Por favor, tente novamente.';
+            setSubmitError(errorMsg);
+            toast({
+                variant: "destructive",
+                title: "Erro ao Salvar",
+                description: errorMsg,
+            });
+         } else {
+             console.log("Submissão foi cancelada.");
+             toast({
+                 title: "Envio Cancelado",
+                 description: "A operação de salvamento foi cancelada.",
+                 variant: "default",
+             });
          }
     } finally {
         setIsSubmitting(false);
@@ -346,16 +424,18 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                      {/* Upload Area */}
                     <div className="w-full md:w-1/2 flex flex-col items-center justify-center border-2 border-dashed border-secondary/30 rounded-lg p-6 text-center bg-background hover:border-primary/50 transition-colors aspect-video md:aspect-auto md:h-auto min-h-[150px]">
                         {photoPreview ? (
-                             <div className="relative group">
+                             <div className="relative group w-full h-full flex items-center justify-center">
                                 <Image
                                   data-ai-hint="cannabis plant user upload close up" // More specific hint
                                   src={photoPreview}
                                   alt="Pré-visualização da planta" // Translated
-                                  width={240} // Increased size
-                                  height={180}
-                                  className="rounded-md max-h-48 w-auto object-cover shadow-md" // Increased max height
+                                  // Use fill and object-contain/cover for better responsive image handling
+                                  layout="fill"
+                                  objectFit="contain" // or 'cover' depending on desired behavior
+                                  className="rounded-md shadow-md"
                                 />
-                                {/* Option to remove photo? */}
+                                {/* Option to remove photo? Consider adding a small 'x' button */}
+                                {/* <Button size="icon" variant="destructive" className="absolute top-1 right-1 h-6 w-6 opacity-70 group-hover:opacity-100" onClick={() => { setPhotoPreview(null); setPhotoFile(null); if(fileInputRef.current) fileInputRef.current.value = ''; }}><X className="h-4 w-4"/></Button> */}
                              </div>
 
                         ) : (
@@ -367,9 +447,9 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                         )}
                          <Input
                             type="file"
-                            accept="image/*"
+                            accept="image/*" // Accepts any image type
                             onChange={handleFileChange}
-                            className="hidden"
+                            className="hidden" // Visually hidden, triggered by button
                             ref={fileInputRef}
                             aria-label="Carregar foto da planta" // Translated
                             disabled={isSubmitting || isAnalyzing}
@@ -420,7 +500,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          {analysisError && (
                             <Alert variant="destructive" className="text-xs p-2"> {/* Smaller alert */}
                                 <AlertCircle className="h-4 w-4" />
-                                <AlertTitle>Erro</AlertTitle>
+                                <AlertTitle>Erro na Análise</AlertTitle> {/* Changed title */}
                                 <AlertDescription>{analysisError}</AlertDescription>
                            </Alert>
                          )}
