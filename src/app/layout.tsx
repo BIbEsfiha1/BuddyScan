@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { Geist } from 'next/font/google'; // Keep only Geist Sans for simplicity unless Mono is needed
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster'; // Import Toaster
+import { ThemeProvider } from '@/components/theme-provider'; // Import ThemeProvider
+import ThemeToggle from '@/components/theme-toggle'; // Import ThemeToggle
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -20,11 +22,24 @@ export default function RootLayout({
 }>) {
   return (
     // Set lang to pt-BR. Dark theme is applied via globals.css :root and .dark selectors
-    <html lang="pt-BR">
-       {/* Add font variable and antialiased class for better font rendering */}
+    <html lang="pt-BR" suppressHydrationWarning> {/* SuppressHydrationWarning is recommended by next-themes */}
+      {/* Add font variable and antialiased class for better font rendering */}
       <body className={`${geistSans.variable} font-sans antialiased bg-background text-foreground`}>
-        {children}
-        <Toaster /> {/* Add Toaster here */}
+        <ThemeProvider
+            attribute="class"
+            defaultTheme="dark" // Default to dark theme as requested
+            enableSystem
+            disableTransitionOnChange
+        >
+            <div className="relative min-h-screen">
+              {/* Place ThemeToggle in a fixed position (e.g., top right) */}
+              <div className="absolute top-4 right-4 z-50">
+                <ThemeToggle />
+              </div>
+              {children}
+            </div>
+            <Toaster /> {/* Add Toaster here */}
+        </ThemeProvider>
       </body>
     </html>
   );
