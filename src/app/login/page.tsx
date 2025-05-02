@@ -112,7 +112,7 @@ export default function LoginPage() {
      console.log(`Initiating social login with ${providerName}...`);
      setIsSocialSubmitting(providerName);
      setSubmitError(null);
-     let provider;
+     let provider: GoogleAuthProvider | FacebookAuthProvider | TwitterAuthProvider; // More specific type
 
      try {
         // Instantiate provider
@@ -136,6 +136,7 @@ export default function LoginPage() {
                 provider = new TwitterAuthProvider();
                 break;
             default:
+                // This should be unreachable if types are correct, but good practice
                 const invalidProviderMsg = `Invalid social provider name: ${providerName}`;
                 console.error(invalidProviderMsg);
                 setSubmitError('Provedor social inválido selecionado.');
@@ -153,15 +154,18 @@ export default function LoginPage() {
              setIsSocialSubmitting(null);
              return;
         }
-        console.log(`Provider instance for ${providerName} created successfully:`, provider);
 
+        // *** Detailed Logging before signInWithPopup ***
+        console.log(`Attempting signInWithPopup for ${providerName}.`);
+        console.log("Auth object:", auth); // Log the auth object
+        console.log("Provider object:", provider); // Log the provider object
 
-        console.log(`Attempting signInWithPopup for ${providerName}... Auth object:`, auth);
-        // Use signInWithPopup for social logins
-        // Explicitly check auth again right before the call
+        // Explicitly check auth again right before the call, just in case
         if (!auth) {
-            throw new Error("Auth instance became null before signInWithPopup call.");
+            throw new Error("Auth instance became null unexpectedly before signInWithPopup call.");
         }
+
+        // Use signInWithPopup for social logins
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
         console.log(`${providerName} login successful. User:`, user.email, user.uid);
@@ -177,10 +181,10 @@ export default function LoginPage() {
      } catch (error: any) {
          console.error(`Erro no login com ${providerName}:`, error);
          let errorMsg = `Falha ao fazer login com ${providerName}.`;
-         // Check specifically for argument error
+         // *** Refined 'auth/argument-error' handling ***
          if (error.code === 'auth/argument-error') {
-            errorMsg = `Erro de configuração ou argumento inválido ao tentar login com ${providerName}. Verifique as configurações do Firebase Console.`;
-            console.error("Potential causes for auth/argument-error: Invalid 'auth' object, invalid 'provider' object, or Firebase project misconfiguration (OAuth settings, domains).");
+            errorMsg = `Erro de configuração ou argumento inválido ao tentar login com ${providerName}. Verifique as configurações no Console do Firebase (OAuth, domínios autorizados) e as variáveis de ambiente.`;
+            console.error("Potential causes for auth/argument-error: Invalid 'auth' object, invalid 'provider' object, or Firebase project misconfiguration (OAuth settings, authorized domains, API key, etc.). Double-check .env.local variables.");
          } else if (error.code === 'auth/account-exists-with-different-credential') {
             errorMsg = `Já existe uma conta com este email (${error.customData?.email}). Tente fazer login com o provedor original.`;
          } else if (error.code === 'auth/popup-closed-by-user') {
@@ -370,6 +374,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-
-    

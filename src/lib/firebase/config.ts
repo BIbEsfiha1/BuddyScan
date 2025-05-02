@@ -30,18 +30,21 @@ function hasFirebaseConfig(): boolean {
     );
 }
 
+let firebaseInitializationError: Error | null = null;
+
 // Log missing variables only once on the client side
-if (typeof window !== 'undefined' && !hasFirebaseConfig()) {
-    const missingVars = Object.entries(firebaseConfig)
+if (typeof window !== 'undefined') {
+    const missingEnvVars = Object.entries(firebaseConfig)
         .filter(([, value]) => !value)
         .map(([key]) => `NEXT_PUBLIC_FIREBASE_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`);
 
-    if (missingVars.length > 0) {
-         console.warn( // Use warn for missing, error for initialization failure
-           `Firebase configuration is missing environment variables: ${missingVars.join(
-             ', '
-           )}. Please set them in your .env.local file. Firebase features may not work correctly.`
-         );
+    if (missingEnvVars.length > 0) {
+         const message = `Firebase configuration is missing environment variables: ${missingEnvVars.join(', ')}. Please set them in your .env.local file. Firebase features may not work correctly.`;
+         console.warn(message); // Use warn for missing config
+         // Set initialization error only if it hasn't been set by a catch block later
+         if (!firebaseInitializationError) {
+             firebaseInitializationError = new Error(message);
+         }
     }
 }
 
@@ -49,7 +52,7 @@ if (typeof window !== 'undefined' && !hasFirebaseConfig()) {
 // Initialize Firebase
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
-let firebaseInitializationError: Error | null = null;
+// firebaseInitializationError already declared above
 
 try {
     if (!getApps().length) {
@@ -60,16 +63,19 @@ try {
         console.log('Firebase app initialized.');
       } else {
          // This block handles MISSING variables.
-         console.error('Firebase initialization skipped due to missing environment variables.');
-         firebaseInitializationError = new Error("Firebase environment variables are missing.");
+         console.warn('Firebase initialization skipped due to missing environment variables.'); // Use warn
+         // Error already set above if on client, this prevents overwriting if it runs server-side first
+         if (!firebaseInitializationError) {
+            firebaseInitializationError = new Error("Firebase environment variables are missing.");
+         }
       }
     } else {
       app = getApp();
       console.log('Firebase app already exists.');
     }
 
-    // Initialize Auth only if app was successfully initialized
-    if (app) {
+    // Initialize Auth only if app was successfully initialized and there's no prior error
+    if (app && !firebaseInitializationError) {
         console.log("Attempting Firebase Auth initialization...");
         // Use initializeAuth for better compatibility with different environments (client/server)
         // and persistence options.
@@ -79,18 +85,20 @@ try {
             // popupRedirectResolver: browserPopupRedirectResolver,
         });
         console.log('Firebase Auth initialized.');
-    } else {
-        // Handle the case where app initialization failed (e.g., missing vars)
+    } else if (!firebaseInitializationError) { // Only log if no error exists yet
+        // Handle the case where app initialization failed (e.g., missing vars) but wasn't caught
         console.error('Firebase Auth initialization skipped because app initialization failed or was skipped.');
-        if (!firebaseInitializationError) {
-            firebaseInitializationError = new Error("Firebase app initialization failed.");
-        }
+        firebaseInitializationError = new Error("Firebase app initialization failed or was skipped.");
     }
 
 } catch (error: any) {
-    // This catch block should catch errors like auth/api-key-not-valid if initializeApp or initializeAuth throws it
+    // This catch block handles errors during initializeApp or initializeAuth
     console.error("Error initializing Firebase or Auth:", error); // Log the actual error
-    firebaseInitializationError = error; // Store the error
+    // Add specific check for common auth errors
+    if (error.code === 'auth/invalid-api-key') {
+         console.error("Detailed Error: Invalid Firebase API Key. Please verify the NEXT_PUBLIC_FIREBASE_API_KEY in your .env.local file.");
+    }
+    firebaseInitializationError = error; // Store the actual error caught
     app = null; // Ensure app is null on error
     auth = null; // Ensure auth is null on error
 }
@@ -98,5 +106,3 @@ try {
 // Export the initialized instances and the potential error
 export { app, auth, firebaseInitializationError };
 // export { db, storage }; // Keep for future use
-
-
