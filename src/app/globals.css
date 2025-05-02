@@ -106,28 +106,45 @@ body {
 }
 
 /* Keyframes for animations */
+/* Updated scan line animation for smoother up/down movement */
 @keyframes scan-line-vertical {
-  0% { transform: translateY(0); opacity: 0; }
-  5% { transform: translateY(0); opacity: 1; } /* Fade in */
-  45% { transform: translateY(calc(100% - 2px)); opacity: 1; } /* Move down */
-  50% { transform: translateY(calc(100% - 2px)); opacity: 0; } /* Fade out at bottom */
-  55% { transform: translateY(calc(100% - 2px)); opacity: 0; } /* Stay faded out */
-  60% { transform: translateY(calc(100% - 2px)); opacity: 1; } /* Fade in at bottom */
-  95% { transform: translateY(0); opacity: 1; } /* Move up */
-  100% { transform: translateY(0); opacity: 0; } /* Fade out at top */
+  0% {
+    transform: translateY(0%);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translateY(calc(100% - 2px)); /* Move to bottom */
+    opacity: 0.8;
+  }
+  51% {
+     opacity: 0; /* Quick fade at the bottom */
+  }
+  55% {
+     transform: translateY(calc(100% - 2px)); /* Stay at bottom faded */
+      opacity: 0;
+  }
+  56% {
+      opacity: 0.8; /* Fade back in at bottom */
+  }
+  100% {
+    transform: translateY(0%); /* Move back to top */
+    opacity: 0.8;
+  }
 }
 
 
 .animate-scan-line-vertical {
-  /* Adjust animation timing and easing */
-  animation: scan-line-vertical 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  /* Apply the updated animation */
+  /* Ease-in-out makes the start/end smoother */
+  animation: scan-line-vertical 3s ease-in-out infinite;
   position: absolute;
-  /* Position inside the focus box (adjust if focus box changes) */
-  top: 15%; /* Relative to parent focus box */
-  left: 0; /* Span full width of focus box */
+  /* Ensure it's positioned relative to the focus box */
+  top: 0; /* Start at the top of the focus box */
+  left: 0;
   width: 100%;
-  height: 2px; /* Slightly thicker line */
-  z-index: 10; /* Ensure it's above the video but potentially below corners */
+  height: 2px; /* Line thickness */
+  z-index: 10; /* Above video, below corners */
+  /* Gradient background defined in JSX/TSX */
 }
 
 /* Keyframe for pulsing border */

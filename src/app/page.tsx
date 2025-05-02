@@ -138,13 +138,14 @@ export default function Home() {
   // Cleanup interval and stream on unmount
    useEffect(() => {
     return () => {
+      // Check isMounted on cleanup to avoid running when not needed
       if (isMounted) {
         console.log("Home component unmounting/cleaning up, stopping scan interval and media stream.");
         stopScanInterval();
         stopMediaStream();
       }
     };
-  }, [isMounted, stopScanInterval, stopMediaStream]);
+   }, [isMounted, stopScanInterval, stopMediaStream]);
 
 
   // --- Request Camera Permission & Start Stream ---
@@ -152,6 +153,15 @@ export default function Home() {
      console.log("Attempting to start camera...");
      setScannerError(null);
      setScannerStatus('permission-pending'); // Indicate we are asking for permission
+
+    // Ensure necessary APIs are available
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('Camera API (getUserMedia) not supported or available.');
+        setScannerError('A API da câmera não é suportada neste navegador ou ambiente.');
+        setScannerStatus('error');
+        return;
+    }
+
 
     try {
       // Try to get the environment-facing camera first
@@ -165,7 +175,9 @@ export default function Home() {
            try {
                 await videoRef.current.play();
                 console.log("Video play initiated.");
-                setScannerStatus('initializing'); // Move to initializing only after play starts
+                // IMPORTANT: Move status to initializing AFTER play() promise resolves
+                // This ensures the video events ('playing', 'canplay') might fire correctly
+                setScannerStatus('initializing');
            } catch (playError) {
                console.error("Error trying to play video:", playError);
                setScannerError("Falha ao iniciar o vídeo da câmera.");
@@ -232,61 +244,59 @@ export default function Home() {
     }
   }, [stopMediaStream, toast]); // Dependencies: cleanup func, toast
 
+  // Define handleOpenChange *before* it's used as a dependency.
+  // Use placeholder for close logic initially, then refine.
+  const handleOpenChangeCallbackRef = useRef<(open: boolean) => void>();
+
    // --- Start Scanning Interval ---
    const startScanning = useCallback(() => {
       stopScanInterval(); // Clear any existing interval first
-      console.log("Starting scan interval...");
+      console.log("Attempting to start scan interval...");
 
       if (!barcodeDetectorRef.current) {
-         console.error("BarcodeDetector not available for scanning.");
+         console.error("BarcodeDetector not available, cannot start scanning.");
          setScannerStatus('error');
-         setScannerError('Leitor de QR code não está pronto.');
-         stopMediaStream(); // Stop camera if detector failed
+         setScannerError('Leitor de QR code não inicializado ou não suportado.');
+         stopMediaStream();
          return;
       }
-      // Ensure videoRef.current exists before accessing its properties
-      if (!videoRef.current || videoRef.current.paused || videoRef.current.ended || !videoRef.current.srcObject) {
-          console.warn(`Video not ready/playing/attached, cannot start scan. Status: ${scannerStatus}, Ref: ${!!videoRef.current}, Paused: ${videoRef.current?.paused}, Ended: ${videoRef.current?.ended}, SrcObject: ${!!videoRef.current?.srcObject}`);
-          setScannerStatus('error');
-          setScannerError('Falha ao iniciar a câmera para escaneamento.');
-          stopMediaStream();
-          return;
+
+      if (!videoRef.current || videoRef.current.paused || videoRef.current.ended || !videoRef.current.srcObject || videoRef.current.readyState < videoRef.current.HAVE_ENOUGH_DATA || videoRef.current.videoWidth === 0) {
+          console.warn(`Video not ready/playing/attached for scanning. Status: ${scannerStatus}, Ref: ${!!videoRef.current}, Paused: ${videoRef.current?.paused}, Ended: ${videoRef.current?.ended}, SrcObj: ${!!videoRef.current?.srcObject}, ReadyState: ${videoRef.current?.readyState}, Width: ${videoRef.current?.videoWidth}`);
+          // Don't immediately set to error, let video events potentially trigger it again.
+          // Consider setting a timeout to try again briefly?
+          // If status is already 'scanning', maybe set back to 'initializing'?
+           if (scannerStatus === 'scanning') {
+               console.log("Scan attempt failed while status was 'scanning', resetting to 'initializing'.");
+               setScannerStatus('initializing'); // Revert to initializing if scan failed immediately
+           }
+          return; // Don't start interval if video isn't ready
       }
 
      setScannerStatus('scanning');
-     console.log("Scanner status set to 'scanning'.");
+     console.log("Scanner status set to 'scanning'. Interval starting.");
 
      scanIntervalRef.current = setInterval(async () => {
-         // Check conditions inside interval
-         if (!videoRef.current || videoRef.current.paused || videoRef.current.ended || !isDialogOpen || scannerStatus !== 'scanning') {
-             console.log(`Scan interval tick skipped or stopping: Status: ${scannerStatus}, Dialog Open: ${isDialogOpen}, Video Paused: ${videoRef.current?.paused}`);
-             stopScanInterval();
-             return;
-         }
-         // Crucial check: Ensure the video is ready to be processed
-         if (videoRef.current.readyState < videoRef.current.HAVE_ENOUGH_DATA) {
-             console.log("Video not ready for detection (readyState < HAVE_ENOUGH_DATA). Skipping detect call.");
+         // Check conditions *inside* interval for robustness
+         if (!videoRef.current || videoRef.current.paused || videoRef.current.ended || !isDialogOpen || scannerStatus !== 'scanning' || videoRef.current.readyState < videoRef.current.HAVE_ENOUGH_DATA || videoRef.current.videoWidth === 0) {
+             console.log(`Scan interval tick skipped or stopping. Status: ${scannerStatus}, Dialog: ${isDialogOpen}, Video Paused: ${videoRef.current?.paused}, Ready: ${videoRef.current?.readyState}, Width: ${videoRef.current?.videoWidth}`);
+             stopScanInterval(); // Stop if conditions are no longer met
+             // Don't automatically stop the stream here, maybe let the close handler do it
              return;
          }
 
        try {
           if (!barcodeDetectorRef.current) {
-              console.warn("BarcodeDetector became unavailable during scanning.");
+              console.warn("BarcodeDetector became unavailable during scanning interval.");
               stopScanInterval();
               setScannerStatus('error');
               setScannerError('Leitor de QR code falhou durante o escaneamento.');
               return;
           }
 
-          // Check if video has dimensions before detecting (redundant if readyState checked, but safe)
-          if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
-             console.log("Video dimensions not yet available, skipping detect call.");
-             return; // Wait for video to have dimensions
-          }
-
-          console.log("Attempting barcode detection...");
+          // console.log("Attempting barcode detection..."); // Reduce log noise
           const barcodes = await barcodeDetectorRef.current.detect(videoRef.current);
-          console.log(`Detection result: ${barcodes.length} barcode(s) found.`);
+          // console.log(`Detection result: ${barcodes.length} barcode(s) found.`); // Reduce log noise
 
          if (barcodes.length > 0 && scannerStatus === 'scanning' && isDialogOpen) { // Double check status and dialog open
            const qrCodeData = barcodes[0].rawValue;
@@ -300,31 +310,38 @@ export default function Home() {
            // Use sessionStorage to pass data before navigation
            sessionStorage.setItem('pendingNavigationQr', qrCodeData);
            // Call handleOpenChange(false) to trigger close and navigation
-           // Needs handleOpenChange to be defined *before* this callback.
-           // We'll move handleOpenChange definition up.
-           handleOpenChange(false); // Use the correct closer function
+           if (handleOpenChangeCallbackRef.current) {
+             console.log("Triggering dialog close via handleOpenChange(false) after QR detection.");
+             handleOpenChangeCallbackRef.current(false);
+           } else {
+              console.error("handleOpenChange callback ref not set when QR code detected!");
+              // Fallback? Close manually?
+              setIsDialogOpen(false); // Force close if callback is missing
+              // router.push(`/plant/${qrCodeData}`); // Manually navigate? Risky.
+           }
 
          }
        } catch (error: any) {
          // Ignore detection errors if they are DOMExceptions (can happen during stream transitions)
-         if (error instanceof DOMException && (error.name === 'NotSupportedError' || error.name === 'InvalidStateError')) {
-             console.warn('DOMException during barcode detection (likely temporary):', error.message);
+         if (error instanceof DOMException && (error.name === 'NotSupportedError' || error.name === 'InvalidStateError' || error.name === 'OperationError')) {
+             console.warn('DOMException during barcode detection (likely temporary/benign):', error.message);
          } else {
              console.error('Erro durante a detecção do código de barras:', error);
-              // Consider logging without stopping if errors are frequent but temporary
-              // stopScanInterval();
-              // setScannerStatus('error');
-              // setScannerError(`Falha ao escanear QR code: ${error.message || 'Erro desconhecido'}`);
+             // More cautious error handling - maybe don't stop everything?
+             // Consider logging without stopping if errors are frequent but temporary
+             // stopScanInterval();
+             // setScannerStatus('error');
+             // setScannerError(`Falha ao escanear QR code: ${error.message || 'Erro desconhecido'}`);
          }
        }
-     }, 700); // Increased scan interval slightly
+     }, 500); // Slightly faster scan interval, adjust as needed
      console.log("Scan interval setup complete.");
-   }, [stopScanInterval, stopMediaStream, toast, scannerStatus, isDialogOpen, () => handleOpenChange(false)]); // Dependency on handleOpenChange requires it to be defined above or wrapped if needed.
+   }, [stopScanInterval, stopMediaStream, toast, scannerStatus, isDialogOpen]); // Remove handleOpenChange from deps for now, use ref
 
 
   // --- Dialog Open/Close Handlers ---
    const handleDialogClose = useCallback(() => {
-        console.log("Dialog closing, performing cleanup...");
+        console.log("Dialog closing intent received, performing cleanup...");
         stopScanInterval();
         stopMediaStream(); // Ensure stream is stopped
         setScannerStatus('idle'); // Reset status
@@ -338,12 +355,12 @@ export default function Home() {
             sessionStorage.removeItem('pendingNavigationQr'); // Clean up storage
             router.push(`/plant/${qrCodeData}`);
         } else {
-            console.log("No pending navigation found.");
+            console.log("No pending navigation found during close.");
         }
    }, [stopMediaStream, stopScanInterval, router]);
 
    const handleDialogOpen = useCallback(() => {
-        console.log(`Dialog opening...`);
+        console.log(`Dialog opening intent received...`);
         // Check prerequisites before attempting to start camera
         if (typeof window === 'undefined' || !('BarcodeDetector' in window) || !window.BarcodeDetector || !barcodeDetectorRef.current) {
             const errorMsg = typeof window === 'undefined' || !('BarcodeDetector' in window) || !window.BarcodeDetector
@@ -352,7 +369,7 @@ export default function Home() {
             console.error("Prerequisite check failed:", errorMsg);
             toast({
                 variant: 'destructive',
-                title: 'Erro de Pré-requisito',
+                title: 'Erro de Compatibilidade',
                 description: errorMsg,
             });
             // Don't open the dialog if prerequisites fail
@@ -362,103 +379,132 @@ export default function Home() {
 
         // Reset state and start camera flow
         setScannerError(null);
+        setScannerStatus('idle'); // Start from idle before trying to open
         setIsDialogOpen(true); // Open the dialog first
-        startCamera(); // Then attempt to start the camera
-        console.log("Dialog opened, camera start initiated.");
+        // Delay camera start slightly to allow dialog animation? May not be needed.
+        // setTimeout(() => startCamera(), 50);
+        startCamera(); // Attempt to start the camera immediately
+        console.log("Dialog state set to open, camera start initiated.");
 
    }, [startCamera, toast]);
 
-    // Define handleOpenChange *before* startScanning uses it.
+    // Define handleOpenChange *after* the handlers it depends on.
+    // Use useCallback to ensure stable reference.
     const handleOpenChange = useCallback((open: boolean) => {
        console.log(`handleOpenChange called with open: ${open}`);
        if (open) {
            handleDialogOpen();
        } else {
            // Only handle close if dialog is actually open
+           // This prevents infinite loops if called multiple times
            if (isDialogOpen) {
                handleDialogClose();
+               setIsDialogOpen(false); // Update state *after* cleanup
+           } else {
+                console.log("handleOpenChange(false) called but dialog already closed.");
            }
-           setIsDialogOpen(false); // Ensure state reflects closed regardless
        }
-   }, [handleDialogOpen, handleDialogClose, isDialogOpen]); // Depends on handlers defined above
+   }, [handleDialogOpen, handleDialogClose, isDialogOpen]);
 
+   // Assign the stable callback to the ref for use in startScanning
+   useEffect(() => {
+       handleOpenChangeCallbackRef.current = handleOpenChange;
+   }, [handleOpenChange]);
 
 
    // --- Effect to manage video events ---
-  useEffect(() => {
-    const videoElement = videoRef.current;
+   // This effect focuses on reacting to video state changes to trigger scanning reliably
+   useEffect(() => {
+     const videoElement = videoRef.current;
 
-    if (!videoElement || !isDialogOpen || (scannerStatus !== 'initializing' && scannerStatus !== 'scanning')) {
-      return; // Only run if dialog is open and status is initializing/scanning
-    }
+     // Only attach listeners if the dialog is open and video ref exists
+     if (!videoElement || !isDialogOpen) {
+       return;
+     }
 
-    console.log("Effect: Adding video event listeners.");
+     console.log("Effect: Attaching video event listeners.");
 
-    const handleCanPlay = () => {
-        console.log("Video 'canplay' event fired.");
-        // Attempt to start scanning ONLY if initializing and video is playing
-        if (scannerStatus === 'initializing' && !videoElement.paused && isDialogOpen) {
-            console.log("Video can play and status is initializing, starting scan interval.");
-            startScanning();
-        } else {
-            console.warn(`Video can play, but conditions not met. Status: ${scannerStatus}, Paused: ${videoElement.paused}, Dialog: ${isDialogOpen}. Scan not started from 'canplay'.`);
-        }
-    };
-
-    const handlePlaying = () => {
-        console.log("Video 'playing' event fired.");
-         // Confirm playback has started, good place to ensure scanning starts
-         if ((scannerStatus === 'initializing' || scannerStatus === 'scanning') && !scanIntervalRef.current && isDialogOpen) {
-             console.log("Video is playing, attempting to start scan interval (if not already running).");
+     const handleCanPlay = () => {
+         console.log(`Video 'canplay' event. Status: ${scannerStatus}. ReadyState: ${videoElement.readyState}.`);
+         // If initializing and ready, try scanning. Might be redundant with 'playing'.
+         if (scannerStatus === 'initializing' && videoElement.readyState >= videoElement.HAVE_ENOUGH_DATA && !scanIntervalRef.current) {
+             console.log("Video can play, attempting scan start from 'canplay'.");
              startScanning();
-         } else {
-             console.log(`Video playing, but status (${scannerStatus}) or existing interval (${!!scanIntervalRef.current}) prevents starting scan.`);
          }
-    };
+     };
+
+     const handlePlaying = () => {
+         console.log(`Video 'playing' event. Status: ${scannerStatus}. Interval Running: ${!!scanIntervalRef.current}`);
+          // Main trigger for scanning: If initializing or scanning (and interval isn't running yet)
+         if ((scannerStatus === 'initializing' || scannerStatus === 'scanning') && !scanIntervalRef.current) {
+             console.log("Video is playing, attempting scan start from 'playing'.");
+             startScanning();
+         }
+     };
 
      const handleLoadedMetadata = () => {
-        console.log(`Video metadata loaded: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
-        // Sometimes needed to ensure dimensions are available before scanning
-        // Might trigger scanning if 'playing' hasn't fired reliably
-        if ((scannerStatus === 'initializing' || scannerStatus === 'scanning') && !scanIntervalRef.current && !videoElement.paused && isDialogOpen) {
-           console.log("Metadata loaded, attempting scan start.");
+        console.log(`Video 'loadedmetadata' event. Dimensions: ${videoElement.videoWidth}x${videoElement.videoHeight}. Status: ${scannerStatus}`);
+        // Useful if dimensions weren't available initially. Attempt scan if conditions met.
+        if ((scannerStatus === 'initializing' || scannerStatus === 'scanning') && !scanIntervalRef.current && !videoElement.paused && videoElement.readyState >= videoElement.HAVE_ENOUGH_DATA) {
+           console.log("Metadata loaded, attempting scan start from 'loadedmetadata'.");
            startScanning();
         }
      };
 
+     const handleError = (e: Event) => {
+         console.error("Video element error event:", e);
+         const error = videoElement.error;
+         let errorMsg = "Ocorreu um erro com o vídeo da câmera.";
+         if(error) {
+            errorMsg = `Erro de vídeo: ${error.message} (código ${error.code})`;
+         }
+         setScannerError(errorMsg);
+         setScannerStatus('error');
+         stopMediaStream();
+         stopScanInterval();
+     };
 
-    const handleError = (e: Event) => {
-        console.error("Video element error:", e);
-        setScannerError("Ocorreu um erro com o vídeo da câmera.");
-        setScannerStatus('error');
-        stopMediaStream();
-        stopScanInterval();
-    };
+     const handleWaiting = () => {
+         console.warn("Video 'waiting' event. Playback stalled (buffering?).");
+         // If actively scanning, maybe stop the interval temporarily?
+         if (scannerStatus === 'scanning') {
+             console.log("Stopping scan interval due to video waiting.");
+             stopScanInterval();
+             // Consider setting status back to 'initializing'?
+             setScannerStatus('initializing');
+         }
+     };
 
-    videoElement.addEventListener('canplay', handleCanPlay);
-    videoElement.addEventListener('playing', handlePlaying);
-    videoElement.addEventListener('loadedmetadata', handleLoadedMetadata); // Added listener
-    videoElement.addEventListener('error', handleError);
 
-    // Initial check in case video is already playing when effect runs
-    if (videoElement.readyState >= videoElement.HAVE_ENOUGH_DATA && !videoElement.paused && (scannerStatus === 'initializing' || scannerStatus === 'scanning') && !scanIntervalRef.current && isDialogOpen) {
-        console.log("Effect: Video already playable/playing on listener attach, attempting scan start.");
-        startScanning();
-    }
+     videoElement.addEventListener('canplay', handleCanPlay);
+     videoElement.addEventListener('playing', handlePlaying);
+     videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+     videoElement.addEventListener('error', handleError);
+     videoElement.addEventListener('waiting', handleWaiting); // Listen for stalling
+
+
+     // Initial check in case video is *already* playing when effect attaches
+     if (!videoElement.paused && videoElement.readyState >= videoElement.HAVE_ENOUGH_DATA && (scannerStatus === 'initializing' || scannerStatus === 'scanning') && !scanIntervalRef.current) {
+         console.log("Effect: Video already playing on listener attach, attempting scan start.");
+         startScanning();
+     }
 
 
     return () => {
-        // Cleanup: Remove event listeners
+        // Cleanup: Remove event listeners when dialog closes or component unmounts
         if (videoElement) {
             console.log("Effect cleanup: Removing video event listeners.");
             videoElement.removeEventListener('canplay', handleCanPlay);
             videoElement.removeEventListener('playing', handlePlaying);
             videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
             videoElement.removeEventListener('error', handleError);
+            videoElement.removeEventListener('waiting', handleWaiting);
         }
+        // Also ensure interval is stopped on cleanup
+        stopScanInterval();
     };
-    // Dependencies: Status, dialog state, startScanning function, cleanup functions
-  }, [scannerStatus, isDialogOpen, startScanning, stopMediaStream, stopScanInterval]);
+   // Dependencies: Status, dialog state, the scanning function, and cleanup functions
+  }, [isDialogOpen, scannerStatus, startScanning, stopMediaStream, stopScanInterval]);
 
 
   // --- Button Click Handlers ---
@@ -559,6 +605,7 @@ export default function Home() {
        </main>
 
       {/* Scanner Dialog */}
+      {/* Use controlled Dialog component */}
       <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-[425px] md:max-w-[550px] dialog-content border-primary/20 bg-background/95 backdrop-blur-sm">
           <DialogHeader>
@@ -570,41 +617,44 @@ export default function Home() {
 
           {/* Container for video and overlays */}
            <div className="relative mt-4 aspect-square w-full max-w-[400px] mx-auto overflow-hidden rounded-lg bg-muted shadow-inner">
-              {/* Video element - Always render, ensure it covers the container */}
+              {/* Video element - Always render, but control visibility/opacity based on status */}
               <video
                   ref={videoRef}
-                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${scannerStatus === 'scanning' || scannerStatus === 'initializing' || scannerStatus === 'stopped' ? 'opacity-100' : 'opacity-0'}`}
+                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+                      ['initializing', 'scanning', 'stopped'].includes(scannerStatus) ? 'opacity-100' : 'opacity-0'
+                  }`}
                   playsInline // Essential for iOS Safari
                   muted // Required for autoplay in most browsers
-                  // No scale transform needed here
+                  // Ensure transform doesn't interfere with detection
               />
 
-             {/* Visual Guide Overlay - Show ONLY when scanning or initializing */}
+             {/* Visual Guide Overlay - Show ONLY when scanning or actively initializing */}
              {(scannerStatus === 'scanning' || scannerStatus === 'initializing') && (
                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                     {/* Outer Mask for focus effect */}
+                     {/* Outer Mask for focus effect (subtle vignette) */}
                      <div className="absolute inset-0 bg-gradient-radial from-transparent via-background/70 to-background/90"></div>
 
                      {/* Focus Box with Pulsing Border */}
-                    <div className="relative w-[70%] h-[70%] border-2 border-primary/50 rounded-lg animate-pulse-border flex items-center justify-center overflow-hidden"> {/* Added overflow-hidden */}
-                       {/* Pulsing Corner Brackets */}
-                       <div className="absolute -top-1 -left-1 w-6 h-6 border-t-2 border-l-2 border-accent animate-pulse rounded-tl-md z-20"></div>
-                       <div className="absolute -top-1 -right-1 w-6 h-6 border-t-2 border-r-2 border-accent animate-pulse rounded-tr-md z-20"></div>
-                       <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-2 border-l-2 border-accent animate-pulse rounded-bl-md z-20"></div>
-                       <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-2 border-r-2 border-accent animate-pulse rounded-br-md z-20"></div>
+                     <div className="relative w-[70%] h-[70%] border-2 border-primary/50 rounded-lg animate-pulse-border flex items-center justify-center overflow-hidden">
+                         {/* Pulsing Corner Brackets (more prominent) */}
+                         <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-accent animate-pulse rounded-tl-md z-20"></div>
+                         <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-accent animate-pulse rounded-tr-md z-20"></div>
+                         <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-accent animate-pulse rounded-bl-md z-20"></div>
+                         <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-accent animate-pulse rounded-br-md z-20"></div>
 
-                       {/* Animated Scan Line (only when actively scanning) */}
-                       {scannerStatus === 'scanning' && (
-                          // Use a div with gradient background for the scan line effect
-                          // Apply the animation class here
-                          <div className="absolute bg-gradient-to-r from-transparent via-accent to-transparent shadow-[0_0_10px_1px_hsl(var(--accent)/0.6)] rounded-full animate-scan-line-vertical"></div>
-                       )}
-                    </div>
+                         {/* Animated Scan Line (only when actively scanning) */}
+                         {scannerStatus === 'scanning' && (
+                           // Apply the animation class directly to a self-closing div
+                           <div className="absolute bg-gradient-to-r from-transparent via-accent to-transparent shadow-[0_0_10px_1px_hsl(var(--accent)/0.6)] rounded-full animate-scan-line-vertical"/>
+                         )}
+                     </div>
                  </div>
              )}
 
+
              {/* Status Overlay (Loading, Permission Denied, Error) - Show when NOT scanning/stopped/idle */}
-             {scannerStatus !== 'scanning' && scannerStatus !== 'stopped' && scannerStatus !== 'idle' && (
+             {/* Simplified condition: Show overlay unless actively scanning or successfully stopped */}
+             {!['scanning', 'stopped'].includes(scannerStatus) && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-background/90 via-background/95 to-background/90 text-center p-4 rounded-lg z-10 transition-opacity duration-300">
                        {/* Permission Pending State */}
                        {scannerStatus === 'permission-pending' && (
@@ -614,7 +664,7 @@ export default function Home() {
                            <p className="text-muted-foreground text-sm mt-1">Solicitando acesso à câmera.</p>
                          </>
                        )}
-                       {/* Initializing State */}
+                       {/* Initializing State (Covers period before 'playing' or 'canplay') */}
                        {scannerStatus === 'initializing' && (
                            <>
                                <Loader2 className="h-12 w-12 mb-4 text-primary animate-spin" />
@@ -622,13 +672,21 @@ export default function Home() {
                                <p className="text-muted-foreground text-sm mt-1">Preparando o vídeo...</p>
                            </>
                        )}
+                       {/* Idle State (Before anything happens) */}
+                       {scannerStatus === 'idle' && (
+                           <>
+                               <Camera className="h-12 w-12 mb-4 text-muted-foreground" />
+                               <p className="text-lg font-semibold text-muted-foreground">Pronto para escanear</p>
+                               <p className="text-muted-foreground text-sm mt-1">A câmera será ativada.</p>
+                           </>
+                       )}
                        {/* Permission Denied or Camera Error State */}
-                       {(scannerStatus === 'permission-denied' || (scannerStatus === 'error' && scannerError?.toLowerCase().includes('câmera'))) && (
+                       {scannerStatus === 'permission-denied' || (scannerStatus === 'error' && scannerError?.toLowerCase().includes('câmera')) && (
                          <>
                             {scannerStatus === 'permission-denied' ? (
                                 <VideoOff className="h-12 w-12 mb-4 text-destructive" />
                             ) : (
-                                <Camera className="h-12 w-12 mb-4 text-destructive" />
+                                <Camera className="h-12 w-12 mb-4 text-destructive" /> // Keep camera icon for general camera errors
                             )}
                            <p className="text-lg font-semibold text-destructive">
                                {scannerStatus === 'permission-denied' ? 'Acesso Negado' : 'Erro na Câmera'}
@@ -636,6 +694,7 @@ export default function Home() {
                            <p className="text-muted-foreground text-sm mt-1 px-4">
                              {scannerError || 'Não foi possível acessar a câmera.'}
                            </p>
+                           {/* Show "Try Again" only for permission denied */}
                             {scannerStatus === 'permission-denied' && (
                                <Button variant="outline" size="sm" className="mt-4 button" onClick={startCamera}>
                                     Tentar Novamente
@@ -643,7 +702,7 @@ export default function Home() {
                             )}
                          </>
                        )}
-                       {/* General Scanner Error State (non-camera related) */}
+                       {/* General Scanner Error State (non-camera related, e.g., detector failure) */}
                        {scannerStatus === 'error' && scannerError && !scannerError?.toLowerCase().includes('câmera') && (
                           <>
                             <AlertTriangle className="h-12 w-12 mb-4 text-destructive" />
@@ -651,6 +710,7 @@ export default function Home() {
                             <p className="text-muted-foreground text-sm mt-1 px-4">
                                 {scannerError}
                             </p>
+                            {/* Let user close on general errors */}
                              <Button variant="outline" size="sm" className="mt-4 button" onClick={() => handleOpenChange(false)}>
                                  Fechar
                              </Button>
