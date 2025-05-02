@@ -63,10 +63,13 @@ export default function SignupPage() {
 
   // --- Email/Password Signup Handler ---
   const onEmailSubmit = async (data: SignupFormData) => {
+     // *** CRITICAL CHECK: Ensure auth is initialized and no errors occurred ***
      if (!auth || firebaseInitializationError) {
-        setSubmitError(firebaseInitializationError?.message || "Autenticação não está disponível.");
-        toast({ variant: 'destructive', title: 'Erro de Configuração', description: firebaseInitializationError?.message || 'Serviço de autenticação indisponível.' });
-        return;
+        const errorMsg = firebaseInitializationError?.message || "Autenticação não está disponível.";
+        console.error("Signup attempt aborted due to Firebase config error:", errorMsg);
+        setSubmitError(errorMsg);
+        toast({ variant: 'destructive', title: 'Erro de Configuração', description: errorMsg });
+        return; // Prevent further execution
      }
     setIsSubmitting(true);
     setSubmitError(null);
@@ -97,16 +100,17 @@ export default function SignupPage() {
           errorMsg = 'A senha é muito fraca. Use pelo menos 6 caracteres.';
       } else if (error.code === 'auth/network-request-failed') {
            errorMsg = 'Erro de rede. Verifique sua conexão com a internet.';
-      } else if (error.code === 'auth/invalid-api-key' || error.code === 'auth/api-key-not-valid') {
-         // Specific error for invalid API key
-         errorMsg = 'Erro de Configuração: A chave de API do Firebase é inválida. Verifique o arquivo .env.local.';
-         console.error("Detailed Error: Invalid Firebase API Key. Check NEXT_PUBLIC_FIREBASE_API_KEY.");
+      } else if (error.code === 'auth/api-key-not-valid' || error.code === 'auth/invalid-api-key' || error.message?.includes('api-key-not-valid')) {
+         // *** Specific error for invalid API key DURING signup attempt ***
+         errorMsg = 'Erro de Configuração Crítico: A chave de API do Firebase é inválida. Verifique o arquivo .env.local.';
+         console.error("Detailed Error: Invalid Firebase API Key during createUserWithEmailAndPassword. Check NEXT_PUBLIC_FIREBASE_API_KEY.");
       }
       setSubmitError(errorMsg);
       toast({
         variant: 'destructive',
         title: 'Erro no Cadastro',
         description: errorMsg,
+        duration: 9000, // Show longer for config errors
       });
     } finally {
       setIsSubmitting(false);
@@ -115,12 +119,13 @@ export default function SignupPage() {
 
    // --- Social Signup/Login Handler (signInWithPopup handles both) ---
    const handleSocialSignup = async (providerName: 'google' | 'facebook' | 'twitter') => {
+        // *** CRITICAL CHECK: Ensure auth is initialized and no errors occurred ***
         if (!auth || firebaseInitializationError) {
             const errMsg = firebaseInitializationError?.message || "Autenticação não está disponível.";
-            console.error("Social Signup Pre-check Failed:", errMsg);
+            console.error("Social Signup attempt aborted due to Firebase config error:", errMsg);
             setSubmitError(errMsg);
-            toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Serviço de autenticação indisponível.' });
-            return;
+            toast({ variant: 'destructive', title: 'Erro de Configuração', description: errMsg });
+            return; // Prevent further execution
         }
       console.log(`Initiating social signup/login with ${providerName}...`);
       setIsSocialSubmitting(providerName);
@@ -142,9 +147,23 @@ export default function SignupPage() {
                  provider = new TwitterAuthProvider();
                  break;
              default:
-                 console.error(`Invalid social provider name: ${providerName}`);
-                 throw new Error('Provedor social inválido');
+                 const invalidProviderMsg = `Invalid social provider name: ${providerName}`;
+                 console.error(invalidProviderMsg);
+                 setSubmitError('Provedor social inválido selecionado.');
+                 toast({ variant: 'destructive', title: 'Erro Interno', description: 'Provedor social inválido.' });
+                 setIsSocialSubmitting(null);
+                 return; // Exit early
          }
+
+        // Verify provider object
+        if (!provider || typeof provider !== 'object') {
+             const providerErrorMsg = `Failed to create provider instance for ${providerName}.`;
+             console.error(providerErrorMsg);
+             setSubmitError(`Erro ao configurar ${providerName}.`);
+             toast({ variant: 'destructive', title: 'Erro de Configuração', description: `Não foi possível iniciar o login com ${providerName}.` });
+             setIsSocialSubmitting(null);
+             return;
+        }
 
          // *** Detailed Logging before signInWithPopup ***
          console.log(`Attempting signInWithPopup for ${providerName}.`);
@@ -189,11 +208,11 @@ export default function SignupPage() {
              errorMsg = `Este domínio não está autorizado para operações do Firebase. Verifique os 'Domínios autorizados' nas configurações de autenticação do Firebase.`;
          } else if (error.code === 'auth/network-request-failed') {
               errorMsg = 'Erro de rede. Verifique sua conexão com a internet.';
-         } else if (error.code === 'auth/invalid-api-key' || error.code === 'auth/api-key-not-valid') {
-            // Specific error for invalid API key during social login
-            errorMsg = `Erro de Configuração (${providerName}): A chave de API do Firebase é inválida. Verifique o arquivo .env.local.`;
-            console.error("Detailed Error: Invalid Firebase API Key during social login. Check NEXT_PUBLIC_FIREBASE_API_KEY.");
-        }
+         } else if (error.code === 'auth/api-key-not-valid' || error.code === 'auth/invalid-api-key' || error.message?.includes('api-key-not-valid')) {
+             // Specific error for invalid API key during social login
+             errorMsg = `Erro de Configuração Crítico (${providerName}): A chave de API do Firebase é inválida. Verifique o arquivo .env.local.`;
+             console.error("Detailed Error: Invalid Firebase API Key during social login. Check NEXT_PUBLIC_FIREBASE_API_KEY.");
+         }
 
 
           setSubmitError(errorMsg);
@@ -230,7 +249,7 @@ export default function SignupPage() {
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>Erro de Configuração</AlertTitle>
                   <AlertDescription>
-                    {firebaseInitializationError.message}. A autenticação pode não funcionar.
+                    {firebaseInitializationError.message}. A autenticação pode não funcionar. Verifique as variáveis de ambiente.
                   </AlertDescription>
                 </Alert>
              )}

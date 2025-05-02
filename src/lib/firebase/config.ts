@@ -40,10 +40,10 @@ if (typeof window !== 'undefined') {
          }
     } else if (!firebaseConfig.apiKey) {
          // Specifically warn if API key is missing, even if other vars might be present
-         const apiKeyMessage = "AVISO: A variável de ambiente NEXT_PUBLIC_FIREBASE_API_KEY está faltando ou vazia. A autenticação falhará.";
-         console.warn(apiKeyMessage);
+         const apiKeyMessage = "AVISO CRÍTICO: A variável de ambiente NEXT_PUBLIC_FIREBASE_API_KEY está faltando ou vazia. A autenticação falhará.";
+         console.error(apiKeyMessage); // Use ERROR level for critical missing key
          if (!firebaseInitializationError) {
-             firebaseInitializationError = new Error("Chave de API do Firebase (API Key) ausente.");
+             firebaseInitializationError = new Error("Erro Crítico: Chave de API do Firebase (API Key) ausente.");
          }
     }
 }
@@ -65,8 +65,8 @@ try {
             console.log('App Firebase inicializado.');
           } else {
              // This handles missing API key primarily
-             const errorMsg = "Inicialização do Firebase ignorada devido à chave de API ausente.";
-             console.warn(errorMsg);
+             const errorMsg = "Erro Crítico: Inicialização do Firebase ignorada devido à chave de API ausente.";
+             console.error(errorMsg); // Log as error
              firebaseInitializationError = new Error(errorMsg);
           }
         } else {
@@ -74,7 +74,7 @@ try {
           console.log('App Firebase já existe.');
         }
     } else {
-        console.warn("Inicialização do Firebase ignorada devido a erro prévio (variáveis ausentes).");
+        console.warn("Inicialização do Firebase ignorada devido a erro prévio (variáveis ausentes ou chave API inválida).");
     }
 
 
@@ -91,17 +91,17 @@ try {
         console.log('Firebase Auth inicializado.');
     } else if (!firebaseInitializationError) { // Only log if no error exists yet
         // Handle the case where app initialization failed or was skipped
-        const authSkipMsg = 'Inicialização do Firebase Auth ignorada porque a inicialização do app falhou ou foi ignorada.';
-        console.error(authSkipMsg);
+        const authSkipMsg = 'Erro: Inicialização do Firebase Auth ignorada porque a inicialização do app falhou ou foi ignorada.';
+        console.error(authSkipMsg); // Log as error
         firebaseInitializationError = new Error(authSkipMsg);
     }
 
 } catch (error: any) {
     // This catch block handles errors during initializeApp or initializeAuth
-    console.error("Erro inicializando Firebase ou Auth:", error); // Log the actual error
+    console.error("Erro CRÍTICO inicializando Firebase ou Auth:", error); // Log the actual error
 
     // Provide a more specific message if the error code indicates an invalid API key during init
-    if (error.code === 'auth/invalid-api-key' || error.message?.includes('invalid-api-key')) {
+    if (error.code === 'auth/invalid-api-key' || error.message?.includes('invalid-api-key') || error.code === 'invalid-api-key') {
          const apiKeyErrorMsg = "Erro Crítico: Chave de API do Firebase inválida detectada durante a inicialização. Verifique o valor de NEXT_PUBLIC_FIREBASE_API_KEY no seu arquivo .env.local.";
          console.error(apiKeyErrorMsg);
          firebaseInitializationError = new Error(apiKeyErrorMsg);
