@@ -1,40 +1,7 @@
 
 'use client';
 
-import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-
-export default function LoginPageRedirect() {
-  const router = useRouter();
-
-  useEffect(() => {
-    // Redirect immediately on mount
-    console.log("Login page accessed, redirecting to home (login disabled)...");
-    router.replace('/'); // Use replace to avoid adding login to history
-  }, [router]);
-
-  // Render a loading/redirecting state while the redirect happens
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
-      <Card className="w-full max-w-md text-center shadow-lg card p-6">
-        <CardHeader>
-          <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-4" />
-          <CardTitle>Redirecionando...</CardTitle>
-          <CardDescription>O login está temporariamente desabilitado.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">Você será redirecionado para a página inicial.</p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// Original Login Page Code (kept for reference, but not used due to redirect)
-/*
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -49,6 +16,7 @@ import { LogIn, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
 import { auth, firebaseInitializationError } from '@/lib/firebase/config';
 import Image from 'next/image';
+import { useAuth } from '@/context/auth-context'; // Import useAuth hook
 
 // Schema for email/password login
 const loginSchema = z.object({
@@ -63,10 +31,19 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const { user, loading: authLoading } = useAuth(); // Get user and loading state from context
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
   });
+
+   // Redirect if user is already logged in
+   useEffect(() => {
+       if (!authLoading && user) {
+           console.log("User already logged in, redirecting to dashboard...");
+           router.replace('/dashboard'); // Use replace to avoid login in history
+       }
+   }, [user, authLoading, router]);
 
 
   // --- Email/Password Login Handler ---
@@ -95,10 +72,10 @@ export default function LoginPage() {
       console.log('Email login successful for:', userCredential.user.email);
       toast({
         title: 'Login Bem-sucedido!',
-        description: `Bem-vindo de volta, ${userCredential.user.email}!`,
+        description: `Bem-vindo de volta!`, // Removed email for privacy
         variant: 'default',
       });
-      router.push('/'); // Redirect to dashboard after login
+      // router.push('/dashboard'); // Redirect handled by useEffect
     } catch (error: any) {
       console.error('Email login failed:', error);
       let errorMessage = 'Falha no login. Verifique seu email e senha.';
@@ -181,10 +158,10 @@ export default function LoginPage() {
            console.log(`${providerName} login successful. User:`, user.email, user.uid);
            toast({
                title: `Login com ${providerName} bem-sucedido!`,
-               description: `Bem-vindo, ${user.displayName || user.email}!`,
+               description: `Bem-vindo!`, // Removed display name/email
                variant: 'default',
            });
-           router.push('/'); // Redirect to dashboard
+           // router.push('/dashboard'); // Redirect handled by useEffect
        } catch (error: any) {
            console.error(`${providerName} login failed:`, error);
             let errorMessage = `Falha no login com ${providerName}.`;
@@ -223,6 +200,21 @@ export default function LoginPage() {
            setIsLoading(false);
        }
    };
+
+   // Show loading state while checking auth status or if user is already defined
+   if (authLoading || user) {
+      return (
+          <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
+             <Card className="w-full max-w-md text-center shadow-lg card p-6">
+                 <CardHeader>
+                     <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-4" />
+                     <CardTitle>Carregando...</CardTitle>
+                     <CardDescription>Verificando sessão...</CardDescription>
+                 </CardHeader>
+             </Card>
+          </div>
+      );
+   }
 
 
   return (
@@ -330,4 +322,3 @@ export default function LoginPage() {
     </div>
   );
 }
-*/

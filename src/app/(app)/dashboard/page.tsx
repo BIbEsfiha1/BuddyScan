@@ -31,7 +31,7 @@ import { cn } from '@/lib/utils'; // Import cn utility
 // Define states for camera/scanner
 type ScannerStatus = 'idle' | 'permission-pending' | 'permission-denied' | 'initializing' | 'scanning' | 'stopped' | 'error';
 
-export default function Home() {
+export default function DashboardPage() { // Renamed component to DashboardPage
   const router = useRouter();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -140,17 +140,8 @@ export default function Home() {
   }, []); // No dependencies needed
 
 
-  // Cleanup interval and stream on unmount
-   useEffect(() => {
-    return () => {
-      // Check isMounted on cleanup to avoid running when not needed
-      if (isMounted) {
-        console.log("Home component unmounting/cleaning up, stopping scan interval and media stream.");
-        stopScanInterval();
-        stopMediaStream();
-      }
-    };
-   }, [isMounted, stopScanInterval, stopMediaStream]);
+  // Define handleOpenChange *before* it's used as a dependency.
+  const handleOpenChangeCallbackRef = useRef<(open: boolean) => void>();
 
 
   // --- Request Camera Permission & Start Stream ---
@@ -255,8 +246,6 @@ export default function Home() {
     }
   }, [stopMediaStream, toast]); // Dependencies: cleanup func, toast
 
-  // Define handleOpenChange *before* it's used as a dependency.
-  const handleOpenChangeCallbackRef = useRef<(open: boolean) => void>();
 
    // --- Start Scanning Interval ---
    const startScanning = useCallback(async () => {
@@ -541,6 +530,18 @@ export default function Home() {
         stopScanInterval(); // Ensure interval is stopped on cleanup
     };
   }, [isDialogOpen, scannerStatus, startScanning, stopMediaStream, stopScanInterval]);
+
+  // Cleanup interval and stream on unmount
+  useEffect(() => {
+    return () => {
+        // Check isMounted on cleanup to avoid running when not needed
+        if (isMounted) {
+            console.log("Dashboard component unmounting/cleaning up, stopping scan interval and media stream.");
+            stopScanInterval();
+            stopMediaStream();
+        }
+    };
+  }, [isMounted, stopScanInterval, stopMediaStream]);
 
 
   // --- Button Click Handlers ---

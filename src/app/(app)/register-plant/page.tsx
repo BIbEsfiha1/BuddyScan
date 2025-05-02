@@ -173,7 +173,7 @@ export default function RegisterPlantPage() {
        <Card className="w-full max-w-lg shadow-xl border-primary/20 card">
          <CardHeader className="relative pb-4"> {/* Reduced padding bottom */}
             <Button variant="ghost" size="icon" className="absolute top-4 left-4 button" asChild> {/* Adjusted position */}
-               <Link href="/" aria-label="Voltar ao Painel">
+               <Link href="/dashboard" aria-label="Voltar ao Painel"> {/* Link to dashboard */}
                   <HomeIcon className="h-5 w-5" />
                </Link>
             </Button>
@@ -222,7 +222,7 @@ export default function RegisterPlantPage() {
                         </Button>
                     </div>
                      <Button variant="outline" size="sm" onClick={() => {
-                         router.push('/')
+                         router.push('/dashboard') // Navigate to dashboard
                        }} className="mt-5 button">
                          <HomeIcon className="mr-2 h-4 w-4" /> Ir para o Painel
                      </Button>

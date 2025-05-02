@@ -20,8 +20,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
     Camera, Leaf, Bot, Loader2, AlertCircle, ImagePlus, RefreshCw, XCircle, VideoOff,
-    Download, ClipboardList, Gauge, FlaskConical, Thermometer, Droplet, Ruler, Layers
-} from '@/components/ui/lucide-icons'; // Use centralized icons
+    Download, ClipboardList, Gauge, FlaskConical, Thermometer, Droplet, Ruler, Layers, CheckCircle
+} from '@/components/ui/lucide-icons'; // Use centralized icons, added CheckCircle
 import Image from 'next/image';
 import { analyzePlantPhoto, type AnalyzePlantPhotoOutput } from '@/ai/flows/analyze-plant-photo';
 import type { DiaryEntry } from '@/types/diary-entry';
@@ -31,6 +31,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { firebaseInitializationError } from '@/lib/firebase/config'; // Import Firebase error state
+import { useAuth } from '@/context/auth-context'; // Import useAuth
 
 const diaryEntrySchema = z.object({
   note: z.string().min(1, 'A nota não pode estar vazia').max(1000, 'Nota muito longa (máx 1000 caracteres)'),
@@ -46,7 +47,7 @@ const diaryEntrySchema = z.object({
   ph: z.preprocess(
        (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
         z.number({ invalid_type_error: 'pH deve ser um número' }).min(0).max(14, "pH deve estar entre 0 e 14").optional().nullable()
-  ),
+   ),
   temp: z.preprocess(
          (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
          z.number({ invalid_type_error: 'Temperatura deve ser um número' }).optional().nullable()
@@ -67,8 +68,8 @@ interface DiaryEntryFormProps {
 
 type CameraStatus = 'idle' | 'permission-pending' | 'permission-denied' | 'streaming' | 'error';
 
-// Placeholder author ID when authentication is disabled
-const GUEST_AUTHOR_ID = "guest-user";
+// Placeholder author ID when authentication is disabled - REMOVED
+// const GUEST_AUTHOR_ID = "guest-user"; // REMOVED
 
 export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: DiaryEntryFormProps) {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -78,6 +79,7 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const { toast } = useToast();
+  const { user, loading: authLoading } = useAuth(); // Get user and auth loading state
 
   // Camera related state
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle');
@@ -88,7 +90,7 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
   const streamRef = useRef<MediaStream | null>(null);
 
   // Determine if the form should be globally disabled
-  const isDisabled = isSubmitting || isAnalyzing || showCameraView || !!firebaseInitializationError;
+  const isDisabled = isSubmitting || isAnalyzing || showCameraView || !!firebaseInitializationError || authLoading || !user;
 
 
   const form = useForm<DiaryEntryFormData>({
@@ -321,8 +323,15 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
          setIsSubmitting(false);
          return;
      }
+     // Check if user is logged in
+      if (!user) {
+          setSubmitError('Usuário não autenticado. Faça login para salvar.');
+          toast({ variant: 'destructive', title: 'Não Autenticado', description: 'Faça login para registrar entradas no diário.' });
+          setIsSubmitting(false);
+          return;
+      }
 
-    const currentAuthorId = GUEST_AUTHOR_ID;
+    const currentAuthorId = user.uid; // Use the actual logged-in user's ID
     console.log('Iniciando envio para Firestore:', data, 'by User:', currentAuthorId);
 
     try {
@@ -332,7 +341,7 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
         const newEntryData: Omit<DiaryEntry, 'id'> = {
             plantId: plantId,
             timestamp: new Date().toISOString(), // Use current time as ISO string
-            authorId: currentAuthorId,
+            authorId: currentAuthorId, // Use actual author ID
             note: data.note,
             stage: data.stage || null,
             heightCm: data.heightCm ?? null,
@@ -404,6 +413,22 @@ export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: 
                    <AlertDescription className="text-sm">{firebaseInitializationError.message}. Não é possível salvar entradas.</AlertDescription>
                  </Alert>
               )}
+
+             {/* Auth Loading/Not Logged In Message */}
+             {authLoading && !isDisabled && ( // Show loading only if form isn't disabled for other reasons
+                  <Alert variant="default" className="p-3 border-blue-500/50 bg-blue-500/10">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-600"/>
+                      <AlertTitle>Verificando Autenticação...</AlertTitle>
+                      <AlertDescription className="text-sm text-blue-700">Aguarde enquanto verificamos seu login.</AlertDescription>
+                  </Alert>
+             )}
+             {!authLoading && !user && !firebaseInitializationError && (
+                  <Alert variant="destructive" className="p-3">
+                      <AlertCircle className="h-4 w-4"/>
+                      <AlertTitle>Login Necessário</AlertTitle>
+                      <AlertDescription className="text-sm">Você precisa estar logado para adicionar entradas no diário.</AlertDescription>
+                  </Alert>
+             )}
 
 
             {/* Note Section First */}

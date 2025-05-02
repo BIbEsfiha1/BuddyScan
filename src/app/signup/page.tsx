@@ -1,40 +1,7 @@
 
 'use client';
 
-import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-
-export default function SignupPageRedirect() {
-  const router = useRouter();
-
-  useEffect(() => {
-    // Redirect immediately on mount
-    console.log("Signup page accessed, redirecting to home (signup disabled)...");
-    router.replace('/'); // Use replace to avoid adding signup to history
-  }, [router]);
-
-  // Render a loading/redirecting state while the redirect happens
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
-      <Card className="w-full max-w-md text-center shadow-lg card p-6">
-         <CardHeader>
-            <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-4" />
-           <CardTitle>Redirecionando...</CardTitle>
-           <CardDescription>O cadastro está temporariamente desabilitado.</CardDescription>
-         </CardHeader>
-         <CardContent>
-           <p className="text-muted-foreground">Você será redirecionado para a página inicial.</p>
-         </CardContent>
-       </Card>
-    </div>
-  );
-}
-
-// Original Signup Page Code (kept for reference, but not used due to redirect)
-/*
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -49,6 +16,7 @@ import { UserPlus, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
 import { auth, firebaseInitializationError } from '@/lib/firebase/config';
 import Image from 'next/image';
+import { useAuth } from '@/context/auth-context'; // Import useAuth hook
 
 // Schema for signup form
 const signupSchema = z.object({
@@ -67,10 +35,20 @@ export default function SignupPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [signupError, setSignupError] = useState<string | null>(null);
+  const { user, loading: authLoading } = useAuth(); // Get user and loading state
 
   const { register, handleSubmit, formState: { errors } } = useForm<SignupFormInputs>({
     resolver: zodResolver(signupSchema),
   });
+
+   // Redirect if user is already logged in
+   useEffect(() => {
+       if (!authLoading && user) {
+           console.log("User already logged in, redirecting to dashboard from signup...");
+           router.replace('/dashboard'); // Use replace to avoid signup in history
+       }
+   }, [user, authLoading, router]);
+
 
   // --- Email/Password Signup Handler ---
   const onEmailSubmit = async (data: SignupFormInputs) => {
@@ -101,7 +79,7 @@ export default function SignupPage() {
         description: `Sua conta foi criada com sucesso. Bem-vindo!`,
         variant: 'default',
       });
-      router.push('/'); // Redirect to dashboard after signup
+      // router.push('/dashboard'); // Redirect handled by useEffect
     } catch (error: any) {
       console.error('Email signup failed:', error);
       let errorMessage = 'Falha no cadastro. Tente novamente.';
@@ -176,10 +154,10 @@ export default function SignupPage() {
           console.log(`${providerName} signup/login successful. User:`, user.email, user.uid);
           toast({
               title: `Login/Cadastro com ${providerName} bem-sucedido!`,
-              description: `Bem-vindo, ${user.displayName || user.email}!`,
+              description: `Bem-vindo!`, // Removed display name/email
               variant: 'default',
           });
-          router.push('/'); // Redirect to dashboard
+          // router.push('/dashboard'); // Redirect handled by useEffect
       } catch (error: any) {
           console.error(`${providerName} signup/login failed:`, error);
            let errorMessage = `Falha no login/cadastro com ${providerName}.`;
@@ -218,6 +196,22 @@ export default function SignupPage() {
           setIsLoading(false);
       }
    };
+
+    // Show loading state while checking auth status or if user is already defined
+    if (authLoading || user) {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
+                <Card className="w-full max-w-md text-center shadow-lg card p-6">
+                    <CardHeader>
+                        <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-4" />
+                        <CardTitle>Carregando...</CardTitle>
+                        <CardDescription>Verificando sessão...</CardDescription>
+                    </CardHeader>
+                </Card>
+            </div>
+        );
+    }
+
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
@@ -315,7 +309,7 @@ export default function SignupPage() {
               {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.36 1.67-4.06 1.67-3.4 0-6.33-2.83-6.33-6.33s2.93-6.33 6.33-6.33c1.9 0 3.21.73 4.18 1.69l2.6-2.6C16.84 3.18 14.91 2 12.48 2 7.48 2 3.11 6.33 3.11 11.33s4.37 9.33 9.37 9.33c3.19 0 5.64-1.18 7.57-3.01 2-1.9 2.6-4.5 2.6-6.66 0-.58-.05-1.14-.13-1.67z"></path></svg>}
               Google
             </Button>
-            {/* Placeholder for other social logins */
+            {/* Placeholder for other social logins */}
           </div>
         </CardContent>
         <CardFooter className="text-center text-sm text-muted-foreground justify-center">
@@ -328,9 +322,3 @@ export default function SignupPage() {
     </div>
   );
 }
-*/
-```
-    </content>
-  </change>
-  <change>
-    <file>src/app/layout.tsx</file

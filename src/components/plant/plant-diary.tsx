@@ -9,8 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
 import {
     Gauge, Droplet, Ruler, StickyNote, Thermometer, Microscope, AlertTriangle,
-    Activity, CalendarDays, Bot, User, FlaskConical, Loader2, RefreshCw, Layers, FileText, Clock, ClipboardList
-} from '@/components/ui/lucide-icons'; // Use centralized icons
+    Activity, CalendarDays, Bot, User, FlaskConical, Loader2, RefreshCw, Layers, FileText, Clock, ClipboardList, History
+} from '@/components/ui/lucide-icons'; // Use centralized icons, added History
 import { Badge } from '@/components/ui/badge';
 import type { DiaryEntry } from '@/types/diary-entry';
 // Import Firestore functions for diary entries
@@ -18,6 +18,7 @@ import { loadDiaryEntriesFromFirestore, addDiaryEntryToFirestore } from '@/types
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert components
 import { Button } from '@/components/ui/button'; // Import Button for refresh
 import { firebaseInitializationError } from '@/lib/firebase/config'; // Import Firebase error state
+import { useAuth } from '@/context/auth-context'; // Import useAuth to potentially map author IDs later
 
 interface PlantDiaryProps {
   plantId: string;
@@ -27,6 +28,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user: currentUser } = useAuth(); // Get current user for display purposes if needed
 
   // Use useCallback to memoize the load function
   const loadEntries = useCallback(async () => {
@@ -73,6 +75,18 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
        setEntries(prevEntries => [newlyAddedEntry, ...prevEntries]);
        // No need to re-sort if Firestore query sorts and we prepend
    };
+
+    // Helper function to display author information
+    const getAuthorDisplayName = (authorId: string): string => {
+        // For now, just show the first part of the UID or a placeholder
+        // In a real app, you might fetch user profiles based on authorId
+        if (!authorId) return 'Desconhecido';
+        // Could check against currentUser?.uid, but entries might be from others
+        // if (currentUser && currentUser.uid === authorId) {
+        //     return currentUser.displayName || currentUser.email || `Usuário (${authorId.substring(0, 6)}...)`;
+        // }
+        return `Usuário (${authorId.substring(0, 6)}...)`;
+    };
 
 
   return (
@@ -212,7 +226,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                         <div className="text-xs text-muted-foreground text-right pt-2 border-t mt-4 flex justify-end items-center gap-1">
                            <User className="h-3.5 w-3.5"/>
                             Registrado por: <span className="font-medium" title={entry.authorId}>
-                                {entry.authorId === 'guest-user' ? 'Usuário Convidado' : `Usuário (${entry.authorId.substring(0, 6)}...)`}
+                                {getAuthorDisplayName(entry.authorId)} {/* Use helper function */}
                            </span>
                         </div>
                     </CardContent>

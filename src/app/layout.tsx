@@ -2,13 +2,12 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google'; // Use Inter or Geist as preferred
 import './globals.css';
-import { Toaster } from '@/components/ui/toaster';
+// import { Toaster } from '@/components/ui/toaster'; // Removed Toaster
 import { ThemeProvider } from '@/components/theme-provider';
-import AppHeader from '@/components/app-header'; // Import the new AppHeader
+// import AppHeader from '@/components/app-header'; // Removed AppHeader
 // Removed Geist Sans import as Inter is used
 // import { GeistSans } from 'geist/font/sans';
-// Removed AuthProvider import
-// import { AuthProvider } from '@/context/auth-context';
+import { AuthProvider } from '@/context/auth-context'; // Import AuthProvider
 
 const inter = Inter({
   variable: '--font-inter',
@@ -36,13 +35,13 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
         >
-            {/* Removed AuthProvider wrapper */}
-            <div className="relative flex min-h-screen flex-col">
-              <AppHeader /> {/* Render header unconditionally */}
-              {/* Main content */}
-              <main className="flex-1">{children}</main>
-            </div>
-            <Toaster />
+            {/* Wrap everything in AuthProvider */}
+            <AuthProvider>
+                {/* Removed AppHeader and Toaster from RootLayout */}
+                {/* Children will now render either the LandingPage or the AppLayout */}
+                {children}
+                {/* <Toaster /> */} {/* Moved to AppLayout or can be kept here if needed globally */}
+             </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

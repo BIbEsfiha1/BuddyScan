@@ -139,7 +139,7 @@ export default function PlantPage({ params }: PlantPageProps) {
            <CardContent className="space-y-4">
              <p className="text-muted-foreground">{error}</p>
               <Button asChild variant="secondary" className="button">
-                  <Link href="/">Voltar ao Painel</Link>
+                  <Link href="/dashboard">Voltar ao Painel</Link> {/* Link to dashboard */}
               </Button>
            </CardContent>
          </Card>
@@ -160,7 +160,7 @@ export default function PlantPage({ params }: PlantPageProps) {
               <CardContent className="space-y-4">
                 <p className="text-muted-foreground">Não foi possível encontrar detalhes para a planta com ID: {plantId}. Pode ter sido removida ou o ID/QR Code está incorreto.</p>
                  <Button asChild variant="secondary" className="button">
-                    <Link href="/">Voltar ao Painel</Link>
+                    <Link href="/dashboard">Voltar ao Painel</Link> {/* Link to dashboard */}
                 </Button>
               </CardContent>
            </Card>
@@ -244,7 +244,7 @@ export default function PlantPage({ params }: PlantPageProps) {
       {/* Back to Dashboard Button */}
       <div className="text-center mt-8">
            <Button asChild variant="outline" className="button">
-              <Link href="/">
+              <Link href="/dashboard"> {/* Link to dashboard */}
                  <HomeIcon className="mr-2 h-4 w-4"/> {/* Added icon */}
                  Voltar ao Painel
               </Link>
