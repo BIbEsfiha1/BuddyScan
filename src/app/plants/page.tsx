@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -12,16 +13,20 @@ import { Loader2, ListFilter, X, ArrowRight, Sprout, History, Search } from 'luc
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
+const ALL_STATUSES_VALUE = "all_statuses";
+const ALL_ROOMS_VALUE = "all_rooms";
+
 interface Filters {
   search: string;
-  status: string;
-  growRoom: string;
+  status: string; // Will store the actual status or empty string if 'all' is selected
+  growRoom: string; // Will store the actual room or empty string if 'all' is selected
 }
 
 export default function AllPlantsPage() {
   const [allPlants, setAllPlants] = useState<Plant[]>([]);
   const [displayedPlants, setDisplayedPlants] = useState<Plant[]>([]);
-  const [filters, setFilters] = useState<Filters>({ search: '', status: '', growRoom: '' });
+  // Store the raw filter selection, including "all" values
+  const [selectedFilters, setSelectedFilters] = useState<{ search: string; status: string; growRoom: string }>({ search: '', status: ALL_STATUSES_VALUE, growRoom: ALL_ROOMS_VALUE });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +40,7 @@ export default function AllPlantsPage() {
         const fetchedPlants = await getAllPlants();
         console.log(`Fetched ${fetchedPlants.length} plants.`);
         setAllPlants(fetchedPlants);
-        setDisplayedPlants(fetchedPlants); // Initially display all
+        // Don't set displayedPlants here, let the filter effect handle it
       } catch (e) {
         console.error('Failed to fetch all plant data:', e);
         setError('Falha ao carregar a lista de plantas.');
@@ -46,41 +51,42 @@ export default function AllPlantsPage() {
     fetchPlants();
   }, []);
 
-  // Filter plants when filters or allPlants change
+  // Filter plants when selectedFilters or allPlants change
   useEffect(() => {
-    console.log("Applying filters:", filters);
+    console.log("Applying filters based on selections:", selectedFilters);
     let filtered = [...allPlants];
 
     // Apply search filter (strain name)
-    if (filters.search) {
+    if (selectedFilters.search) {
       filtered = filtered.filter(plant =>
-        plant.strain.toLowerCase().includes(filters.search.toLowerCase())
+        plant.strain.toLowerCase().includes(selectedFilters.search.toLowerCase())
       );
     }
 
-    // Apply status filter
-    if (filters.status) {
-      filtered = filtered.filter(plant => plant.status === filters.status);
+    // Apply status filter (only if not 'all')
+    if (selectedFilters.status && selectedFilters.status !== ALL_STATUSES_VALUE) {
+      filtered = filtered.filter(plant => plant.status === selectedFilters.status);
     }
 
-    // Apply grow room filter
-    if (filters.growRoom) {
-      filtered = filtered.filter(plant => plant.growRoomId === filters.growRoom);
+    // Apply grow room filter (only if not 'all')
+    if (selectedFilters.growRoom && selectedFilters.growRoom !== ALL_ROOMS_VALUE) {
+      filtered = filtered.filter(plant => plant.growRoomId === selectedFilters.growRoom);
     }
 
     console.log(`Filtered down to ${filtered.length} plants.`);
     setDisplayedPlants(filtered);
-  }, [filters, allPlants]);
+  }, [selectedFilters, allPlants]);
 
   const handleFilterChange = (filterName: keyof Filters, value: string) => {
-    setFilters(prevFilters => ({
-      ...prevFilters,
-      [filterName]: value,
-    }));
+     // Directly update the selected filters state
+     setSelectedFilters(prevFilters => ({
+        ...prevFilters,
+        [filterName]: value,
+     }));
   };
 
   const clearFilters = () => {
-    setFilters({ search: '', status: '', growRoom: '' });
+    setSelectedFilters({ search: '', status: ALL_STATUSES_VALUE, growRoom: ALL_ROOMS_VALUE });
   };
 
   // Get unique grow rooms for the filter dropdown
@@ -123,7 +129,7 @@ export default function AllPlantsPage() {
             <Input
               id="search-filter"
               placeholder="Nome da variedade..."
-              value={filters.search}
+              value={selectedFilters.search}
               onChange={(e) => handleFilterChange('search', e.target.value)}
               className="input"
             />
@@ -133,14 +139,15 @@ export default function AllPlantsPage() {
           <div className="space-y-1">
              <label htmlFor="status-filter" className="text-sm font-medium text-muted-foreground flex items-center gap-1"><Sprout className="h-4 w-4"/> Filtrar por Status</label>
             <Select
-                value={filters.status}
+                value={selectedFilters.status} // Use selectedFilters state
                 onValueChange={(value) => handleFilterChange('status', value)}
             >
               <SelectTrigger id="status-filter" className="input">
                 <SelectValue placeholder="Todos os Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos os Status</SelectItem>
+                {/* Use the specific value for the "All" option */}
+                <SelectItem value={ALL_STATUSES_VALUE}>Todos os Status</SelectItem>
                 {CANNABIS_STAGES.map((stage) => (
                   <SelectItem key={stage} value={stage}>{stage}</SelectItem>
                 ))}
@@ -152,7 +159,7 @@ export default function AllPlantsPage() {
           <div className="space-y-1">
               <label htmlFor="room-filter" className="text-sm font-medium text-muted-foreground flex items-center gap-1"><Sprout className="h-4 w-4"/> Filtrar por Sala</label>
              <Select
-                value={filters.growRoom}
+                value={selectedFilters.growRoom} // Use selectedFilters state
                 onValueChange={(value) => handleFilterChange('growRoom', value)}
                 disabled={uniqueGrowRooms.length === 0}
              >
@@ -160,7 +167,8 @@ export default function AllPlantsPage() {
                  <SelectValue placeholder="Todas as Salas" />
                </SelectTrigger>
                <SelectContent>
-                 <SelectItem value="">Todas as Salas</SelectItem>
+                  {/* Use the specific value for the "All" option */}
+                 <SelectItem value={ALL_ROOMS_VALUE}>Todas as Salas</SelectItem>
                  {uniqueGrowRooms.map((room) => (
                    <SelectItem key={room} value={room}>{room}</SelectItem>
                  ))}
@@ -174,7 +182,11 @@ export default function AllPlantsPage() {
                 variant="outline"
                 onClick={clearFilters}
                 className="w-full lg:w-auto button"
-                disabled={!filters.search && !filters.status && !filters.growRoom}
+                disabled={
+                    !selectedFilters.search &&
+                    selectedFilters.status === ALL_STATUSES_VALUE &&
+                    selectedFilters.growRoom === ALL_ROOMS_VALUE
+                }
             >
               <X className="mr-2 h-4 w-4" />
               Limpar Filtros
@@ -196,7 +208,11 @@ export default function AllPlantsPage() {
           ) : error ? (
             <p className="text-center text-destructive py-10">{error}</p>
           ) : displayedPlants.length === 0 ? (
-            <p className="text-center text-muted-foreground py-10">Nenhuma planta encontrada com os filtros aplicados.</p>
+             allPlants.length > 0 ? ( // Check if there are plants but filters match none
+                <p className="text-center text-muted-foreground py-10">Nenhuma planta encontrada com os filtros aplicados.</p>
+             ) : (
+                 <p className="text-center text-muted-foreground py-10">Nenhuma planta cadastrada ainda.</p>
+             )
           ) : (
             <ul className="divide-y divide-border">
               {displayedPlants.map((plant) => (
@@ -233,3 +249,5 @@ export default function AllPlantsPage() {
     </div>
   );
 }
+
+    
