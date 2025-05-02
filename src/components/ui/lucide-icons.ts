@@ -1,3 +1,4 @@
+
 // src/components/ui/lucide-icons.ts
 /**
  * @fileoverview Centralized export for lucide-react icons used in the application.
@@ -14,23 +15,24 @@ export {
   CalendarDays,
   Camera,
   Check,
-  CheckCircle, // Added for success indication
+  CheckCircle,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
   Circle,
-  Download, // Added Download icon
-  Droplet,
+  Download,
+  Droplet, // Corrected: Was Droplets before, changed to Droplet
   History,
   ImagePlus,
   Leaf,
   Lightbulb,
-  Loader2,
+  Loader2, // Added Loader2
   Microscope,
   PanelLeft,
   PlusCircle,
   QrCode,
+  RefreshCw, // Added RefreshCw
   Ruler,
   ScanLine,
   Sprout,
@@ -43,3 +45,5 @@ export {
   Warehouse,
   X,
 } from 'lucide-react';
+
+    
