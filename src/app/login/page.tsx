@@ -58,9 +58,9 @@ export default function LoginPage() {
 
   // --- Email/Password Login Handler ---
   const onEmailSubmit = async (data: LoginFormData) => {
-     if (!auth) {
-        setSubmitError("Autenticação não inicializada corretamente. Verifique a configuração do Firebase.");
-        toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Serviço de autenticação indisponível.' });
+     if (!auth || firebaseInitializationError) { // Also check for init error
+        setSubmitError(firebaseInitializationError?.message || "Autenticação não inicializada corretamente.");
+        toast({ variant: 'destructive', title: 'Erro de Configuração', description: firebaseInitializationError?.message || 'Serviço de autenticação indisponível.' });
         return;
      }
     setIsSubmitting(true);
@@ -101,10 +101,10 @@ export default function LoginPage() {
 
   // --- Social Login Handler ---
   const handleSocialLogin = async (providerName: 'google' | 'facebook' | 'twitter') => {
-     // Explicit check for null auth instance
-     if (!auth) {
-         const errMsg = "Autenticação não inicializada corretamente. Verifique a configuração do Firebase.";
-         console.error(errMsg);
+     // Explicit check for null auth instance or init error
+     if (!auth || firebaseInitializationError) {
+         const errMsg = firebaseInitializationError?.message || "Autenticação não inicializada corretamente.";
+         console.error("Social Login Pre-check Failed:", errMsg);
          setSubmitError(errMsg);
          toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Serviço de autenticação indisponível.' });
          return;
@@ -130,6 +130,9 @@ export default function LoginPage() {
             case 'facebook':
                  console.log("Creating FacebookAuthProvider instance.");
                 provider = new FacebookAuthProvider();
+                // Optional: Specify required permissions
+                // provider.addScope('email');
+                // provider.addScope('public_profile');
                 break;
             case 'twitter':
                  console.log("Creating TwitterAuthProvider instance.");
@@ -157,16 +160,11 @@ export default function LoginPage() {
 
         // *** Detailed Logging before signInWithPopup ***
         console.log(`Attempting signInWithPopup for ${providerName}.`);
-        console.log("Auth object:", auth); // Log the auth object
-        console.log("Provider object:", provider); // Log the provider object
-
-        // Explicitly check auth again right before the call, just in case
-        if (!auth) {
-            throw new Error("Auth instance became null unexpectedly before signInWithPopup call.");
-        }
+        console.log("Auth object:", auth ? 'Exists' : 'NULL', auth); // Log auth object status and value
+        console.log("Provider object:", provider ? 'Exists' : 'NULL', provider); // Log provider object status and value
 
         // Use signInWithPopup for social logins
-        const result = await signInWithPopup(auth, provider);
+        const result = await signInWithPopup(auth, provider); // This is the line that often throws auth/argument-error
         const user = result.user;
         console.log(`${providerName} login successful. User:`, user.email, user.uid);
 
@@ -179,12 +177,13 @@ export default function LoginPage() {
         router.push('/'); // Redirect to dashboard
 
      } catch (error: any) {
-         console.error(`Erro no login com ${providerName}:`, error);
+         console.error(`Erro no login com ${providerName}:`, error); // Log the full error object
          let errorMsg = `Falha ao fazer login com ${providerName}.`;
+
          // *** Refined 'auth/argument-error' handling ***
          if (error.code === 'auth/argument-error') {
-            errorMsg = `Erro de configuração ou argumento inválido ao tentar login com ${providerName}. Verifique as configurações no Console do Firebase (OAuth, domínios autorizados) e as variáveis de ambiente.`;
-            console.error("Potential causes for auth/argument-error: Invalid 'auth' object, invalid 'provider' object, or Firebase project misconfiguration (OAuth settings, authorized domains, API key, etc.). Double-check .env.local variables.");
+            errorMsg = `Erro de configuração ao tentar login com ${providerName}. Verifique se o provedor (${providerName}) está habilitado no Console do Firebase, se os domínios autorizados estão corretos (incluindo localhost para desenvolvimento) e se as configurações de OAuth (IDs de cliente, segredos) estão definidas corretamente.`;
+            console.error("Potential causes for auth/argument-error: Invalid 'auth' object, invalid 'provider' object, or Firebase project misconfiguration (OAuth settings, authorized domains, API key, enabled providers, etc.). Double-check .env.local variables and Firebase console settings.");
          } else if (error.code === 'auth/account-exists-with-different-credential') {
             errorMsg = `Já existe uma conta com este email (${error.customData?.email}). Tente fazer login com o provedor original.`;
          } else if (error.code === 'auth/popup-closed-by-user') {
@@ -194,13 +193,13 @@ export default function LoginPage() {
          } else if (error.code === 'auth/popup-blocked') {
               errorMsg = `A janela de login foi bloqueada pelo navegador. Habilite pop-ups para este site.`;
          } else if (error.code === 'auth/operation-not-allowed') {
-             errorMsg = `Login com ${providerName} não está habilitado nas configurações do Firebase.`;
+             errorMsg = `Login com ${providerName} não está habilitado nas configurações de autenticação do Firebase.`;
          } else if (error.code === 'auth/unauthorized-domain') {
-             errorMsg = `Este domínio não está autorizado para operações do Firebase. Verifique as configurações no Console do Firebase.`;
+             errorMsg = `Este domínio não está autorizado para operações do Firebase. Verifique os 'Domínios autorizados' nas configurações de autenticação do Firebase.`;
          } else if (error.code === 'auth/network-request-failed') {
              errorMsg = 'Erro de rede. Verifique sua conexão com a internet.';
          } else if (error.code === 'auth/invalid-api-key' || error.code === 'auth/api-key-not-valid') {
-              errorMsg = 'Chave de API do Firebase inválida. Verifique as configurações.';
+              errorMsg = 'Chave de API do Firebase inválida. Verifique o valor de NEXT_PUBLIC_FIREBASE_API_KEY.';
          }
 
 
@@ -209,6 +208,7 @@ export default function LoginPage() {
            variant: 'destructive',
            title: `Erro no Login com ${providerName}`,
            description: errorMsg,
+           duration: 9000, // Show longer for config errors
          });
      } finally {
           setIsSocialSubmitting(null);

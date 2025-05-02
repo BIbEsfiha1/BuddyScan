@@ -63,9 +63,9 @@ export default function SignupPage() {
 
   // --- Email/Password Signup Handler ---
   const onEmailSubmit = async (data: SignupFormData) => {
-     if (!auth) {
-        setSubmitError("Autenticação não está disponível.");
-        toast({ variant: 'destructive', title: 'Erro', description: 'Serviço de autenticação indisponível.' });
+     if (!auth || firebaseInitializationError) {
+        setSubmitError(firebaseInitializationError?.message || "Autenticação não está disponível.");
+        toast({ variant: 'destructive', title: 'Erro de Configuração', description: firebaseInitializationError?.message || 'Serviço de autenticação indisponível.' });
         return;
      }
     setIsSubmitting(true);
@@ -94,6 +94,8 @@ export default function SignupPage() {
           errorMsg = 'A senha é muito fraca. Use pelo menos 6 caracteres.';
       } else if (error.code === 'auth/network-request-failed') {
            errorMsg = 'Erro de rede. Verifique sua conexão com a internet.';
+      } else if (error.code === 'auth/invalid-api-key' || error.code === 'auth/api-key-not-valid') {
+         errorMsg = 'Chave de API do Firebase inválida. Verifique as configurações.';
       }
       setSubmitError(errorMsg);
       toast({
@@ -108,9 +110,11 @@ export default function SignupPage() {
 
    // --- Social Signup/Login Handler (signInWithPopup handles both) ---
    const handleSocialSignup = async (providerName: 'google' | 'facebook' | 'twitter') => {
-        if (!auth) {
-            setSubmitError("Autenticação não está disponível.");
-            toast({ variant: 'destructive', title: 'Erro', description: 'Serviço de autenticação indisponível.' });
+        if (!auth || firebaseInitializationError) {
+            const errMsg = firebaseInitializationError?.message || "Autenticação não está disponível.";
+            console.error("Social Signup Pre-check Failed:", errMsg);
+            setSubmitError(errMsg);
+            toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Serviço de autenticação indisponível.' });
             return;
         }
       console.log(`Initiating social signup/login with ${providerName}...`);
@@ -137,7 +141,12 @@ export default function SignupPage() {
                  throw new Error('Provedor social inválido');
          }
 
-         console.log(`Attempting signInWithPopup for ${providerName}...`);
+         // *** Detailed Logging before signInWithPopup ***
+         console.log(`Attempting signInWithPopup for ${providerName}.`);
+         console.log("Auth object:", auth ? 'Exists' : 'NULL', auth); // Log auth object status and value
+         console.log("Provider object:", provider ? 'Exists' : 'NULL', provider); // Log provider object status and value
+
+
          // signInWithPopup will create a new user if they don't exist, or log in if they do
          const result = await signInWithPopup(auth, provider);
          const user = result.user;
@@ -152,10 +161,13 @@ export default function SignupPage() {
          router.push('/'); // Redirect to dashboard
 
       } catch (error: any) {
-          console.error(`Erro na autenticação com ${providerName}:`, error);
+          console.error(`Erro na autenticação com ${providerName}:`, error); // Log full error
           let errorMsg = `Falha ao autenticar com ${providerName}.`;
          // Reuse error messages from login page for consistency
-         if (error.code === 'auth/account-exists-with-different-credential') {
+         if (error.code === 'auth/argument-error') {
+            errorMsg = `Erro de configuração ao tentar autenticar com ${providerName}. Verifique se o provedor (${providerName}) está habilitado no Console do Firebase, se os domínios autorizados estão corretos e se as configurações de OAuth estão definidas corretamente.`;
+            console.error("Potential causes for auth/argument-error: Invalid 'auth' object, invalid 'provider' object, or Firebase project misconfiguration (OAuth settings, authorized domains, API key, enabled providers, etc.). Double-check .env.local variables and Firebase console settings.");
+         } else if (error.code === 'auth/account-exists-with-different-credential') {
             errorMsg = `Já existe uma conta com este email (${error.customData?.email}). Tente fazer login com o provedor original.`;
          } else if (error.code === 'auth/popup-closed-by-user') {
              errorMsg = `Janela de autenticação com ${providerName} fechada antes da conclusão.`;
@@ -164,18 +176,22 @@ export default function SignupPage() {
          } else if (error.code === 'auth/popup-blocked') {
               errorMsg = `A janela de autenticação foi bloqueada pelo navegador. Habilite pop-ups para este site.`;
          } else if (error.code === 'auth/operation-not-allowed') {
-             errorMsg = `Autenticação com ${providerName} não está habilitada nas configurações do Firebase.`;
+             errorMsg = `Autenticação com ${providerName} não está habilitada nas configurações de autenticação do Firebase.`;
          } else if (error.code === 'auth/unauthorized-domain') {
-             errorMsg = `Este domínio não está autorizado para operações do Firebase. Verifique as configurações no Console do Firebase.`;
+             errorMsg = `Este domínio não está autorizado para operações do Firebase. Verifique os 'Domínios autorizados' nas configurações de autenticação do Firebase.`;
          } else if (error.code === 'auth/network-request-failed') {
               errorMsg = 'Erro de rede. Verifique sua conexão com a internet.';
-         }
+         } else if (error.code === 'auth/invalid-api-key' || error.code === 'auth/api-key-not-valid') {
+            errorMsg = 'Chave de API do Firebase inválida. Verifique o valor de NEXT_PUBLIC_FIREBASE_API_KEY.';
+        }
+
 
           setSubmitError(errorMsg);
           toast({
             variant: 'destructive',
             title: `Erro na Autenticação com ${providerName}`,
             description: errorMsg,
+            duration: 9000, // Show longer for config errors
           });
       } finally {
            setIsSocialSubmitting(null);
