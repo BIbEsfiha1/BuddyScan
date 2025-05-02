@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
-import { Lightbulb, Droplets, Ruler, StickyNote, Thermometer, Microscope, AlertTriangle, Activity, CalendarDays, Bot, User, TestTube2 } from 'lucide-react'; // Added CalendarDays, Bot, User, TestTube2
+import { Lightbulb, Droplets, Ruler, StickyNote, Thermometer, Microscope, AlertTriangle, Activity, CalendarDays, Bot, User, TestTube2, Loader2 } from 'lucide-react'; // Added CalendarDays, Bot, User, TestTube2, Loader2
 import { Badge } from '@/components/ui/badge';
 import type { DiaryEntry } from '@/types/diary-entry'; // Define this type
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert components
