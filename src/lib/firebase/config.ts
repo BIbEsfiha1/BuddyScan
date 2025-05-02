@@ -1,4 +1,3 @@
-
 // src/lib/firebase/config.ts
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
@@ -36,7 +35,7 @@ if (typeof window !== 'undefined' && !hasFirebaseConfig()) {
         .map(([key]) => `NEXT_PUBLIC_FIREBASE_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`);
 
     if (missingVars.length > 0) {
-         console.warn(
+         console.warn( // Use warn for missing, error for initialization failure
            `Firebase configuration is missing environment variables: ${missingVars.join(
              ', '
            )}. Please set them in your .env.local file. Firebase features may not work correctly.`
@@ -53,16 +52,17 @@ try {
     if (!getApps().length) {
       // Check if all config values are present before initializing
       if (hasFirebaseConfig()) {
-        app = initializeApp(firebaseConfig);
+        app = initializeApp(firebaseConfig); // This line might throw if the key is invalid
         console.log('Firebase initialized.');
       } else {
+         // This block handles MISSING variables, not invalid ones.
          console.error('Firebase initialization skipped due to missing environment variables.');
          // Assign dummy app/auth to prevent runtime errors where they are expected
          // @ts-ignore - Assigning partial config for error case
          app = {} as FirebaseApp;
          // @ts-ignore
          auth = {} as Auth;
-         // Throw an error or handle this case gracefully depending on requirements
+         // Optionally throw an error or handle this case gracefully depending on requirements
          // throw new Error("Firebase environment variables are missing.");
       }
     } else {
@@ -75,14 +75,15 @@ try {
     if (app && app.options && app.options.apiKey) {
         auth = getAuth(app);
     } else {
-        // Handle the case where app initialization failed
-        console.error('Firebase Auth initialization skipped because app initialization failed.');
+        // Handle the case where app initialization failed (e.g., missing vars)
+        console.error('Firebase Auth initialization skipped because app initialization failed or was skipped.');
          // @ts-ignore
         auth = {} as Auth;
     }
 
 } catch (error) {
-    console.error("Error initializing Firebase:", error);
+    // This catch block should catch the auth/api-key-not-valid error if initializeApp throws it
+    console.error("Error initializing Firebase:", error); // Log the actual error
      // Assign dummy app/auth in case of unexpected initialization errors
      // @ts-ignore
     app = {} as FirebaseApp;
