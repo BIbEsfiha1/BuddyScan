@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -16,13 +16,15 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Leaf, Calendar, Warehouse, Loader2, ArrowLeft, Sprout, CheckCircle } from 'lucide-react'; // Removed QrCode, added CheckCircle
+import { Leaf, Calendar, Warehouse, Loader2, ArrowLeft, Sprout, CheckCircle, Download } from 'lucide-react'; // Added Download icon
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { addPlant, type Plant } from '@/services/plant-id'; // Import Plant type and addPlant function
-import Link from 'next/link'; // Import Link for back button
-import { generateUniqueId } from '@/lib/utils'; // Import unique ID generator
-import { QrCode as QrCodeIcon } from 'lucide-react'; // Alias the icon to avoid naming conflict
+import { addPlant, type Plant } from '@/services/plant-id';
+import Link from 'next/link';
+import { generateUniqueId } from '@/lib/utils';
+import { QrCode as QrCodeIcon } from 'lucide-react';
+import { toDataURL } from 'qrcode'; // Import QR code generation function
+import Image from 'next/image'; // Import Next Image component
 
 
 // Define the schema for plant registration - REMOVED qrCode field
@@ -42,45 +44,86 @@ export default function RegisterPlantPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [generatedQrCode, setGeneratedQrCode] = useState<string | null>(null); // State to hold generated QR code
+  const [generatedQrCode, setGeneratedQrCode] = useState<string | null>(null); // State to hold generated QR code string
+  const [qrCodeImageDataUrl, setQrCodeImageDataUrl] = useState<string | null>(null); // State for QR code image data URL
+
 
   const form = useForm<RegisterPlantFormData>({
     resolver: zodResolver(registerPlantSchema),
     defaultValues: {
       strain: '',
-      // qrCode: '', // Removed from default values
-      birthDate: '', // Default to empty string, will be handled by input type="date"
+      birthDate: '',
       growRoomId: '',
-      status: 'Plântula', // Default initial status
+      status: 'Plântula',
     },
   });
+
+  // Callback function to download the QR code
+  const downloadQrCode = useCallback(() => {
+    if (!qrCodeImageDataUrl || !generatedQrCode) return;
+
+    const link = document.createElement('a');
+    link.href = qrCodeImageDataUrl;
+    // Suggest filename (browser might override)
+    link.download = `qrcode-planta-${generatedQrCode}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+     toast({
+        title: 'Download Iniciado',
+        description: `Baixando QR code para ${generatedQrCode}.png`,
+     });
+  }, [qrCodeImageDataUrl, generatedQrCode, toast]);
 
   const onSubmit = async (data: RegisterPlantFormData) => {
     setIsSubmitting(true);
     setSubmitError(null);
-    setGeneratedQrCode(null); // Reset previous QR code
+    setGeneratedQrCode(null);
+    setQrCodeImageDataUrl(null); // Reset image URL
+
 
     try {
       // Generate a unique ID for the plant, which will also be the QR code content
       const uniqueId = generateUniqueId();
 
-      // Construct the new plant object with the generated ID and QR code
+      // Construct the new plant object
       const newPlantData: Plant = {
-        id: uniqueId, // Use the generated unique ID as the plant's primary ID
-        qrCode: uniqueId, // Use the same unique ID for the QR code
+        id: uniqueId,
+        qrCode: uniqueId,
         strain: data.strain,
-        birthDate: new Date(data.birthDate).toISOString(), // Convert to ISO string
+        birthDate: new Date(data.birthDate).toISOString(),
         growRoomId: data.growRoomId,
         status: data.status,
       };
 
       console.log('Tentando cadastrar planta:', newPlantData);
 
+      // Generate QR Code Image Data URL
+      let qrImageDataUrl = null;
+      try {
+        qrImageDataUrl = await toDataURL(uniqueId, {
+            errorCorrectionLevel: 'H', // High error correction
+            type: 'image/png',
+            margin: 2,
+            scale: 8, // Scale factor for higher resolution
+            color: {
+                dark: '#000000', // Black modules
+                light: '#FFFFFF', // White background
+            },
+        });
+         setQrCodeImageDataUrl(qrImageDataUrl); // Store the generated image data URL
+      } catch (qrError) {
+         console.error("Erro ao gerar a imagem do QR Code:", qrError);
+         throw new Error("Falha ao gerar a imagem do QR Code."); // Propagate error
+      }
+
+
       // Call the service function to add the plant
       await addPlant(newPlantData);
 
       console.log('Planta cadastrada com sucesso com QR Code:', uniqueId);
-      setGeneratedQrCode(uniqueId); // Store the generated QR code to display it
+      setGeneratedQrCode(uniqueId); // Store the generated QR code string
+
 
       toast({
         title: 'Planta Cadastrada!',
@@ -88,25 +131,21 @@ export default function RegisterPlantPage() {
            <div>
                <p>A planta '{data.strain}' foi adicionada com sucesso.</p>
                <p className="font-semibold mt-2">QR Code Gerado: {uniqueId}</p>
-                {/* TODO: Consider adding a QR code image component here */}
            </div>
         ),
         variant: 'default',
-        duration: 10000, // Keep toast longer to show QR code
+        duration: 10000, // Keep toast longer
       });
 
       // Reset form after successful submission BUT keep generated QR code displayed
       form.reset();
-      // Redirect can happen later or be replaced by showing the QR code prominently
-
-      // Example: Redirect after a short delay or on user action
-      // setTimeout(() => router.push('/'), 5000);
 
 
     } catch (error: any) {
       console.error('Erro ao cadastrar planta:', error);
       const errorMsg = error.message || 'Falha ao cadastrar a planta. Verifique os dados ou tente novamente.';
       setSubmitError(errorMsg);
+      setQrCodeImageDataUrl(null); // Clear image on error
       toast({
         variant: 'destructive',
         title: 'Erro no Cadastro',
@@ -138,21 +177,39 @@ export default function RegisterPlantPage() {
          </CardHeader>
          <CardContent className="pt-6">
            {/* Display generated QR code if available */}
-           {generatedQrCode && !isSubmitting && (
+           {generatedQrCode && qrCodeImageDataUrl && !isSubmitting && (
              <Card className="mb-6 border-green-500 bg-green-50 dark:bg-green-900/30 p-4 text-center card">
                 <CardHeader className="p-0 pb-2">
                     <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400 mx-auto mb-2" />
-                    <CardTitle className="text-lg text-green-700 dark:text-green-300">Planta Cadastrada com Sucesso!</CardTitle>
+                    <CardTitle className="text-lg text-green-700 dark:text-green-300">Planta Cadastrada!</CardTitle>
                 </CardHeader>
-                <CardContent className="p-0">
+                <CardContent className="p-0 space-y-3">
                    <p className="text-sm text-muted-foreground mb-2">O QR Code único para esta planta é:</p>
                    <div className="flex items-center justify-center gap-2 bg-muted p-2 rounded-md">
                        <QrCodeIcon className="h-5 w-5 text-primary" />
                        <p className="text-lg font-mono font-semibold text-primary break-all">{generatedQrCode}</p>
                    </div>
-                    {/* Placeholder for actual QR code image generation */}
-                    <div className="mt-3 text-xs text-muted-foreground">(Em breve: Imagem do QR Code aqui)</div>
-                     <Button variant="secondary" size="sm" onClick={() => router.push('/')} className="mt-4 button">
+                    {/* Display QR Code Image */}
+                    <div className="mt-3 flex flex-col items-center">
+                       <Image
+                           src={qrCodeImageDataUrl}
+                           alt={`QR Code para ${generatedQrCode}`}
+                           width={180} // Increased size
+                           height={180}
+                           className="border-2 border-muted p-1 rounded-md shadow-md bg-white" // Add white bg for contrast
+                           priority // Load image eagerly
+                       />
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={downloadQrCode}
+                            className="mt-4 button"
+                        >
+                            <Download className="mr-2 h-4 w-4" />
+                            Baixar QR Code
+                        </Button>
+                    </div>
+                     <Button variant="outline" size="sm" onClick={() => router.push('/')} className="mt-5 button">
                          Ir para o Painel
                      </Button>
                 </CardContent>
@@ -180,28 +237,6 @@ export default function RegisterPlantPage() {
                     )}
                     />
 
-                    {/* QR Code / ID Field - REMOVED */}
-                    {/*
-                    <FormField
-                    control={form.control}
-                    name="qrCode" // This field is removed
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel className="flex items-center gap-2">
-                            <QrCode className="h-4 w-4 text-secondary" /> ID / QR Code
-                        </FormLabel>
-                        <FormControl>
-                            <Input placeholder="Identificador único para a planta" {...field} disabled={isSubmitting} className="input"/>
-                        </FormControl>
-                        <FormDescription>
-                                Use um código curto e único. Você pode usar um leitor de QR para gerar um.
-                        </FormDescription>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
-                    */}
-
                     {/* Birth Date */}
                     <FormField
                     control={form.control}
@@ -212,7 +247,6 @@ export default function RegisterPlantPage() {
                             <Calendar className="h-4 w-4 text-secondary" /> Data de Nascimento / Plantio
                         </FormLabel>
                         <FormControl>
-                            {/* Use input type="date" for native date picker */}
                             <Input type="date" {...field} disabled={isSubmitting} className="input appearance-none"/>
                         </FormControl>
                         <FormMessage />

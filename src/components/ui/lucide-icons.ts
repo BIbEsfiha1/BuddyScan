@@ -20,6 +20,7 @@ export {
   ChevronRight,
   ChevronUp,
   Circle,
+  Download, // Added Download icon
   Droplet,
   History,
   ImagePlus,
