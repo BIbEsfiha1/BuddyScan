@@ -15,7 +15,6 @@ import {
   FormLabel,
   FormMessage,
   FormDescription,
-  useFormField, // Import useFormField to access context if needed outside FormControl (not needed for this fix)
 } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Camera, Upload, Leaf, Bot, Loader2, AlertCircle } from 'lucide-react';
@@ -31,23 +30,23 @@ const diaryEntrySchema = z.object({
   // Use preprocess to handle empty string for number inputs
   heightCm: z.preprocess(
       (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
-      z.number().positive("Altura deve ser positiva").optional().nullable() // Allow null after preprocess
+      z.number({ invalid_type_error: 'Altura deve ser um número' }).positive("Altura deve ser positiva").optional().nullable() // Allow null after preprocess, added invalid_type_error
   ),
   ec: z.preprocess(
        (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
-       z.number().positive("EC deve ser positivo").optional().nullable() // Allow null
+       z.number({ invalid_type_error: 'EC deve ser um número' }).positive("EC deve ser positivo").optional().nullable() // Allow null
   ),
   ph: z.preprocess(
        (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
-        z.number().min(0).max(14, "pH deve estar entre 0 e 14").optional().nullable() // Allow null
+        z.number({ invalid_type_error: 'pH deve ser um número' }).min(0).max(14, "pH deve estar entre 0 e 14").optional().nullable() // Allow null
   ),
   temp: z.preprocess(
          (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
-         z.number().optional().nullable() // Allow null
+         z.number({ invalid_type_error: 'Temperatura deve ser um número' }).optional().nullable() // Allow null
    ),
   humidity: z.preprocess(
          (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
-          z.number().min(0, "Umidade não pode ser negativa").max(100, "Umidade não pode ser maior que 100").optional().nullable() // Allow null
+          z.number({ invalid_type_error: 'Umidade deve ser um número' }).min(0, "Umidade não pode ser negativa").max(100, "Umidade não pode ser maior que 100").optional().nullable() // Allow null
    ),
   // Photo data is handled separately
 });
@@ -76,7 +75,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     resolver: zodResolver(diaryEntrySchema),
     defaultValues: {
       note: '',
-      // Optional fields default to undefined implicitly
+      // Optional fields default to undefined implicitly which works with zod .optional()
     },
   });
 
@@ -192,13 +191,13 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     }
   };
 
-  // Helper to ensure value passed to Input is a string or empty string
-  const formatNumericValue = (value: unknown): string => {
-      if (value === null || value === undefined || isNaN(Number(value))) {
-        return '';
-      }
-      return String(value);
-  };
+  // Helper to ensure value passed to Input is a string or empty string (REMOVED - No longer needed)
+  // const formatNumericValue = (value: unknown): string => {
+  //     if (value === null || value === undefined || isNaN(Number(value))) {
+  //       return '';
+  //     }
+  //     return String(value);
+  // };
 
 
   return (
@@ -316,7 +315,8 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                        <FormItem>
                          <FormLabel>Altura (cm)</FormLabel> {/* Translated */}
                          <FormControl>
-                            <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} value={formatNumericValue(field.value)} disabled={isSubmitting} />
+                           {/* RHF handles value; Zod preprocesses it */}
+                            <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} disabled={isSubmitting} />
                          </FormControl>
                          <FormMessage />
                        </FormItem>
@@ -329,7 +329,8 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>EC</FormLabel>
                              <FormControl>
-                                 <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} value={formatNumericValue(field.value)} disabled={isSubmitting} />
+                                {/* RHF handles value; Zod preprocesses it */}
+                                 <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} disabled={isSubmitting} />
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -342,7 +343,8 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>pH</FormLabel>
                              <FormControl>
-                                 <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} value={formatNumericValue(field.value)} disabled={isSubmitting}/>
+                                {/* RHF handles value; Zod preprocesses it */}
+                                 <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} disabled={isSubmitting}/>
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -355,7 +357,8 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>Temp (°C)</FormLabel>
                              <FormControl>
-                                 <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} value={formatNumericValue(field.value)} disabled={isSubmitting}/>
+                                {/* RHF handles value; Zod preprocesses it */}
+                                 <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} disabled={isSubmitting}/>
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -368,7 +371,8 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>Umidade (%)</FormLabel> {/* Translated */}
                              <FormControl>
-                                 <Input type="number" step="1" placeholder="ex: 55" {...field} value={formatNumericValue(field.value)} disabled={isSubmitting} />
+                                {/* RHF handles value; Zod preprocesses it */}
+                                 <Input type="number" step="1" placeholder="ex: 55" {...field} disabled={isSubmitting} />
                              </FormControl>
                              <FormMessage />
                          </FormItem>
