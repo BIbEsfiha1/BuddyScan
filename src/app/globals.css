@@ -106,7 +106,7 @@ body {
 }
 
 /* Keyframes for animations */
-/* Updated scan line animation for smoother up/down movement */
+/* Simplified vertical scan line animation */
 @keyframes scan-line-vertical {
   0% {
     transform: translateY(0%);
@@ -116,16 +116,6 @@ body {
     transform: translateY(calc(100% - 2px)); /* Move to bottom */
     opacity: 0.8;
   }
-  51% {
-     opacity: 0; /* Quick fade at the bottom */
-  }
-  55% {
-     transform: translateY(calc(100% - 2px)); /* Stay at bottom faded */
-      opacity: 0;
-  }
-  56% {
-      opacity: 0.8; /* Fade back in at bottom */
-  }
   100% {
     transform: translateY(0%); /* Move back to top */
     opacity: 0.8;
@@ -134,17 +124,16 @@ body {
 
 
 .animate-scan-line-vertical {
-  /* Apply the updated animation */
-  /* Ease-in-out makes the start/end smoother */
-  animation: scan-line-vertical 3s ease-in-out infinite;
+  animation: scan-line-vertical 3.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; /* Smoother timing, longer duration */
   position: absolute;
-  /* Ensure it's positioned relative to the focus box */
-  top: 0; /* Start at the top of the focus box */
+  top: 0;
   left: 0;
   width: 100%;
-  height: 2px; /* Line thickness */
-  z-index: 10; /* Above video, below corners */
-  /* Gradient background defined in JSX/TSX */
+  height: 2px;
+  z-index: 10;
+  /* Gradient background defined in JSX/TSX or style prop for dynamic colors */
+  /* Example static gradient (replace hsl var if using inline styles): */
+   /* background: linear-gradient(90deg, transparent, hsl(var(--accent)), transparent); */
 }
 
 /* Keyframe for pulsing border */

@@ -93,8 +93,3 @@ export default function AttentionPlants({ plants }: AttentionPlantsProps) {
   );
 }
 
-```
-    </content>
-  </change>
-  <change>
-    <file>src/components

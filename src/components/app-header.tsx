@@ -55,9 +55,3 @@
      </header>
    );
  }
-
-```
-    </content>
-  </change>
-  <change>
-    <file>src/context/auth-context.tsx</
