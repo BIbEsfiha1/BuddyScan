@@ -1,11 +1,11 @@
 'use server';
 
 /**
- * @fileOverview An AI agent that analyzes a photo of a cannabis plant to identify potential issues.
+ * @fileOverview Um agente de IA que analisa a foto de uma planta de cannabis para identificar problemas potenciais.
  *
- * - analyzePlantPhoto - A function that handles the plant photo analysis process.
- * - AnalyzePlantPhotoInput - The input type for the analyzePlantPhoto function.
- * - AnalyzePlantPhotoOutput - The return type for the analyzePlantPhoto function.
+ * - analyzePlantPhoto - Uma função que lida com o processo de análise de fotos de plantas.
+ * - AnalyzePlantPhotoInput - O tipo de entrada para a função analyzePlantPhoto.
+ * - AnalyzePlantPhotoOutput - O tipo de retorno para a função analyzePlantPhoto.
  */
 
 import {ai} from '@/ai/ai-instance';
@@ -15,7 +15,7 @@ const AnalyzePlantPhotoInputSchema = z.object({
   photoDataUri: z
     .string()
     .describe(
-      "A photo of a cannabis plant, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "Uma foto de uma planta de cannabis, como um URI de dados que deve incluir um tipo MIME e usar codificação Base64. Formato esperado: 'data:<mimetype>;base64,<encoded_data>'." // Translated
     ),
 });
 export type AnalyzePlantPhotoInput = z.infer<typeof AnalyzePlantPhotoInputSchema>;
@@ -23,7 +23,7 @@ export type AnalyzePlantPhotoInput = z.infer<typeof AnalyzePlantPhotoInputSchema
 const AnalyzePlantPhotoOutputSchema = z.object({
   analysisResult: z
     .string()
-    .describe('A brief description of potential issues identified in the plant photo.'),
+    .describe('Uma breve descrição dos problemas potenciais identificados na foto da planta.'), // Translated
 });
 export type AnalyzePlantPhotoOutput = z.infer<typeof AnalyzePlantPhotoOutputSchema>;
 
@@ -40,7 +40,7 @@ const analyzePlantPhotoPrompt = ai.definePrompt({
       photoDataUri: z
         .string()
         .describe(
-          "A photo of a cannabis plant, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+          "Uma foto de uma planta de cannabis, como um URI de dados que deve incluir um tipo MIME e usar codificação Base64. Formato esperado: 'data:<mimetype>;base64,<encoded_data>'." // Translated
         ),
     }),
   },
@@ -48,14 +48,14 @@ const analyzePlantPhotoPrompt = ai.definePrompt({
     schema: z.object({
       analysisResult: z
         .string()
-        .describe('A brief description of potential issues identified in the plant photo.'),
+        .describe('Uma breve descrição dos problemas potenciais identificados na foto da planta.'), // Translated
     }),
   },
-  prompt: `You are an expert in cannabis plant health.
+  prompt: `Você é um especialista em saúde de plantas de cannabis.
 
-You will analyze the provided photo of a cannabis plant and provide a brief description of potential issues or observations. Focus on identifying any visual signs of diseases, nutrient deficiencies, or other problems.
+Você analisará a foto fornecida de uma planta de cannabis e fornecerá uma breve descrição de possíveis problemas ou observações. Concentre-se em identificar quaisquer sinais visuais de doenças, deficiências de nutrientes ou outros problemas.
 
-Photo: {{media url=photoDataUri}}`,
+Foto: {{media url=photoDataUri}}`, // Translated prompt content
 });
 
 const analyzePlantPhotoFlow = ai.defineFlow<

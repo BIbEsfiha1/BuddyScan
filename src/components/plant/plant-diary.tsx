@@ -6,26 +6,27 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
-import { Lightbulb, Droplets, Ruler, StickyNote, Thermometer, Microscope, AlertTriangle } from 'lucide-react';
+import { Lightbulb, Droplets, Ruler, StickyNote, Thermometer, Microscope, AlertTriangle, Activity } from 'lucide-react'; // Added Activity
 import { Badge } from '@/components/ui/badge';
 import type { DiaryEntry } from '@/types/diary-entry'; // Define this type
 
 
 // Mock function to fetch diary entries - replace with actual API call
 async function fetchDiaryEntries(plantId: string): Promise<DiaryEntry[]> {
-  console.log(`Fetching entries for plant: ${plantId}`);
+  console.log(`Buscando entradas para a planta: ${plantId}`); // Translated
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 1000));
 
   // Return mock data - in a real app, fetch from your backend
+  // Translated mock data
   return [
     {
       id: 'entry1',
       plantId: plantId,
       timestamp: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
       authorId: 'user1',
-      note: 'Looking healthy, watered today.',
-      stage: 'Vegetative',
+      note: 'Parece saudável, regada hoje.', // Translated
+      stage: 'Vegetativo', // Translated
       heightCm: 30,
       ec: 1.5,
       ph: 6.2,
@@ -39,23 +40,23 @@ async function fetchDiaryEntries(plantId: string): Promise<DiaryEntry[]> {
       plantId: plantId,
       timestamp: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
       authorId: 'user2',
-      note: 'Noticed some yellowing on lower leaves. Took a photo for analysis.',
-      stage: 'Vegetative',
+      note: 'Notei um amarelamento nas folhas inferiores. Tirei uma foto para análise.', // Translated
+      stage: 'Vegetativo', // Translated
       heightCm: 32,
       ec: 1.4,
       ph: 6.1,
       temp: 24,
       humidity: 58,
       photoUrl: 'https://picsum.photos/seed/plant2/300/200',
-      aiSummary: 'Slight yellowing on lower leaves detected. Could indicate early signs of nitrogen deficiency. Monitor closely.',
+      aiSummary: 'Leve amarelamento detectado nas folhas inferiores. Pode indicar sinais precoces de deficiência de nitrogênio. Monitore de perto.', // Translated
     },
      {
       id: 'entry3',
       plantId: plantId,
       timestamp: new Date().toISOString(), // Today
       authorId: 'user1',
-      note: 'Added nutrients. AI analysis confirmed potential N deficiency. Increased N slightly.',
-      stage: 'Vegetative',
+      note: 'Adicionei nutrientes. A análise de IA confirmou a possível deficiência de N. Aumentei ligeiramente o N.', // Translated
+      stage: 'Vegetativo', // Translated
       heightCm: 33,
       ec: 1.6,
       ph: 6.0,
@@ -85,8 +86,8 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
         const fetchedEntries = await fetchDiaryEntries(plantId);
         setEntries(fetchedEntries);
       } catch (err) {
-        console.error('Failed to fetch diary entries:', err);
-        setError('Could not load diary entries. Please try refreshing.');
+        console.error('Falha ao buscar entradas do diário:', err); // Translated
+        setError('Não foi possível carregar as entradas do diário. Por favor, tente atualizar.'); // Translated
       } finally {
         setIsLoading(false);
       }
@@ -110,10 +111,10 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
 
 
       {/* Display existing entries */}
-      <Card className="shadow-md">
+      <Card className="shadow-md border-primary/20">
         <CardHeader>
-          <CardTitle>Plant Diary</CardTitle>
-          <CardDescription>Record of observations and actions for this plant.</CardDescription>
+          <CardTitle>Diário da Planta</CardTitle> {/* Translated */}
+          <CardDescription>Registro de observações e ações para esta planta.</CardDescription> {/* Translated */}
         </CardHeader>
         <CardContent className="space-y-6">
           {isLoading && (
@@ -125,15 +126,16 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
           {error && <p className="text-destructive text-center">{error}</p>}
 
           {!isLoading && !error && entries.length === 0 && (
-            <p className="text-muted-foreground text-center">No diary entries yet. Add one above!</p>
+            <p className="text-muted-foreground text-center">Nenhuma entrada no diário ainda. Adicione uma acima!</p> // Translated
           )}
 
           {!isLoading && !error && entries.map((entry, index) => (
             <React.Fragment key={entry.id}>
-              <Card className="border shadow-sm overflow-hidden">
+              <Card className="border shadow-sm overflow-hidden bg-card/50">
                 <CardHeader className="bg-muted/30 p-4">
                   <div className="flex justify-between items-center flex-wrap gap-2">
                      <span className="font-semibold text-sm text-foreground/90">
+                       {/* Use locale from RootLayout */}
                        {new Date(entry.timestamp).toLocaleString()}
                      </span>
                     <Badge variant="outline" className="text-xs">{entry.stage}</Badge>
@@ -142,20 +144,20 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                  <CardContent className="p-4 space-y-4">
                     {/* Sensor/Measurement Data */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 text-xs text-muted-foreground">
-                      {entry.heightCm && <div className="flex items-center gap-1"><Ruler className="h-3.5 w-3.5" /> Height: {entry.heightCm} cm</div>}
+                      {entry.heightCm && <div className="flex items-center gap-1"><Ruler className="h-3.5 w-3.5" /> Altura: {entry.heightCm} cm</div>} {/* Translated */}
                       {entry.ec && <div className="flex items-center gap-1"><Activity className="h-3.5 w-3.5" /> EC: {entry.ec}</div>}
                       {entry.ph && <div className="flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-test-tube-2"><path d="M14.5 2v17.5c0 1.4-1.1 2.5-2.5 2.5h0c-1.4 0-2.5-1.1-2.5-2.5V2"/><path d="M8.5 2h7"/><path d="M14.5 16h-5"/></svg> pH: {entry.ph}</div>}
                       {entry.temp && <div className="flex items-center gap-1"><Thermometer className="h-3.5 w-3.5" /> Temp: {entry.temp}°C</div>}
-                      {entry.humidity && <div className="flex items-center gap-1"><Droplets className="h-3.5 w-3.5" /> Humidity: {entry.humidity}%</div>}
+                      {entry.humidity && <div className="flex items-center gap-1"><Droplets className="h-3.5 w-3.5" /> Umidade: {entry.humidity}%</div>} {/* Translated */}
                     </div>
 
                    {/* Photo */}
                    {entry.photoUrl && (
                      <div className="my-4">
                         <Image
-                          data-ai-hint="cannabis plant leaves"
+                          data-ai-hint="cannabis plant leaves stem"
                           src={entry.photoUrl}
-                          alt={`Plant observation on ${new Date(entry.timestamp).toLocaleDateString()}`}
+                          alt={`Observação da planta em ${new Date(entry.timestamp).toLocaleDateString()}`} // Translated
                           width={300}
                           height={200}
                           className="rounded-md shadow-sm mx-auto sm:mx-0"
@@ -168,7 +170,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                      <Card className="bg-accent/20 border-accent">
                         <CardHeader className="p-3">
                             <CardTitle className="text-sm font-semibold flex items-center gap-2 text-accent-foreground/90">
-                                <Microscope className="h-4 w-4" /> AI Analysis
+                                <Microscope className="h-4 w-4" /> Análise de IA {/* Translated */}
                             </CardTitle>
                         </CardHeader>
                        <CardContent className="p-3 pt-0 text-sm text-accent-foreground/80">
@@ -186,10 +188,10 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                     )}
 
 
-                    <p className="text-xs text-muted-foreground text-right">Logged by: {entry.authorId}</p>
+                    <p className="text-xs text-muted-foreground text-right">Registrado por: {entry.authorId}</p> {/* Translated */}
                  </CardContent>
               </Card>
-              {index < entries.length - 1 && <Separator />}
+              {index < entries.length - 1 && <Separator className="my-4"/>} {/* Added margin to separator */}
             </React.Fragment>
           ))}
         </CardContent>

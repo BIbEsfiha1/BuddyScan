@@ -25,13 +25,13 @@ import { Progress } from '@/components/ui/progress';
 
 
 const diaryEntrySchema = z.object({
-  note: z.string().min(1, 'Note cannot be empty').max(500, 'Note too long'),
-  stage: z.string().optional(), // Example: Vegetative, Flowering
-  heightCm: z.number().positive().optional(),
-  ec: z.number().positive().optional(),
-  ph: z.number().min(0).max(14).optional(),
+  note: z.string().min(1, 'A nota não pode estar vazia').max(500, 'Nota muito longa'), // Translated
+  stage: z.string().optional(), // Exemplo: Vegetativo, Floração
+  heightCm: z.number().positive("Altura deve ser positiva").optional(), // Translated
+  ec: z.number().positive("EC deve ser positivo").optional(), // Translated
+  ph: z.number().min(0).max(14, "pH deve estar entre 0 e 14").optional(), // Translated
   temp: z.number().optional(),
-  humidity: z.number().min(0).max(100).optional(),
+  humidity: z.number().min(0, "Umidade não pode ser negativa").max(100, "Umidade não pode ser maior que 100").optional(), // Translated
   // Photo data is handled separately
 });
 
@@ -91,13 +91,13 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     try {
         // Ensure photoPreview is a valid data URI string
        if (typeof photoPreview !== 'string' || !photoPreview.startsWith('data:image')) {
-         throw new Error('Invalid image data for analysis.');
+         throw new Error('Dados de imagem inválidos para análise.'); // Translated
        }
        const result = await analyzePlantPhoto({ photoDataUri: photoPreview });
        setAnalysisResult(result);
     } catch (error) {
-      console.error('AI Analysis Error:', error);
-      setAnalysisError('Failed to analyze photo. Please try again.');
+      console.error('Erro na Análise de IA:', error); // Translated
+      setAnalysisError('Falha ao analisar a foto. Por favor, tente novamente.'); // Translated
     } finally {
       setIsAnalyzing(false);
     }
@@ -110,9 +110,9 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
 
 
     // TODO: Replace with actual backend submission logic
-    console.log('Submitting data:', data);
-    console.log('Photo file:', photoFile);
-    console.log('Analysis result:', analysisResult);
+    console.log('Enviando dados:', data); // Translated
+    console.log('Arquivo da foto:', photoFile); // Translated
+    console.log('Resultado da análise:', analysisResult); // Translated
 
     // Simulate upload/save process
     try {
@@ -126,7 +126,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
           }
           // In real app, get URL from upload response
           photoUrl = photoPreview; // Use preview as mock URL
-          console.log('Simulated photo upload complete.');
+          console.log('Upload simulado da foto concluído.'); // Translated
         } else {
             setUploadProgress(100); // No photo to upload
         }
@@ -137,7 +137,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
             id: `entry-${Date.now()}`, // Temporary ID
             plantId: plantId,
             timestamp: new Date().toISOString(),
-            authorId: 'current-user', // Replace with actual user ID
+            authorId: 'usuario-atual', // Replace with actual user ID // Translated
             note: data.note,
             stage: data.stage,
             heightCm: data.heightCm,
@@ -151,7 +151,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
 
         // 3. Simulate saving to backend
         await new Promise(resolve => setTimeout(resolve, 500));
-        console.log('Simulated save complete:', newEntry);
+        console.log('Salvamento simulado concluído:', newEntry); // Translated
 
 
         // 4. Call the callback to update the UI
@@ -165,8 +165,8 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
         setAnalysisError(null);
 
     } catch (error) {
-        console.error('Submission Error:', error);
-        setSubmitError('Failed to save diary entry. Please try again.');
+        console.error('Erro no envio:', error); // Translated
+        setSubmitError('Falha ao salvar a entrada do diário. Por favor, tente novamente.'); // Translated
     } finally {
         setIsSubmitting(false);
         setUploadProgress(null); // Hide progress bar
@@ -177,23 +177,23 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     <Card className="shadow-lg border border-primary/20">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-            <Leaf className="text-primary" /> Add New Diary Entry
+            <Leaf className="text-primary" /> Adicionar Nova Entrada no Diário {/* Translated */}
         </CardTitle>
-        <CardDescription>Record observations, measurements, and add a photo for analysis.</CardDescription>
+        <CardDescription>Registre observações, medições e adicione uma foto para análise.</CardDescription> {/* Translated */}
       </CardHeader>
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {/* Photo Section */}
             <FormItem>
-               <FormLabel>Plant Photo</FormLabel>
+               <FormLabel>Foto da Planta</FormLabel> {/* Translated */}
                <Card className="border-dashed border-secondary/50 p-4">
                     <CardContent className="flex flex-col items-center justify-center gap-4 p-0">
                         {photoPreview ? (
                              <Image
-                                data-ai-hint="cannabis plant close up"
+                                data-ai-hint="cannabis plant close up leaves"
                                 src={photoPreview}
-                                alt="Plant preview"
+                                alt="Pré-visualização da planta" // Translated
                                 width={200}
                                 height={150}
                                 className="rounded-md max-h-40 w-auto object-cover"
@@ -201,7 +201,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                         ) : (
                            <div className="flex flex-col items-center text-muted-foreground p-6">
                                 <Camera className="h-12 w-12 mb-2" />
-                                <span>No photo selected</span>
+                                <span>Nenhuma foto selecionada</span> {/* Translated */}
                            </div>
                         )}
                         <Input
@@ -210,10 +210,10 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                             onChange={handleFileChange}
                             className="hidden"
                             ref={fileInputRef}
-                            aria-label="Upload plant photo"
+                            aria-label="Carregar foto da planta" // Translated
                          />
                          <Button type="button" variant="outline" onClick={triggerFileInput} disabled={isSubmitting || isAnalyzing}>
-                            <Upload className="mr-2 h-4 w-4" /> Select Photo
+                            <Upload className="mr-2 h-4 w-4" /> Selecionar Foto {/* Translated */}
                          </Button>
                          {photoPreview && (
                              <Button
@@ -225,11 +225,11 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                               >
                                 {isAnalyzing ? (
                                   <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing...
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analisando... {/* Translated */}
                                   </>
                                 ) : (
                                   <>
-                                    <Bot className="mr-2 h-4 w-4" /> Analyze with AI
+                                    <Bot className="mr-2 h-4 w-4" /> Analisar com IA {/* Translated */}
                                   </>
                                 )}
                              </Button>
@@ -238,7 +238,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                </Card>
                {analysisResult && (
                  <FormDescription className="text-accent-foreground bg-accent/20 p-2 rounded-md mt-2 flex items-center gap-1">
-                    <Bot className="h-4 w-4 shrink-0"/> AI: {analysisResult.analysisResult}
+                    <Bot className="h-4 w-4 shrink-0"/> IA: {analysisResult.analysisResult}
                  </FormDescription>
                )}
                 {analysisError && (
@@ -255,9 +255,9 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
               name="note"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Observations / Notes</FormLabel>
+                  <FormLabel>Observações / Notas</FormLabel> {/* Translated */}
                   <FormControl>
-                    <Textarea placeholder="Describe what you see or actions taken..." {...field} disabled={isSubmitting}/>
+                    <Textarea placeholder="Descreva o que você vê ou as ações tomadas..." {...field} disabled={isSubmitting}/> {/* Translated */}
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -271,10 +271,10 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                    name="stage"
                    render={({ field }) => (
                      <FormItem>
-                       <FormLabel>Stage</FormLabel>
+                       <FormLabel>Estágio</FormLabel> {/* Translated */}
                        <FormControl>
                          {/* Consider using a Select component here */}
-                         <Input placeholder="e.g., Flowering Week 3" {...field} disabled={isSubmitting}/>
+                         <Input placeholder="ex: Floração Semana 3" {...field} disabled={isSubmitting}/> {/* Translated */}
                        </FormControl>
                        <FormMessage />
                      </FormItem>
@@ -285,9 +285,9 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                     name="heightCm"
                     render={({ field }) => (
                        <FormItem>
-                         <FormLabel>Height (cm)</FormLabel>
+                         <FormLabel>Altura (cm)</FormLabel> {/* Translated */}
                          <FormControl>
-                            <Input type="number" step="0.1" placeholder="e.g., 45.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} disabled={isSubmitting} />
+                            <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} disabled={isSubmitting} />
                          </FormControl>
                          <FormMessage />
                        </FormItem>
@@ -300,7 +300,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>EC</FormLabel>
                              <FormControl>
-                                 <Input type="number" step="0.1" placeholder="e.g., 1.6" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} disabled={isSubmitting} />
+                                 <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} disabled={isSubmitting} />
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -313,7 +313,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>pH</FormLabel>
                              <FormControl>
-                                 <Input type="number" step="0.1" placeholder="e.g., 6.0" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} disabled={isSubmitting}/>
+                                 <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} disabled={isSubmitting}/>
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -326,7 +326,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>Temp (°C)</FormLabel>
                              <FormControl>
-                                 <Input type="number" step="0.1" placeholder="e.g., 24.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} disabled={isSubmitting}/>
+                                 <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} disabled={isSubmitting}/>
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -337,9 +337,9 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                      name="humidity"
                      render={({ field }) => (
                          <FormItem>
-                             <FormLabel>Humidity (%)</FormLabel>
+                             <FormLabel>Umidade (%)</FormLabel> {/* Translated */}
                              <FormControl>
-                                 <Input type="number" step="1" placeholder="e.g., 55" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} disabled={isSubmitting} />
+                                 <Input type="number" step="1" placeholder="ex: 55" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} disabled={isSubmitting} />
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -350,7 +350,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
 
             {uploadProgress !== null && (
               <div className="space-y-1">
-                  <FormLabel>Saving Progress</FormLabel>
+                  <FormLabel>Progresso do Salvamento</FormLabel> {/* Translated */}
                   <Progress value={uploadProgress} className="w-full h-2" />
               </div>
              )}
@@ -363,10 +363,10 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
             <Button type="submit" className="w-full" disabled={isSubmitting || isAnalyzing}>
                {isSubmitting ? (
                  <>
-                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving Entry...
+                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando Entrada... {/* Translated */}
                  </>
                ) : (
-                 'Save Diary Entry'
+                 'Salvar Entrada no Diário' // Translated
                )}
             </Button>
           </form>

@@ -10,7 +10,7 @@ const geistSans = Geist({
 
 export const metadata: Metadata = {
   title: 'CannaLog',
-  description: 'Cannabis Plant Diary & Analysis',
+  description: 'Diário e Análise de Plantas de Cannabis', // Translated description
 };
 
 export default function RootLayout({
@@ -19,7 +19,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    // Set lang to pt-BR and add 'dark' class for dark theme
+    <html lang="pt-BR" className="dark">
       <body className={`${geistSans.variable} antialiased`}>
         {children}
         <Toaster /> {/* Add Toaster here */}

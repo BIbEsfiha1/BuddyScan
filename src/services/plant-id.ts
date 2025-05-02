@@ -1,48 +1,55 @@
 /**
- * Represents the data associated with a cannabis plant.
+ * Representa os dados associados a uma planta de cannabis.
  */
 export interface Plant {
   /**
-   * The unique identifier of the plant.
+   * O identificador único da planta.
    */
 id: string;
   /**
-   * The QR code associated with the plant.
+   * O código QR associado à planta.
    */
   qrCode: string;
   /**
-   * The strain of the cannabis plant.
+   * A variedade (strain) da planta de cannabis.
    */
   strain: string;
   /**
-   * The date the plant was born (planted).
+   * A data em que a planta nasceu (foi plantada). Formato ISO 8601.
    */
 birthDate: string;
   /**
-   * The ID of the grow room where the plant is located.
+   * O ID da sala de cultivo onde a planta está localizada.
    */
 growRoomId: string;
   /**
-   * The current status of the plant.
+   * O status atual da planta (ex: Crescendo, Florindo, Colhida).
    */
   status: string;
 }
 
 /**
- * Asynchronously retrieves plant information based on a scanned QR code.
+ * Recupera de forma assíncrona as informações da planta com base em um código QR escaneado.
  *
- * @param qrCode The QR code scanned from the cannabis plant.
- * @returns A promise that resolves to a Plant object if found, otherwise null.
+ * @param qrCode O código QR escaneado da planta de cannabis.
+ * @returns Uma promessa que resolve para um objeto Plant se encontrado, caso contrário, null.
  */
 export async function getPlantByQrCode(qrCode: string): Promise<Plant | null> {
-  // TODO: Implement this by calling an external API.
+  // TODO: Implementar chamando uma API externa.
 
-  return {
-    id: 'plant123',
-    qrCode: qrCode,
-    strain: 'Example Strain',
-    birthDate: '2024-01-01',
-    growRoomId: 'room42',
-    status: 'Growing',
-  };
+  // Mock data - Simula encontrar uma planta
+  console.log(`Simulando busca pela planta com QR Code: ${qrCode}`);
+  if (qrCode === 'plant123') {
+    return {
+      id: 'plant123',
+      qrCode: qrCode,
+      strain: 'Variedade Exemplo', // Translated
+      birthDate: '2024-01-01T00:00:00Z', // ISO format example
+      growRoomId: 'sala42', // Translated
+      status: 'Crescendo', // Translated (Example status)
+    };
+  }
+
+  // Retorna null se o QR Code não corresponder ao mock
+  return null;
 }
