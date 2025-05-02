@@ -1,7 +1,7 @@
 
 'use client'; // Add 'use client' directive
 
-import React, { useState, useEffect, useCallback } from 'react'; // Import hooks
+import React, { useState, useEffect, useCallback, use } from 'react'; // Import hooks including 'use'
 import { getPlantByQrCode, updatePlantStatus, CANNABIS_STAGES } from '@/services/plant-id'; // Import update function and stages
 import type { Plant } from '@/services/plant-id';
 import PlantDiary from '@/components/plant/plant-diary';
@@ -22,14 +22,16 @@ import { useToast } from '@/hooks/use-toast'; // Import useToast
 
 // Define expected params structure remains the same
 interface PlantPageProps {
-  params: {
+  params: Promise<{ // Mark params as a Promise
     qrCode: string;
-  };
+  }>;
 }
 
 // Component is now a standard function component, not async
 export default function PlantPage({ params }: PlantPageProps) {
-  const { qrCode } = params;
+  // Use React.use to unwrap the params Promise
+  const resolvedParams = use(params);
+  const { qrCode } = resolvedParams;
   const { toast } = useToast();
   const [plant, setPlant] = useState<Plant | null>(null);
   const [currentStatus, setCurrentStatus] = useState<string>(''); // Local state for status
@@ -246,3 +248,4 @@ export default function PlantPage({ params }: PlantPageProps) {
     </div>
   );
 }
+
