@@ -32,7 +32,7 @@ async function fetchDiaryEntries(plantId: string): Promise<DiaryEntry[]> {
       ph: 6.2,
       temp: 23,
       humidity: 60,
-      photoUrl: 'https://picsum.photos/seed/plant1/300/200',
+      photoUrl: 'https://picsum.photos/seed/cannabis-veg-healthy/300/200', // Updated seed
       aiSummary: null,
     },
     {
@@ -47,7 +47,7 @@ async function fetchDiaryEntries(plantId: string): Promise<DiaryEntry[]> {
       ph: 6.1,
       temp: 24,
       humidity: 58,
-      photoUrl: 'https://picsum.photos/seed/plant2/300/200',
+      photoUrl: 'https://picsum.photos/seed/cannabis-veg-yellowing/300/200', // Updated seed
       aiSummary: 'Leve amarelamento detectado nas folhas inferiores. Pode indicar sinais precoces de deficiência de nitrogênio. Monitore de perto.', // Translated
     },
      {
@@ -155,7 +155,8 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                    {entry.photoUrl && (
                      <div className="my-4">
                         <Image
-                          data-ai-hint="cannabis plant leaves stem"
+                          // Use specific hints based on entry context if possible
+                          data-ai-hint={entry.note.includes('amarelamento') ? "cannabis yellow leaves" : "cannabis plant leaves stem"}
                           src={entry.photoUrl}
                           alt={`Observação da planta em ${new Date(entry.timestamp).toLocaleDateString()}`} // Translated
                           width={300}

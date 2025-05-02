@@ -33,8 +33,8 @@ export default function Home() {
       <Card className="w-full max-w-md shadow-lg border-primary/20">
         <CardHeader className="items-center text-center">
           <Image
-             data-ai-hint="cannabis leaf logo green"
-             src="https://picsum.photos/seed/cannaloglogodark/100/100" // Placeholder logo for dark theme
+             data-ai-hint="cannabis leaf logo green dark" // Updated hint
+             src="https://picsum.photos/seed/cannabis-logo-dark/100/100" // Updated seed
              alt="CannaLog Logo"
              width={80}
              height={80}
