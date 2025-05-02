@@ -2,11 +2,11 @@
 // src/middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { getAuth } from 'firebase/auth';
-import { firebaseInitializationError } from './lib/firebase/config'; // Import error state
+// Import firebaseInitializationError to potentially block if Firebase is totally broken
+import { firebaseInitializationError } from './lib/firebase/config';
 
 // List of routes that are considered part of the main application
-// and require authentication.
+// and potentially require authentication (when enabled).
 const appRoutes = ['/dashboard', '/plants', '/plant', '/register-plant'];
 
 // Function to check if a path starts with any of the app route prefixes
@@ -20,25 +20,41 @@ export function middleware(request: NextRequest) {
 
   console.log(`Middleware: Pathname: ${pathname}, Auth Token Present: ${!!authTokenCookie}`);
 
-  // Allow access to the landing page (root) and auth pages regardless of auth state
+  // ** Temporary Change: Allow access even if auth token is missing, since login is disabled **
+  const isLoginEnabled = false; // Set this to true when login is re-enabled
+
+   // Block access if Firebase itself failed critically
+   if (firebaseInitializationError) {
+       console.error("Middleware: Blocking access due to Firebase initialization error.");
+       // Optional: Redirect to an error page or show a simple message
+       // For now, let's just prevent further processing by returning early or redirecting to landing
+       if (pathname !== '/') {
+            const url = request.nextUrl.clone();
+            url.pathname = '/'; // Redirect to landing page
+            url.search = '?error=firebase_init_failed'; // Optional query param
+            return NextResponse.redirect(url);
+       }
+   }
+
+  // Allow access to the landing page (root) and auth pages (login/signup) regardless of auth state
   if (pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/signup')) {
-    console.log(`Middleware: Allowing public route: ${pathname}`);
+    console.log(`Middleware: Allowing public/auth route: ${pathname}`);
     return NextResponse.next();
   }
 
   // Check if the requested path is an application route
   if (isAppRoute(pathname)) {
-    // If trying to access an app route without an auth token, redirect to landing page
-    if (!authTokenCookie) {
-      console.log(`Middleware: No auth token found for app route ${pathname}. Redirecting to landing page.`);
+    // If trying to access an app route without an auth token AND login is enabled, redirect.
+    if (!authTokenCookie && isLoginEnabled) { // Check if login is enabled
+      console.log(`Middleware: No auth token found for app route ${pathname} and login is enabled. Redirecting to landing page.`);
       const url = request.nextUrl.clone();
       url.pathname = '/'; // Redirect to landing page
       url.search = ''; // Clear query params if any
       return NextResponse.redirect(url);
     }
 
-    // If auth token exists, allow access (further validation would happen client-side)
-    console.log(`Middleware: Auth token found for app route ${pathname}. Allowing access.`);
+    // If auth token exists OR login is disabled, allow access
+    console.log(`Middleware: Auth token found or login disabled for app route ${pathname}. Allowing access.`);
     return NextResponse.next();
   }
 
@@ -48,7 +64,6 @@ export function middleware(request: NextRequest) {
 }
 
 // Configure the middleware to run on specific paths
-// Keep the matcher configuration to avoid running on static assets etc.
 export const config = {
   matcher: [
     /*
