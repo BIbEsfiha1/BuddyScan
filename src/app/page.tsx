@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -252,7 +253,6 @@ export default function Home() {
         }
     }
   }, [stopMediaStream, toast]); // Dependencies: cleanup func, toast
-
 
   // Define handleOpenChange *before* it's used as a dependency.
   const handleOpenChangeCallbackRef = useRef<(open: boolean) => void>();

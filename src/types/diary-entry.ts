@@ -10,6 +10,8 @@ import {
     Timestamp,
     doc, // Needed for collection path construction
     limit as firestoreLimit,
+    CollectionReference, // Import CollectionReference type
+    DocumentData, // Import DocumentData type
 } from 'firebase/firestore';
 
 /**
@@ -73,16 +75,11 @@ export interface DiaryEntry {
   aiSummary?: string | null;
 }
 
-// Firestore Collection Path: /plants/{plantId}/diaryEntries
-const getDiaryEntriesCollectionRef = (plantId: string) => {
-   ensureDbAvailable();
-   return collection(db!, 'plants', plantId, 'diaryEntries');
-};
-
 // Helper to check Firestore availability
 function ensureDbAvailable() {
   if (firebaseInitializationError) {
     console.error("Firebase initialization failed:", firebaseInitializationError);
+    // Ensure the template literal is correctly formed
     throw new Error(`Firebase não inicializado: ${firebaseInitializationError.message}`);
   }
   if (!db) {
@@ -90,13 +87,22 @@ function ensureDbAvailable() {
   }
 }
 
+
+// Firestore Collection Path: /plants/{plantId}/diaryEntries
+const getDiaryEntriesCollectionRef = (plantId: string): CollectionReference<DocumentData> => {
+   ensureDbAvailable(); // Ensure db is available before calling collection
+   // db is guaranteed non-null here
+   return collection(db!, 'plants', plantId, 'diaryEntries');
+};
+
+
 /**
  * Loads diary entries for a specific plant from Firestore.
  * @param plantId The ID of the plant whose entries to load.
  * @returns An array of DiaryEntry objects, sorted newest first, or empty array.
  */
 export async function loadDiaryEntriesFromFirestore(plantId: string): Promise<DiaryEntry[]> {
-  ensureDbAvailable();
+  ensureDbAvailable(); // Checks for db initialization errors
   console.log(`Carregando entradas do diário para planta ${plantId} do Firestore...`);
   try {
     const diaryEntriesCollection = getDiaryEntriesCollectionRef(plantId);
@@ -107,7 +113,8 @@ export async function loadDiaryEntriesFromFirestore(plantId: string): Promise<Di
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       // Convert Firestore Timestamp back to ISO string
-      const timestamp = (data.timestamp as Timestamp)?.toDate().toISOString() ?? data.timestamp;
+      // Ensure data.timestamp exists and is a Timestamp before calling toDate()
+      const timestamp = (data.timestamp instanceof Timestamp) ? data.timestamp.toDate().toISOString() : data.timestamp;
       entries.push({
         ...data,
         id: doc.id,
@@ -130,7 +137,7 @@ export async function loadDiaryEntriesFromFirestore(plantId: string): Promise<Di
  * @returns The newly created DiaryEntry object with its Firestore-generated ID.
  */
 export async function addDiaryEntryToFirestore(plantId: string, newEntryData: Omit<DiaryEntry, 'id'>): Promise<DiaryEntry> {
-    ensureDbAvailable();
+    ensureDbAvailable(); // Checks for db initialization errors
     console.log(`Adicionando entrada do diário para planta ${plantId} no Firestore:`, newEntryData);
     try {
         const diaryEntriesCollection = getDiaryEntriesCollectionRef(plantId);
@@ -192,7 +199,3 @@ export function saveDiaryEntriesToLocalStorage(plantId: string, entries: DiaryEn
 export function addDiaryEntryToLocalStorage(plantId: string, newEntry: DiaryEntry): void {
      console.warn(`addDiaryEntryToLocalStorage (plant ${plantId}) está desabilitado. Usando Firestore.`);
 }
-```
-    </content>
-  </change>
-  <

@@ -82,8 +82,3 @@ export default function RecentPlants({ plants }: RecentPlantsProps) {
   );
 }
 
-```
-    </content>
-  </change>
-  <change>
-    <file>src/app/login/page

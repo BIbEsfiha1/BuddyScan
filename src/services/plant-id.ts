@@ -64,16 +64,18 @@ export const CANNABIS_STAGES = [
 ];
 
 // --- Firestore Collection Reference ---
-const plantsCollectionRef = collection(db!, 'plants'); // Assumes db is initialized successfully
+// Guard against db being null during initialization or error
+const plantsCollectionRef = db ? collection(db, 'plants') : null;
 
 // Helper to check Firestore availability
 function ensureDbAvailable() {
   if (firebaseInitializationError) {
     console.error("Firebase initialization failed:", firebaseInitializationError);
+    // Ensure the template literal is correctly formed
     throw new Error(`Firebase não inicializado: ${firebaseInitializationError.message}`);
   }
-  if (!db) {
-    throw new Error('Instância do Firestore não está disponível. A inicialização pode ter falhado silenciosamente.');
+  if (!db || !plantsCollectionRef) { // Check both db and the collection ref
+    throw new Error('Instância do Firestore ou referência da coleção não está disponível. A inicialização pode ter falhado.');
   }
 }
 
@@ -87,9 +89,10 @@ function ensureDbAvailable() {
  * @returns Uma promessa que resolve para um objeto Plant se encontrado, caso contrário, null.
  */
 export async function getPlantById(plantId: string): Promise<Plant | null> {
-  ensureDbAvailable();
+  ensureDbAvailable(); // This will throw if db is null
   console.log(`Buscando planta com ID: ${plantId} no Firestore.`);
   try {
+    // db is guaranteed to be non-null here because of ensureDbAvailable
     const plantDocRef = doc(db!, 'plants', plantId);
     const plantSnap = await getDoc(plantDocRef);
 
@@ -97,8 +100,8 @@ export async function getPlantById(plantId: string): Promise<Plant | null> {
       const data = plantSnap.data();
       console.log(`Planta encontrada:`, data);
       // Convert Timestamps back to ISO strings if needed
-      const birthDate = (data.birthDate as Timestamp)?.toDate().toISOString() ?? data.birthDate; // Handle potential direct string storage too
-      const createdAt = (data.createdAt as Timestamp)?.toDate().toISOString() ?? data.createdAt;
+      const birthDate = (data.birthDate instanceof Timestamp) ? data.birthDate.toDate().toISOString() : data.birthDate;
+      const createdAt = (data.createdAt instanceof Timestamp) ? data.createdAt.toDate().toISOString() : data.createdAt;
       return { ...data, id: plantSnap.id, birthDate, createdAt } as Plant;
     } else {
       console.warn(`Nenhuma planta encontrada para o ID: ${plantId}`);
@@ -202,14 +205,16 @@ export async function getRecentPlants(count: number = 3): Promise<Plant[]> {
   ensureDbAvailable();
   console.log(`Buscando ${count} plantas recentes do Firestore...`);
   try {
+    // Ensure plantsCollectionRef is not null before using it
+    if (!plantsCollectionRef) throw new Error("plantsCollectionRef is null");
     const q = query(plantsCollectionRef, orderBy('createdAt', 'desc'), firestoreLimit(count));
     const querySnapshot = await getDocs(q);
 
     const plants: Plant[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      const birthDate = (data.birthDate as Timestamp)?.toDate().toISOString() ?? data.birthDate;
-      const createdAt = (data.createdAt as Timestamp)?.toDate().toISOString() ?? data.createdAt;
+      const birthDate = (data.birthDate instanceof Timestamp) ? data.birthDate.toDate().toISOString() : data.birthDate;
+      const createdAt = (data.createdAt instanceof Timestamp) ? data.createdAt.toDate().toISOString() : data.createdAt;
       plants.push({ ...data, id: doc.id, birthDate, createdAt } as Plant);
     });
     console.log(`Retornadas ${plants.length} plantas recentes.`);
@@ -232,6 +237,8 @@ export async function getRecentPlants(count: number = 3): Promise<Plant[]> {
     ensureDbAvailable();
     console.log(`Buscando ${count} plantas que precisam de atenção no Firestore...`);
     try {
+      // Ensure plantsCollectionRef is not null before using it
+      if (!plantsCollectionRef) throw new Error("plantsCollectionRef is null");
       // EXEMPLO: Buscar plantas com status específicos que indicam atenção
       // Adapte 'status' e os valores conforme sua lógica de negócio
       const attentionStatuses = ['Problema Detectado', 'Deficiência', 'Doente']; // Status que indicam atenção
@@ -246,8 +253,8 @@ export async function getRecentPlants(count: number = 3): Promise<Plant[]> {
       const plants: Plant[] = [];
       querySnapshot.forEach((doc) => {
           const data = doc.data();
-           const birthDate = (data.birthDate as Timestamp)?.toDate().toISOString() ?? data.birthDate;
-           const createdAt = (data.createdAt as Timestamp)?.toDate().toISOString() ?? data.createdAt;
+          const birthDate = (data.birthDate instanceof Timestamp) ? data.birthDate.toDate().toISOString() : data.birthDate;
+          const createdAt = (data.createdAt instanceof Timestamp) ? data.createdAt.toDate().toISOString() : data.createdAt;
           plants.push({ ...data, id: doc.id, birthDate, createdAt } as Plant);
       });
       console.log(`Retornadas ${plants.length} plantas que precisam de atenção.`);
@@ -268,6 +275,8 @@ export async function getRecentPlants(count: number = 3): Promise<Plant[]> {
     ensureDbAvailable();
     console.log('Buscando todas as plantas do Firestore...');
     try {
+        // Ensure plantsCollectionRef is not null before using it
+        if (!plantsCollectionRef) throw new Error("plantsCollectionRef is null");
         // Ordenar por 'strain' pode exigir um índice composto no Firestore se você combinar com outros filtros/ordens.
         // Ordenar por 'createdAt' ou 'birthDate' é geralmente mais eficiente sem índices personalizados.
         const q = query(plantsCollectionRef, orderBy('strain', 'asc')); // Ou orderBy('createdAt', 'desc')
@@ -276,8 +285,8 @@ export async function getRecentPlants(count: number = 3): Promise<Plant[]> {
         const plants: Plant[] = [];
         querySnapshot.forEach((doc) => {
             const data = doc.data();
-             const birthDate = (data.birthDate as Timestamp)?.toDate().toISOString() ?? data.birthDate;
-             const createdAt = (data.createdAt as Timestamp)?.toDate().toISOString() ?? data.createdAt;
+             const birthDate = (data.birthDate instanceof Timestamp) ? data.birthDate.toDate().toISOString() : data.birthDate;
+             const createdAt = (data.createdAt instanceof Timestamp) ? data.createdAt.toDate().toISOString() : data.createdAt;
             plants.push({ ...data, id: doc.id, birthDate, createdAt } as Plant);
         });
         console.log(`Retornadas ${plants.length} plantas.`);
@@ -402,8 +411,3 @@ function loadPlantsFromLocalStorage(): Record<string, Plant> {
 function savePlantsToLocalStorage(plants: Record<string, Plant>): void {
     console.warn("savePlantsToLocalStorage está desabilitado. Usando Firestore.");
 }
-```
-    </content>
-  </change>
-  <change>
-    <file>src/app/page
