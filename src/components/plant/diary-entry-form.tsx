@@ -142,7 +142,8 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
           }
           // In real app, get URL from upload response
           // Use a more descriptive seed for the placeholder image
-          photoUrl = `https://picsum.photos/seed/cannabis-upload-${Date.now()}/300/200`; // Use time to vary image slightly
+          // Ensure the image seed reflects the cannabis context
+          photoUrl = `https://picsum.photos/seed/cannabis-plant-diary-${Date.now()}/300/200`; // Use time to vary image slightly
           console.log('Upload simulado da foto concluído.'); // Translated
         } else {
             setUploadProgress(100); // No photo to upload
