@@ -27,11 +27,27 @@ import { Progress } from '@/components/ui/progress';
 const diaryEntrySchema = z.object({
   note: z.string().min(1, 'A nota não pode estar vazia').max(500, 'Nota muito longa'), // Translated
   stage: z.string().optional(), // Exemplo: Vegetativo, Floração
-  heightCm: z.number().positive("Altura deve ser positiva").optional(), // Translated
-  ec: z.number().positive("EC deve ser positivo").optional(), // Translated
-  ph: z.number().min(0).max(14, "pH deve estar entre 0 e 14").optional(), // Translated
-  temp: z.number().optional(),
-  humidity: z.number().min(0, "Umidade não pode ser negativa").max(100, "Umidade não pode ser maior que 100").optional(), // Translated
+  // Use preprocess to handle empty string for number inputs
+  heightCm: z.preprocess(
+      (val) => (val === "" ? undefined : Number(val)),
+      z.number().positive("Altura deve ser positiva").optional() // Translated
+  ),
+  ec: z.preprocess(
+      (val) => (val === "" ? undefined : Number(val)),
+      z.number().positive("EC deve ser positivo").optional() // Translated
+  ),
+  ph: z.preprocess(
+      (val) => (val === "" ? undefined : Number(val)),
+       z.number().min(0).max(14, "pH deve estar entre 0 e 14").optional() // Translated
+  ),
+  temp: z.preprocess(
+        (val) => (val === "" ? undefined : Number(val)),
+        z.number().optional()
+   ),
+  humidity: z.preprocess(
+        (val) => (val === "" ? undefined : Number(val)),
+         z.number().min(0, "Umidade não pode ser negativa").max(100, "Umidade não pode ser maior que 100").optional() // Translated
+   ),
   // Photo data is handled separately
 });
 
@@ -59,7 +75,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     resolver: zodResolver(diaryEntrySchema),
     defaultValues: {
       note: '',
-      // Add defaults for other fields if needed
+      // React Hook Form sets default undefined for optional fields
     },
   });
 
@@ -287,7 +303,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                        <FormItem>
                          <FormLabel>Altura (cm)</FormLabel> {/* Translated */}
                          <FormControl>
-                            <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} disabled={isSubmitting} />
+                            <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} disabled={isSubmitting} />
                          </FormControl>
                          <FormMessage />
                        </FormItem>
@@ -300,7 +316,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>EC</FormLabel>
                              <FormControl>
-                                 <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} disabled={isSubmitting} />
+                                 <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} disabled={isSubmitting} />
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -313,7 +329,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>pH</FormLabel>
                              <FormControl>
-                                 <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} disabled={isSubmitting}/>
+                                 <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} disabled={isSubmitting}/>
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -326,7 +342,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>Temp (°C)</FormLabel>
                              <FormControl>
-                                 <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} disabled={isSubmitting}/>
+                                 <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} disabled={isSubmitting}/>
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -339,7 +355,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>Umidade (%)</FormLabel> {/* Translated */}
                              <FormControl>
-                                 <Input type="number" step="1" placeholder="ex: 55" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} disabled={isSubmitting} />
+                                 <Input type="number" step="1" placeholder="ex: 55" {...field} disabled={isSubmitting} />
                              </FormControl>
                              <FormMessage />
                          </FormItem>
