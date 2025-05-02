@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useCallback } from 'react';
@@ -17,13 +16,13 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Leaf, Calendar, Warehouse, Loader2, ArrowLeft, Sprout, CheckCircle, Download } from 'lucide-react'; // Added Download icon
+import { Leaf, Calendar, Warehouse, Loader2, ArrowLeft, Sprout, CheckCircle, Download } from '@/components/ui/lucide-icons'; // Use centralized icons
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { addPlant, type Plant } from '@/services/plant-id';
 import Link from 'next/link';
 import { generateUniqueId } from '@/lib/utils';
-import { QrCode as QrCodeIcon } from 'lucide-react';
+import { QrCode as QrCodeIcon } from 'lucide-react'; // Specific import if needed
 import { toDataURL } from 'qrcode'; // Import QR code generation function
 import Image from 'next/image'; // Import Next Image component
 
@@ -169,7 +168,7 @@ export default function RegisterPlantPage() {
            <div className="flex flex-col items-center text-center pt-8">
               {/* Replace Sprout icon and CardTitle with BudScan Logo */}
                <Image
-                   src="/budscan-logo.png"
+                   src="/budscan-logo.png" // Confirmed path
                    alt="BudScan Logo"
                    width={180} // Adjust size as needed for this context
                    height={51}

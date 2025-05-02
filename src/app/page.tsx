@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ScanLine, PlusCircle, VideoOff, Loader2, Sprout, AlertTriangle, History, AlertCircle as AlertCircleIcon, Camera } from 'lucide-react';
+import { ScanLine, PlusCircle, VideoOff, Loader2, Sprout, AlertTriangle, History, AlertCircle as AlertCircleIcon, Camera } from '@/components/ui/lucide-icons'; // Use centralized icons
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -173,6 +173,7 @@ export default function Home() {
        if (videoRef.current) {
            // Flip the video horizontally if it's the front-facing camera (common behavior)
            const isFrontFacing = stream.getVideoTracks()[0]?.getSettings()?.facingMode === 'user';
+           // Apply transform only if front facing
            videoRef.current.style.transform = isFrontFacing ? 'scaleX(-1)' : 'scaleX(1)';
 
            videoRef.current.srcObject = stream;
@@ -535,7 +536,7 @@ export default function Home() {
          <div className="flex items-center gap-3 mb-2">
              {/* Use BudScan Logo Image */}
              <Image
-                 src="/budscan-logo.png" // Path to the logo in the public folder
+                 src="/budscan-logo.png" // Path to the logo in the public folder - Confirmed path
                  alt="BudScan Logo"
                  width={200} // Adjust width as needed for main page heading
                  height={57} // Adjust height proportionally
