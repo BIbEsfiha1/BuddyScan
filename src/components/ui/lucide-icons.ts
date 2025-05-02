@@ -1,4 +1,4 @@
-{// src/components/ui/lucide-icons.ts
+// src/components/ui/lucide-icons.ts
 /**
  * @fileoverview Centralized export for lucide-react icons used in the application.
  * This helps manage imports and potentially reduces bundle size if tree-shaking is effective.
@@ -7,37 +7,38 @@ export {
   Activity,
   AlertCircle,
   AlertTriangle,
-  ArrowLeft, // Added for back button
+  ArrowLeft,
   ArrowRight,
   Bot,
   Calendar,
-  CalendarDays, // Added for diary
-  Camera, // Added for camera error state
+  CalendarDays,
+  Camera,
   Check,
+  CheckCircle, // Added for success indication
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
   Circle,
-  Droplet, // Changed from Droplets for consistency
+  Droplet,
   History,
-  ImagePlus, // Added for form upload placeholder
+  ImagePlus,
   Leaf,
-  Lightbulb, // Added for diary icon potential
+  Lightbulb,
   Loader2,
-  Microscope, // Added for diary icon potential
-  PanelLeft, // Added for sidebar
+  Microscope,
+  PanelLeft,
   PlusCircle,
   QrCode,
-  Ruler, // Added for diary height
+  Ruler,
   ScanLine,
   Sprout,
-  StickyNote, // Added for diary notes
-  TestTube2, // Using SVG now, keep if needed elsewhere
+  StickyNote,
+  TestTube2,
   Thermometer,
   Upload,
-  User, // Added for diary author
+  User,
   VideoOff,
-  Warehouse, // Added for plant details
-  X, // Added for dialog close
+  Warehouse,
+  X,
 } from 'lucide-react';

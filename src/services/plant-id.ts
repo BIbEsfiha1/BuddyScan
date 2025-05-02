@@ -3,11 +3,11 @@
  */
 export interface Plant {
   /**
-   * O identificador único da planta.
+   * O identificador único da planta (gerado automaticamente).
    */
 id: string;
   /**
-   * O código QR associado à planta.
+   * O código QR associado à planta (gerado automaticamente, igual ao id).
    */
   qrCode: string;
   /**
@@ -31,7 +31,7 @@ growRoomId: string;
 // Expand mock data to include plants from the dashboard examples
 const mockPlants: Record<string, Plant> = {
   'plant123': {
-      id: 'plant123',
+      id: 'plant123', // Assuming this was manually entered before
       qrCode: 'plant123',
       strain: 'Variedade Exemplo',
       birthDate: '2024-01-15T00:00:00Z',
@@ -92,6 +92,7 @@ export async function getPlantByQrCode(qrCode: string): Promise<Plant | null> {
   await new Promise(resolve => setTimeout(resolve, 300));
 
   console.log(`Simulando busca pela planta com QR Code: ${qrCode}`);
+  // In mock data, the key is the ID/QR code. In a real DB, you'd query by the qrCode field.
   const plant = mockPlants[qrCode];
 
   if (plant) {
@@ -107,25 +108,27 @@ export async function getPlantByQrCode(qrCode: string): Promise<Plant | null> {
 /**
  * Adiciona uma nova planta ao armazenamento de dados (mock).
  * Em um aplicativo real, isso interagiria com um backend/banco de dados.
+ * O ID e o QR Code são passados como parte do objeto plantData (gerados antes de chamar esta função).
  *
- * @param plantData Os dados da nova planta a ser adicionada.
- * @returns Uma promessa que resolve quando a planta é adicionada. Rejeita se o QR code já existir.
+ * @param plantData Os dados da nova planta a ser adicionada, incluindo o ID e QR Code gerados.
+ * @returns Uma promessa que resolve quando a planta é adicionada. Rejeita se o ID já existir.
  */
 export async function addPlant(plantData: Plant): Promise<void> {
   // Simulate API call delay
   await new Promise(resolve => setTimeout(resolve, 400));
 
-  console.log(`Tentando adicionar planta com QR Code: ${plantData.qrCode}`);
+  console.log(`Tentando adicionar planta com ID/QR Code gerado: ${plantData.id}`);
 
-  // Check if QR code already exists
-  if (mockPlants[plantData.qrCode]) {
-    console.error(`Erro: QR Code '${plantData.qrCode}' já existe.`);
-    throw new Error(`O ID/QR Code '${plantData.qrCode}' já está em uso.`);
+  // Check if the generated ID already exists (highly unlikely with the generator, but good practice)
+  if (mockPlants[plantData.id]) {
+    console.error(`Erro: ID '${plantData.id}' gerado já existe (colisão?).`);
+    // This case should ideally not happen. If it does, retry generation or use a more robust UUID.
+    throw new Error(`Falha ao gerar um ID único para a planta. Tente novamente.`);
   }
 
-  // Add the new plant to the mock data store
-  mockPlants[plantData.qrCode] = { ...plantData };
-  console.log(`Planta '${plantData.strain}' adicionada com sucesso.`);
+  // Add the new plant to the mock data store using its generated ID as the key
+  mockPlants[plantData.id] = { ...plantData };
+  console.log(`Planta '${plantData.strain}' adicionada com sucesso com ID: ${plantData.id}.`);
 
   // No return needed, throws error on failure
 }
