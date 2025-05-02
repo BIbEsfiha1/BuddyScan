@@ -19,9 +19,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // Set lang to pt-BR and add 'dark' class for dark theme
-    <html lang="pt-BR" className="dark">
-      <body className={`${geistSans.variable} antialiased`}>
+    // Set lang to pt-BR. Dark theme is applied via globals.css :root and .dark selectors
+    <html lang="pt-BR">
+       {/* Add font variable and antialiased class for better font rendering */}
+      <body className={`${geistSans.variable} font-sans antialiased bg-background text-foreground`}>
         {children}
         <Toaster /> {/* Add Toaster here */}
       </body>
