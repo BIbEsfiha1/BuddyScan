@@ -14,7 +14,8 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription
+  FormDescription,
+  useFormField, // Import useFormField to access context if needed outside FormControl (not needed for this fix)
 } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Camera, Upload, Leaf, Bot, Loader2, AlertCircle } from 'lucide-react';
@@ -29,24 +30,24 @@ const diaryEntrySchema = z.object({
   stage: z.string().optional(), // Exemplo: Vegetativo, Floração
   // Use preprocess to handle empty string for number inputs
   heightCm: z.preprocess(
-      (val) => (val === "" ? undefined : Number(val)),
-      z.number().positive("Altura deve ser positiva").optional() // Translated
+      (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
+      z.number().positive("Altura deve ser positiva").optional().nullable() // Allow null after preprocess
   ),
   ec: z.preprocess(
-      (val) => (val === "" ? undefined : Number(val)),
-      z.number().positive("EC deve ser positivo").optional() // Translated
+       (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
+       z.number().positive("EC deve ser positivo").optional().nullable() // Allow null
   ),
   ph: z.preprocess(
-      (val) => (val === "" ? undefined : Number(val)),
-       z.number().min(0).max(14, "pH deve estar entre 0 e 14").optional() // Translated
+       (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
+        z.number().min(0).max(14, "pH deve estar entre 0 e 14").optional().nullable() // Allow null
   ),
   temp: z.preprocess(
-        (val) => (val === "" ? undefined : Number(val)),
-        z.number().optional()
+         (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
+         z.number().optional().nullable() // Allow null
    ),
   humidity: z.preprocess(
-        (val) => (val === "" ? undefined : Number(val)),
-         z.number().min(0, "Umidade não pode ser negativa").max(100, "Umidade não pode ser maior que 100").optional() // Translated
+         (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
+          z.number().min(0, "Umidade não pode ser negativa").max(100, "Umidade não pode ser maior que 100").optional().nullable() // Allow null
    ),
   // Photo data is handled separately
 });
@@ -75,7 +76,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     resolver: zodResolver(diaryEntrySchema),
     defaultValues: {
       note: '',
-      // React Hook Form sets default undefined for optional fields
+      // Optional fields default to undefined implicitly
     },
   });
 
@@ -157,11 +158,12 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
             authorId: 'usuario-atual', // Replace with actual user ID // Translated
             note: data.note,
             stage: data.stage,
-            heightCm: data.heightCm,
-            ec: data.ec,
-            ph: data.ph,
-            temp: data.temp,
-            humidity: data.humidity,
+            // Ensure optional number fields are null if undefined or null
+            heightCm: data.heightCm ?? null,
+            ec: data.ec ?? null,
+            ph: data.ph ?? null,
+            temp: data.temp ?? null,
+            humidity: data.humidity ?? null,
             photoUrl: photoUrl,
             aiSummary: analysisResult?.analysisResult || null,
         };
@@ -189,6 +191,15 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
         setUploadProgress(null); // Hide progress bar
     }
   };
+
+  // Helper to ensure value passed to Input is a string or empty string
+  const formatNumericValue = (value: unknown): string => {
+      if (value === null || value === undefined || isNaN(Number(value))) {
+        return '';
+      }
+      return String(value);
+  };
+
 
   return (
     <Card className="shadow-lg border border-primary/20">
@@ -292,7 +303,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                        <FormLabel>Estágio</FormLabel> {/* Translated */}
                        <FormControl>
                          {/* Consider using a Select component here */}
-                         <Input placeholder="ex: Floração Semana 3" {...field} disabled={isSubmitting}/> {/* Translated */}
+                         <Input placeholder="ex: Floração Semana 3" {...field} value={field.value ?? ''} disabled={isSubmitting}/> {/* Translated */}
                        </FormControl>
                        <FormMessage />
                      </FormItem>
@@ -305,7 +316,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                        <FormItem>
                          <FormLabel>Altura (cm)</FormLabel> {/* Translated */}
                          <FormControl>
-                            <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} disabled={isSubmitting} />
+                            <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} value={formatNumericValue(field.value)} disabled={isSubmitting} />
                          </FormControl>
                          <FormMessage />
                        </FormItem>
@@ -318,7 +329,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>EC</FormLabel>
                              <FormControl>
-                                 <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} disabled={isSubmitting} />
+                                 <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} value={formatNumericValue(field.value)} disabled={isSubmitting} />
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -331,7 +342,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>pH</FormLabel>
                              <FormControl>
-                                 <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} disabled={isSubmitting}/>
+                                 <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} value={formatNumericValue(field.value)} disabled={isSubmitting}/>
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -344,7 +355,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>Temp (°C)</FormLabel>
                              <FormControl>
-                                 <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} disabled={isSubmitting}/>
+                                 <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} value={formatNumericValue(field.value)} disabled={isSubmitting}/>
                              </FormControl>
                              <FormMessage />
                          </FormItem>
@@ -357,7 +368,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                              <FormLabel>Umidade (%)</FormLabel> {/* Translated */}
                              <FormControl>
-                                 <Input type="number" step="1" placeholder="ex: 55" {...field} disabled={isSubmitting} />
+                                 <Input type="number" step="1" placeholder="ex: 55" {...field} value={formatNumericValue(field.value)} disabled={isSubmitting} />
                              </FormControl>
                              <FormMessage />
                          </FormItem>

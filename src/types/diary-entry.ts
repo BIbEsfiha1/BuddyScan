@@ -26,27 +26,27 @@ export interface DiaryEntry {
   /**
    * Estágio de crescimento (ex: Plântula, Vegetativo, Floração, Colhida).
    */
-  stage?: string;
+  stage?: string | null; // Allow null
   /**
    * Altura da planta em centímetros.
    */
-  heightCm?: number;
+  heightCm?: number | null; // Allow null
   /**
    * Leitura de Condutividade Elétrica (EC).
    */
-  ec?: number;
+  ec?: number | null; // Allow null
   /**
    * Leitura do nível de pH.
    */
-  ph?: number;
+  ph?: number | null; // Allow null
   /**
    * Leitura de temperatura (°C).
    */
-  temp?: number;
+  temp?: number | null; // Allow null
   /**
    * Leitura de umidade (%).
    */
-  humidity?: number;
+  humidity?: number | null; // Allow null
   /**
    * URL de uma foto associada (opcional).
    * Em um aplicativo real, isso pode apontar para armazenamento em nuvem.
