@@ -1,4 +1,3 @@
-
 // src/app/signup/page.tsx
 'use client';
 
@@ -20,9 +19,19 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { UserPlus, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+// Import necessary Firebase auth functions
+import {
+    createUserWithEmailAndPassword,
+    signInWithPopup,
+    GoogleAuthProvider,
+    FacebookAuthProvider,
+    TwitterAuthProvider,
+    OAuthProvider
+} from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
-import Link from 'next/link'; // Import Link
+import Link from 'next/link';
+import { Separator } from '@/components/ui/separator'; // Import Separator
+
 
 // Schema includes password confirmation
 const signupSchema = z.object({
@@ -40,6 +49,7 @@ export default function SignupPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSocialSubmitting, setIsSocialSubmitting] = useState<string | null>(null); // Track social signup
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const form = useForm<SignupFormData>({
@@ -51,28 +61,25 @@ export default function SignupPage() {
     },
   });
 
-  const onSubmit = async (data: SignupFormData) => {
+  // --- Email/Password Signup Handler ---
+  const onEmailSubmit = async (data: SignupFormData) => {
     setIsSubmitting(true);
     setSubmitError(null);
 
     try {
-      console.log('Attempting signup for:', data.email);
-      // Create user with Firebase Auth
+      console.log('Attempting email signup for:', data.email);
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
-      console.log('Signup successful for:', user.email, 'UID:', user.uid);
-
-      // TODO: Optionally create a user document in Firestore here if needed
-      // await addUserProfile(user.uid, { email: data.email, createdAt: serverTimestamp() });
+      console.log('Email signup successful for:', user.email, 'UID:', user.uid);
 
       toast({
         title: 'Cadastro Realizado!',
         description: 'Sua conta foi criada com sucesso. Você já está logado.',
         variant: 'default',
       });
-      router.push('/'); // Redirect to dashboard after successful signup
+      router.push('/'); // Redirect to dashboard
     } catch (error: any) {
-      console.error('Erro no cadastro:', error);
+      console.error('Erro no cadastro com email:', error);
       let errorMsg = 'Falha ao criar a conta. Tente novamente.';
       if (error.code === 'auth/email-already-in-use') {
         errorMsg = 'Este email já está em uso. Tente fazer login.';
@@ -92,6 +99,68 @@ export default function SignupPage() {
     }
   };
 
+   // --- Social Signup/Login Handler (signInWithPopup handles both) ---
+   const handleSocialSignup = async (providerName: 'google' | 'facebook' | 'twitter') => {
+      setIsSocialSubmitting(providerName);
+      setSubmitError(null);
+      let provider;
+
+      try {
+         switch (providerName) {
+             case 'google':
+                 provider = new GoogleAuthProvider();
+                 break;
+             case 'facebook':
+                 provider = new FacebookAuthProvider();
+                 break;
+             case 'twitter':
+                 provider = new TwitterAuthProvider();
+                 break;
+             default:
+                 throw new Error('Provedor social inválido');
+         }
+
+         console.log(`Attempting ${providerName} signup/login...`);
+         // signInWithPopup will create a new user if they don't exist, or log in if they do
+         await signInWithPopup(auth, provider);
+         console.log(`${providerName} signup/login successful.`);
+
+         toast({
+            title: 'Autenticação Realizada!',
+            description: `Você foi autenticado com sucesso usando ${providerName}.`,
+            variant: 'default',
+         });
+         router.push('/'); // Redirect to dashboard
+
+      } catch (error: any) {
+          console.error(`Erro na autenticação com ${providerName}:`, error);
+          let errorMsg = `Falha ao autenticar com ${providerName}.`;
+         // Reuse error messages from login page for consistency
+         if (error.code === 'auth/account-exists-with-different-credential') {
+            errorMsg = `Já existe uma conta com este email, mas usando um método de login diferente. Tente fazer login com o método original.`;
+         } else if (error.code === 'auth/popup-closed-by-user') {
+             errorMsg = `Janela de autenticação com ${providerName} fechada antes da conclusão.`;
+         } else if (error.code === 'auth/cancelled-popup-request') {
+              errorMsg = `Mais de uma janela de autenticação foi aberta. Por favor, tente novamente.`;
+         } else if (error.code === 'auth/popup-blocked') {
+              errorMsg = `A janela de autenticação foi bloqueada pelo navegador. Habilite pop-ups para este site.`;
+         } else if (error.code === 'auth/operation-not-allowed') {
+             errorMsg = `Autenticação com ${providerName} não está habilitada nas configurações do Firebase.`;
+         } else if (error.code === 'auth/unauthorized-domain') {
+             errorMsg = `Este domínio não está autorizado para operações do Firebase.`;
+         }
+
+          setSubmitError(errorMsg);
+          toast({
+            variant: 'destructive',
+            title: `Erro na Autenticação com ${providerName}`,
+            description: errorMsg,
+          });
+      } finally {
+           setIsSocialSubmitting(null);
+      }
+   };
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background via-muted/50 to-primary/10 text-foreground">
       <Card className="w-full max-w-md shadow-xl border-primary/20 card">
@@ -103,12 +172,13 @@ export default function SignupPage() {
             Criar Conta no CannaLog
           </CardTitle>
           <CardDescription className="text-muted-foreground mt-1">
-            Insira seu email e senha para começar.
+            Insira seus dados ou use uma conta social.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Email/Password Form */}
+            <form onSubmit={form.handleSubmit(onEmailSubmit)} className="space-y-6">
               {/* Email */}
               <FormField
                 control={form.control}
@@ -119,7 +189,7 @@ export default function SignupPage() {
                       <Mail className="h-4 w-4 text-secondary" /> Email
                     </FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="seu@email.com" {...field} disabled={isSubmitting} className="input" />
+                      <Input type="email" placeholder="seu@email.com" {...field} disabled={isSubmitting || !!isSocialSubmitting} className="input" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -136,7 +206,7 @@ export default function SignupPage() {
                       <Lock className="h-4 w-4 text-secondary" /> Senha
                     </FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="Mínimo 6 caracteres" {...field} disabled={isSubmitting} className="input" />
+                      <Input type="password" placeholder="Mínimo 6 caracteres" {...field} disabled={isSubmitting || !!isSocialSubmitting} className="input" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -153,14 +223,14 @@ export default function SignupPage() {
                        <Lock className="h-4 w-4 text-secondary" /> Confirmar Senha
                      </FormLabel>
                      <FormControl>
-                       <Input type="password" placeholder="Repita a senha" {...field} disabled={isSubmitting} className="input" />
+                       <Input type="password" placeholder="Repita a senha" {...field} disabled={isSubmitting || !!isSocialSubmitting} className="input" />
                      </FormControl>
                      <FormMessage />
                    </FormItem>
                  )}
                />
 
-              {/* Submit Error Display */}
+               {/* Submit Error Display - Common for all methods */}
               {submitError && (
                 <div className="flex items-center gap-2 text-sm font-medium text-destructive bg-destructive/10 p-3 rounded-md">
                   <AlertCircle className="h-4 w-4" />
@@ -168,20 +238,79 @@ export default function SignupPage() {
                 </div>
               )}
 
-              {/* Submit Button */}
-              <Button type="submit" size="lg" className="w-full font-semibold button" disabled={isSubmitting}>
+
+              {/* Email/Password Submit Button */}
+              <Button type="submit" size="lg" className="w-full font-semibold button" disabled={isSubmitting || !!isSocialSubmitting}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Criando conta...
                   </>
                 ) : (
-                  'Cadastrar'
+                  'Cadastrar com Email'
                 )}
               </Button>
             </form>
           </Form>
+
+           {/* Separator */}
+           <div className="my-6 flex items-center">
+               <Separator className="flex-1" />
+               <span className="mx-4 text-xs text-muted-foreground">OU</span>
+               <Separator className="flex-1" />
+           </div>
+
+            {/* Social Signup/Login Buttons */}
+             <div className="space-y-3">
+                 {/* Google */}
+                 <Button
+                     variant="outline"
+                     size="lg"
+                     className="w-full font-medium button"
+                     onClick={() => handleSocialSignup('google')}
+                     disabled={isSubmitting || !!isSocialSubmitting}
+                 >
+                    {isSocialSubmitting === 'google' ? (
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : (
+                        <svg className="mr-2 h-5 w-5" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 381.5 512 244 512 109.8 512 0 402.2 0 261.8 0 120.3 109.8 8 244 8c66.8 0 125.3 24.5 170.4 64.1L361.5 128C321.5 91.8 284.3 71.4 244 71.4c-91.6 0-173.4 74.6-173.4 190.4 0 116.2 81.9 189.9 173.4 189.9 100.4 0 161.5-66.9 165.4-154.9H244V261.8h244z"></path></svg>
+                    )}
+                    Continuar com Google
+                 </Button>
+                  {/* Facebook */}
+                  <Button
+                      variant="outline"
+                      size="lg"
+                      className="w-full font-medium button bg-[#1877F2] text-white hover:bg-[#1877F2]/90 border-[#1877F2]"
+                      onClick={() => handleSocialSignup('facebook')}
+                      disabled={isSubmitting || !!isSocialSubmitting}
+                    >
+                     {isSocialSubmitting === 'facebook' ? (
+                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                     ) : (
+                        <svg className="mr-2 h-5 w-5" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="facebook" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="currentColor" d="M504 256C504 119 393 8 256 8S8 119 8 256c0 123.8 90.7 226.4 209.3 245V327.7h-63V256h63v-54.6c0-62.2 37-96.5 93.7-96.5 27.1 0 55.5 4.8 55.5 4.8v61h-31.3c-30.8 0-40.4 19.1-40.4 38.7V256h68.8l-11 71.7h-57.8V501C413.3 482.4 504 379.8 504 256z"></path></svg>
+                     )}
+                     Continuar com Facebook
+                  </Button>
+                 {/* Twitter (X) */}
+                 <Button
+                     variant="outline"
+                     size="lg"
+                     className="w-full font-medium button bg-black text-white hover:bg-black/90 border-black"
+                     onClick={() => handleSocialSignup('twitter')}
+                     disabled={isSubmitting || !!isSocialSubmitting}
+                 >
+                    {isSocialSubmitting === 'twitter' ? (
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : (
+                        <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>
+                    )}
+                    Continuar com X (Twitter)
+                 </Button>
+             </div>
+
+
            {/* Link to Login */}
-           <div className="mt-6 text-center text-sm">
+           <div className="mt-8 text-center text-sm">
              <p className="text-muted-foreground">
                Já tem uma conta?{' '}
                <Link href="/login" className="font-medium text-primary hover:underline">

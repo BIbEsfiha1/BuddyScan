@@ -1,4 +1,3 @@
-
 // src/middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
@@ -8,26 +7,32 @@ const publicPaths = ['/login', '/signup'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const authToken = request.cookies.get('firebaseAuthToken'); // Example: Use a cookie set on login
+  // Check for a cookie named 'firebaseAuthToken' (or similar)
+  // This cookie should be set server-side or client-side after successful Firebase authentication
+  // For simplicity, we check its existence. More robust checks might involve verifying the token.
+  const authTokenCookie = request.cookies.get('firebaseAuthToken'); // Adjust cookie name if different
+  const hasAuthToken = !!authTokenCookie; // Check if the cookie exists
 
   // Check if the current path is public
   const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
 
   // If trying to access a protected route without a token, redirect to login
-  if (!isPublicPath && !authToken) {
-    console.log(`Middleware: No token, redirecting from protected route ${pathname} to /login`);
+  if (!isPublicPath && !hasAuthToken) {
+    console.log(`Middleware: No auth token cookie found, redirecting from protected route ${pathname} to /login`);
     const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('redirect', pathname); // Optional: add redirect query param
+    // Optional: Pass the intended destination as a query parameter
+    loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // If trying to access login/signup page with a token, redirect to dashboard
-  if (isPublicPath && authToken) {
-     console.log(`Middleware: Has token, redirecting from public route ${pathname} to /`);
+  // If trying to access login/signup page WITH a token, redirect to dashboard
+  if (isPublicPath && hasAuthToken) {
+     console.log(`Middleware: Auth token cookie found, redirecting from public route ${pathname} to /`);
     return NextResponse.redirect(new URL('/', request.url));
   }
 
-  // Allow the request to proceed
+  // Allow the request to proceed if none of the above conditions are met
+  console.log(`Middleware: Allowing request to ${pathname}. Public: ${isPublicPath}, HasToken: ${hasAuthToken}`);
   return NextResponse.next();
 }
 
@@ -41,7 +46,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - Any files with extensions (e.g., .png, .jpg) to avoid unnecessary checks
      */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.\\w+).*)',
   ],
 };
