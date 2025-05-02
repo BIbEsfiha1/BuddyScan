@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { Geist } from 'next/font/google'; // Keep only Geist Sans for simplicity unless Mono is needed
 import './globals.css';
@@ -24,6 +25,7 @@ export default function RootLayout({
     // Set lang to pt-BR. Dark theme is applied via globals.css :root and .dark selectors
     <html lang="pt-BR" suppressHydrationWarning> {/* SuppressHydrationWarning is recommended by next-themes */}
       {/* Add font variable and antialiased class for better font rendering */}
+      {/* Removed whitespace inside <html> tag */}
       <body className={`${geistSans.variable} font-sans antialiased bg-background text-foreground`}>
         <ThemeProvider
             attribute="class"
