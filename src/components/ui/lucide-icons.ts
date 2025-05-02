@@ -1,4 +1,4 @@
-// src/components/ui/lucide-icons.ts
+{// src/components/ui/lucide-icons.ts
 /**
  * @fileoverview Centralized export for lucide-react icons used in the application.
  * This helps manage imports and potentially reduces bundle size if tree-shaking is effective.
@@ -11,13 +11,13 @@ export {
   Bot,
   Calendar,
   CalendarDays, // Added for diary
-  Camera,
+  Camera, // Added for camera error state
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
   Circle,
-  Check,
   Droplet, // Changed from Droplets for consistency
   History,
   ImagePlus, // Added for form upload placeholder
