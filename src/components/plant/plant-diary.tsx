@@ -8,16 +8,16 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
 import {
-    Lightbulb, Droplets, Ruler, StickyNote, Thermometer, Microscope, AlertTriangle,
-    Activity, CalendarDays, Bot, User, TestTube2, Loader2, RefreshCw // Added RefreshCw
-} from 'lucide-react';
+    Lightbulb, Droplet, Ruler, StickyNote, Thermometer, Microscope, AlertTriangle,
+    Activity, CalendarDays, Bot, User, TestTube2, Loader2, RefreshCw
+} from 'lucide-react'; // Added User, TestTube2
 import { Badge } from '@/components/ui/badge';
 import type { DiaryEntry } from '@/types/diary-entry';
 // Import localStorage functions for diary entries
 import { loadDiaryEntriesFromLocalStorage, addDiaryEntryToLocalStorage } from '@/types/diary-entry';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert components
 import { Button } from '@/components/ui/button'; // Import Button for refresh
-import { useAuth } from '@/context/auth-context'; // Import useAuth
+// import { useAuth } from '@/context/auth-context'; // Remove useAuth import
 
 interface PlantDiaryProps {
   plantId: string;
@@ -27,7 +27,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user, userId } = useAuth(); // Get user info
+  // const { user, userId } = useAuth(); // Remove auth usage
 
   // Use useCallback to memoize the load function
   const loadEntries = useCallback(async () => {
@@ -71,21 +71,8 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
 
   return (
     <div className="space-y-8">
-      {/* Form to add new entry - Only show if user is logged in */}
-       {user ? (
-           <DiaryEntryForm plantId={plantId} onNewEntry={handleNewEntry} />
-       ) : (
-           <Alert variant="default" className="border-primary/20 bg-primary/5">
-               <AlertTriangle className="h-4 w-4 text-primary" />
-               <AlertTitle>Login Necessário</AlertTitle>
-               <AlertDescription>
-                  Você precisa estar logado para adicionar novas entradas no diário.
-                  <Button variant="link" asChild className="p-0 h-auto ml-1">
-                      <a href="/login">Fazer Login</a>
-                  </Button>
-               </AlertDescription>
-           </Alert>
-       )}
+      {/* Always show form when authentication is disabled */}
+      <DiaryEntryForm plantId={plantId} onNewEntry={handleNewEntry} />
 
 
       {/* Display existing entries */}
@@ -119,11 +106,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
             <div className="text-center py-10 text-muted-foreground border border-dashed rounded-lg mt-4">
                 <CalendarDays className="h-12 w-12 mx-auto mb-3 text-secondary/50"/>
                 <p className="font-medium">Nenhuma entrada no diário ainda.</p>
-                 {user ? (
-                      <p className="text-sm">Adicione a primeira entrada usando o formulário acima!</p>
-                  ) : (
-                       <p className="text-sm">Faça login para começar a adicionar entradas.</p>
-                  )}
+                <p className="text-sm">Adicione a primeira entrada usando o formulário acima!</p>
             </div>
           )}
 
@@ -205,10 +188,9 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                         {/* Author */}
                         <div className="text-xs text-muted-foreground text-right pt-2 border-t mt-4 flex justify-end items-center gap-1">
                            <User className="h-3.5 w-3.5"/>
-                            {/* Display email if available, otherwise just the ID */}
+                            {/* Display placeholder text when auth is disabled */}
                             Registrado por: <span className="font-medium" title={entry.authorId}>
-                                {/* Enhance later to fetch display name if available */}
-                                {user && entry.authorId === user.uid ? user.email : `Usuário (${entry.authorId.substring(0, 6)}...)`}
+                                {entry.authorId === 'guest-user' ? 'Usuário Convidado' : `Usuário (${entry.authorId.substring(0, 6)}...)`}
                            </span>
                         </div>
                     </CardContent>
