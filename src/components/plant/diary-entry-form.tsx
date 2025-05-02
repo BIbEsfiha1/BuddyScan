@@ -17,11 +17,12 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Camera, Upload, Leaf, Bot, Loader2, AlertCircle } from 'lucide-react';
+import { Camera, Upload, Leaf, Bot, Loader2, AlertCircle, ImagePlus } from 'lucide-react'; // Added ImagePlus
 import Image from 'next/image';
 import { analyzePlantPhoto, type AnalyzePlantPhotoOutput } from '@/ai/flows/analyze-plant-photo';
 import type { DiaryEntry } from '@/types/diary-entry';
 import { Progress } from '@/components/ui/progress';
+import { Label } from '@/components/ui/label'; // Import Label explicitly
 
 
 const diaryEntrySchema = z.object({
@@ -88,12 +89,25 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Basic validation (can be expanded)
+      if (!file.type.startsWith('image/')) {
+           // TODO: Use toast for user feedback
+           console.error("Arquivo selecionado não é uma imagem.");
+           setAnalysisError('Por favor, selecione um arquivo de imagem válido (JPEG, PNG, GIF, etc.).');
+           return;
+      }
+       if (file.size > 5 * 1024 * 1024) { // Example: 5MB limit
+           console.error("Arquivo muito grande.");
+            setAnalysisError('A imagem é muito grande. O limite é 5MB.');
+           return;
+       }
+
       setPhotoFile(file);
+       setAnalysisError(null); // Clear previous errors
       const reader = new FileReader();
       reader.onloadend = () => {
         setPhotoPreview(reader.result as string);
         setAnalysisResult(null); // Reset analysis if new photo is selected
-        setAnalysisError(null);
       };
       reader.readAsDataURL(file);
     }
@@ -119,7 +133,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
        setAnalysisResult(result);
     } catch (error) {
       console.error('Erro na Análise de IA:', error); // Translated
-      setAnalysisError('Falha ao analisar a foto. Por favor, tente novamente.'); // Translated
+      setAnalysisError('Falha ao analisar a foto. Verifique sua conexão ou tente uma imagem diferente.'); // Translated & Improved message
     } finally {
       setIsAnalyzing(false);
     }
@@ -144,14 +158,18 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
           // Simulate upload delay and progress
           for (let i = 1; i <= 5; i++) {
             await new Promise(res => setTimeout(res, 300));
+             if (!isSubmitting) throw new Error("Submissão cancelada"); // Check if cancelled during upload
             setUploadProgress(i * 20);
           }
           // In real app, get URL from upload response
           // Use a more descriptive seed for the placeholder image
           // Ensure the image seed reflects the cannabis context
-          photoUrl = `https://picsum.photos/seed/cannabis-plant-diary-${Date.now()}/300/200`; // Use time to vary image slightly
+          photoUrl = `https://picsum.photos/seed/cannabis-plant-entry-${Date.now()}/400/300`; // Larger image
           console.log('Upload simulado da foto concluído.'); // Translated
         } else {
+            // Simulate minimal delay even without upload
+            await new Promise(res => setTimeout(res, 100));
+             if (!isSubmitting) throw new Error("Submissão cancelada");
             setUploadProgress(100); // No photo to upload
         }
 
@@ -176,6 +194,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
 
         // 3. Simulate saving to backend
         await new Promise(resolve => setTimeout(resolve, 500));
+         if (!isSubmitting) throw new Error("Submissão cancelada");
         console.log('Salvamento simulado concluído:', newEntry); // Translated
 
 
@@ -189,9 +208,11 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
         setAnalysisResult(null);
         setAnalysisError(null);
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Erro no envio:', error); // Translated
-        setSubmitError('Falha ao salvar a entrada do diário. Por favor, tente novamente.'); // Translated
+         if (error.message !== "Submissão cancelada") {
+            setSubmitError('Falha ao salvar a entrada do diário. Por favor, tente novamente.'); // Translated
+         }
     } finally {
         setIsSubmitting(false);
         setUploadProgress(null); // Hide progress bar
@@ -200,202 +221,242 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
 
 
   return (
-    <Card className="shadow-lg border border-primary/20">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-            <Leaf className="text-primary" /> Adicionar Nova Entrada no Diário {/* Translated */}
+    <Card className="shadow-lg border border-primary/10 card"> {/* Adjusted border, added base card class */}
+      <CardHeader className="pb-4"> {/* Reduced bottom padding */}
+        <CardTitle className="text-2xl flex items-center gap-2"> {/* Increased size */}
+            <Leaf className="text-primary h-6 w-6" /> Adicionar Nova Entrada no Diário {/* Translated */}
         </CardTitle>
-        <CardDescription>Registre observações, medições e adicione uma foto para análise.</CardDescription> {/* Translated */}
+        <CardDescription>Registre observações, medições e adicione uma foto para análise pela IA.</CardDescription> {/* Translated, emphasizing AI */}
       </CardHeader>
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Photo Section */}
-            <FormItem>
-               <FormLabel>Foto da Planta</FormLabel> {/* Translated */}
-               <Card className="border-dashed border-secondary/50 p-4">
-                    <CardContent className="flex flex-col items-center justify-center gap-4 p-0">
-                        {photoPreview ? (
-                             <Image
-                                // Updated hint for user uploaded photo
-                                data-ai-hint="cannabis plant user upload"
-                                src={photoPreview}
-                                alt="Pré-visualização da planta" // Translated
-                                width={200}
-                                height={150}
-                                className="rounded-md max-h-40 w-auto object-cover"
-                              />
-                        ) : (
-                           <div className="flex flex-col items-center text-muted-foreground p-6">
-                                <Camera className="h-12 w-12 mb-2" />
-                                <span>Nenhuma foto selecionada</span> {/* Translated */}
-                           </div>
-                        )}
-                        <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleFileChange}
-                            className="hidden"
-                            ref={fileInputRef}
-                            aria-label="Carregar foto da planta" // Translated
-                         />
-                         <Button type="button" variant="outline" onClick={triggerFileInput} disabled={isSubmitting || isAnalyzing}>
-                            <Upload className="mr-2 h-4 w-4" /> Selecionar Foto {/* Translated */}
-                         </Button>
-                         {photoPreview && (
-                             <Button
-                                type="button"
-                                onClick={handleAnalyzePhoto}
-                                disabled={!photoPreview || isAnalyzing || isSubmitting}
-                                variant="secondary"
-                                size="sm"
-                              >
-                                {isAnalyzing ? (
-                                  <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analisando... {/* Translated */}
-                                  </>
-                                ) : (
-                                  <>
-                                    <Bot className="mr-2 h-4 w-4" /> Analisar com IA {/* Translated */}
-                                  </>
-                                )}
-                             </Button>
-                         )}
-                     </CardContent>
-               </Card>
-               {analysisResult && (
-                 <FormDescription className="text-accent-foreground bg-accent/20 p-2 rounded-md mt-2 flex items-center gap-1">
-                    <Bot className="h-4 w-4 shrink-0"/> IA: {analysisResult.analysisResult}
-                 </FormDescription>
-               )}
-                {analysisError && (
-                  <p className="text-sm text-destructive mt-2 flex items-center gap-1">
-                    <AlertCircle className="h-4 w-4 shrink-0"/> {analysisError}
-                  </p>
-               )}
-            </FormItem>
 
-
-            {/* Note Section */}
+            {/* Note Section First */}
             <FormField
               control={form.control}
               name="note"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Observações / Notas</FormLabel> {/* Translated */}
+                  <FormLabel className="text-base font-medium">Observações / Notas</FormLabel> {/* Translated, increased size/weight */}
                   <FormControl>
-                    <Textarea placeholder="Descreva o que você vê ou as ações tomadas..." {...field} disabled={isSubmitting}/> {/* Translated */}
+                    <Textarea
+                       placeholder="Descreva o que você vê, ações tomadas, ou qualquer detalhe relevante..." {...field}
+                       disabled={isSubmitting}
+                       rows={4} // Slightly larger text area
+                       className="textarea" // Added base textarea class
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* Optional Measurement Fields - Example */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                 <FormField
-                   control={form.control}
-                   name="stage"
-                   render={({ field }) => (
-                     <FormItem>
-                       <FormLabel>Estágio</FormLabel> {/* Translated */}
-                       <FormControl>
-                         {/* Consider using a Select component here */}
-                         <Input placeholder="ex: Floração Semana 3" {...field} disabled={isSubmitting}/> {/* Translated */}
-                       </FormControl>
-                       <FormMessage />
-                     </FormItem>
+            {/* Measurement Fields - Improved Layout */}
+             <Card className="bg-muted/30 border border-border/50 p-4">
+                 <Label className="text-base font-medium mb-3 block">Medições (Opcional)</Label> {/* Section Label */}
+                 <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-5">
+                     <FormField
+                       control={form.control}
+                       name="stage"
+                       render={({ field }) => (
+                         <FormItem>
+                           <FormLabel>Estágio</FormLabel> {/* Translated */}
+                           <FormControl>
+                             {/* Consider using a Select component here */}
+                             <Input placeholder="ex: Floração S3" {...field} disabled={isSubmitting} className="input"/> {/* Translated, added base input class */}
+                           </FormControl>
+                           <FormMessage />
+                         </FormItem>
+                       )}
+                     />
+                    <FormField
+                        control={form.control}
+                        name="heightCm"
+                        render={({ field }) => (
+                           <FormItem>
+                             <FormLabel>Altura (cm)</FormLabel> {/* Translated */}
+                             <FormControl>
+                                <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} value={field.value ?? ''} disabled={isSubmitting} className="input"/> {/* Handle null value for controlled input */}
+                             </FormControl>
+                             <FormMessage />
+                           </FormItem>
+                        )}
+                     />
+                     <FormField
+                         control={form.control}
+                         name="ec"
+                         render={({ field }) => (
+                             <FormItem>
+                                 <FormLabel>EC</FormLabel>
+                                 <FormControl>
+                                     <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} value={field.value ?? ''} disabled={isSubmitting} className="input"/>
+                                 </FormControl>
+                                 <FormMessage />
+                             </FormItem>
+                         )}
+                     />
+                     <FormField
+                         control={form.control}
+                         name="ph"
+                         render={({ field }) => (
+                             <FormItem>
+                                 <FormLabel>pH</FormLabel>
+                                 <FormControl>
+                                     <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} value={field.value ?? ''} disabled={isSubmitting} className="input"/>
+                                 </FormControl>
+                                 <FormMessage />
+                             </FormItem>
+                         )}
+                     />
+                     <FormField
+                         control={form.control}
+                         name="temp"
+                         render={({ field }) => (
+                             <FormItem>
+                                 <FormLabel>Temp (°C)</FormLabel>
+                                 <FormControl>
+                                     <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} value={field.value ?? ''} disabled={isSubmitting} className="input"/>
+                                 </FormControl>
+                                 <FormMessage />
+                             </FormItem>
+                         )}
+                     />
+                     <FormField
+                         control={form.control}
+                         name="humidity"
+                         render={({ field }) => (
+                             <FormItem>
+                                 <FormLabel>Umidade (%)</FormLabel> {/* Translated */}
+                                 <FormControl>
+                                     <Input type="number" step="1" placeholder="ex: 55" {...field} value={field.value ?? ''} disabled={isSubmitting} className="input"/>
+                                 </FormControl>
+                                 <FormMessage />
+                             </FormItem>
+                         )}
+                     />
+                 </div>
+             </Card>
+
+
+            {/* Photo Section */}
+             <Card className="bg-muted/30 border border-border/50 p-4">
+                 <Label className="text-base font-medium mb-3 block">Foto da Planta (Opcional)</Label> {/* Section Label */}
+                <div className="flex flex-col md:flex-row items-start gap-4">
+                     {/* Upload Area */}
+                    <div className="w-full md:w-1/2 flex flex-col items-center justify-center border-2 border-dashed border-secondary/30 rounded-lg p-6 text-center bg-background hover:border-primary/50 transition-colors aspect-video md:aspect-auto md:h-auto min-h-[150px]">
+                        {photoPreview ? (
+                             <div className="relative group">
+                                <Image
+                                  data-ai-hint="cannabis plant user upload close up" // More specific hint
+                                  src={photoPreview}
+                                  alt="Pré-visualização da planta" // Translated
+                                  width={240} // Increased size
+                                  height={180}
+                                  className="rounded-md max-h-48 w-auto object-cover shadow-md" // Increased max height
+                                />
+                                {/* Option to remove photo? */}
+                             </div>
+
+                        ) : (
+                           <div className="flex flex-col items-center text-muted-foreground">
+                                <ImagePlus className="h-12 w-12 mb-2 text-secondary/50" />
+                                <span className="text-sm">Arraste uma foto ou clique para selecionar</span> {/* Translated */}
+                                <span className="text-xs mt-1">(Max 5MB)</span>
+                           </div>
+                        )}
+                         <Input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                            className="hidden"
+                            ref={fileInputRef}
+                            aria-label="Carregar foto da planta" // Translated
+                            disabled={isSubmitting || isAnalyzing}
+                         />
+                         <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="mt-4 button" // Added base class
+                            onClick={triggerFileInput}
+                            disabled={isSubmitting || isAnalyzing}
+                          >
+                            <Upload className="mr-2 h-4 w-4" /> {photoPreview ? 'Trocar Foto' : 'Selecionar Foto'} {/* Translated */}
+                         </Button>
+                     </div>
+
+                     {/* Analysis Area */}
+                     <div className="w-full md:w-1/2 space-y-3">
+                         <Button
+                           type="button"
+                           onClick={handleAnalyzePhoto}
+                           disabled={!photoPreview || isAnalyzing || isSubmitting}
+                           variant="secondary"
+                           className="w-full button" // Added base class
+                          >
+                            {isAnalyzing ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analisando com IA... {/* Translated */}
+                              </>
+                            ) : (
+                              <>
+                                <Bot className="mr-2 h-4 w-4" /> Analisar Foto com IA {/* Translated */}
+                              </>
+                            )}
+                         </Button>
+                         {analysisResult && (
+                           <Card className="bg-accent/10 border-accent p-3 shadow-sm">
+                             <CardHeader className="p-0 mb-1">
+                               <CardTitle className="text-sm font-semibold flex items-center gap-1.5 text-accent-foreground">
+                                 <Bot className="h-4 w-4"/> Resultado da Análise IA {/* Translated */}
+                               </CardTitle>
+                             </CardHeader>
+                             <CardContent className="p-0">
+                                <p className="text-sm text-accent-foreground/90">{analysisResult.analysisResult}</p>
+                             </CardContent>
+                           </Card>
+                         )}
+                         {analysisError && (
+                            <Alert variant="destructive" className="text-xs p-2"> {/* Smaller alert */}
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>Erro</AlertTitle>
+                                <AlertDescription>{analysisError}</AlertDescription>
+                           </Alert>
+                         )}
+                     </div>
+                </div>
+            </Card>
+
+
+            {/* Submission Area */}
+            <div className="pt-4 space-y-3">
+                {uploadProgress !== null && (
+                  <div className="space-y-1">
+                      <Label className="text-sm text-muted-foreground">Progresso do Salvamento...</Label> {/* Translated */}
+                      <Progress value={uploadProgress} className="w-full h-2 bg-muted border" /> {/* Added border */}
+                  </div>
+                 )}
+
+                 {submitError && (
+                    <Alert variant="destructive" className="p-3">
+                      <AlertCircle className="h-4 w-4"/>
+                      <AlertTitle>Erro ao Salvar</AlertTitle> {/* Translated */}
+                      <AlertDescription className="text-sm">{submitError}</AlertDescription>
+                     </Alert>
+                 )}
+
+
+                <Button type="submit" size="lg" className="w-full font-semibold button" disabled={isSubmitting || isAnalyzing}> {/* Larger submit button */}
+                   {isSubmitting ? (
+                     <>
+                       <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Salvando Entrada... {/* Translated */}
+                     </>
+                   ) : (
+                     'Salvar Entrada no Diário' // Translated
                    )}
-                 />
-                <FormField
-                    control={form.control}
-                    name="heightCm"
-                    render={({ field }) => (
-                       <FormItem>
-                         <FormLabel>Altura (cm)</FormLabel> {/* Translated */}
-                         <FormControl>
-                            <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} disabled={isSubmitting} />
-                         </FormControl>
-                         <FormMessage />
-                       </FormItem>
-                    )}
-                 />
-                 <FormField
-                     control={form.control}
-                     name="ec"
-                     render={({ field }) => (
-                         <FormItem>
-                             <FormLabel>EC</FormLabel>
-                             <FormControl>
-                                 <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} disabled={isSubmitting} />
-                             </FormControl>
-                             <FormMessage />
-                         </FormItem>
-                     )}
-                 />
-                 <FormField
-                     control={form.control}
-                     name="ph"
-                     render={({ field }) => (
-                         <FormItem>
-                             <FormLabel>pH</FormLabel>
-                             <FormControl>
-                                 <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} disabled={isSubmitting}/>
-                             </FormControl>
-                             <FormMessage />
-                         </FormItem>
-                     )}
-                 />
-                 <FormField
-                     control={form.control}
-                     name="temp"
-                     render={({ field }) => (
-                         <FormItem>
-                             <FormLabel>Temp (°C)</FormLabel>
-                             <FormControl>
-                                 <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} disabled={isSubmitting}/>
-                             </FormControl>
-                             <FormMessage />
-                         </FormItem>
-                     )}
-                 />
-                 <FormField
-                     control={form.control}
-                     name="humidity"
-                     render={({ field }) => (
-                         <FormItem>
-                             <FormLabel>Umidade (%)</FormLabel> {/* Translated */}
-                             <FormControl>
-                                 <Input type="number" step="1" placeholder="ex: 55" {...field} disabled={isSubmitting} />
-                             </FormControl>
-                             <FormMessage />
-                         </FormItem>
-                     )}
-                 />
-
+                </Button>
             </div>
-
-            {uploadProgress !== null && (
-              <div className="space-y-1">
-                  <FormLabel>Progresso do Salvamento</FormLabel> {/* Translated */}
-                  <Progress value={uploadProgress} className="w-full h-2" />
-              </div>
-             )}
-
-             {submitError && (
-                <p className="text-sm font-medium text-destructive flex items-center gap-1"><AlertCircle className="h-4 w-4"/> {submitError}</p>
-             )}
-
-
-            <Button type="submit" className="w-full" disabled={isSubmitting || isAnalyzing}>
-               {isSubmitting ? (
-                 <>
-                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando Entrada... {/* Translated */}
-                 </>
-               ) : (
-                 'Salvar Entrada no Diário' // Translated
-               )}
-            </Button>
           </form>
         </Form>
       </CardContent>
