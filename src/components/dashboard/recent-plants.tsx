@@ -33,13 +33,14 @@ export default function RecentPlants({ plants }: RecentPlantsProps) {
         ) : (
           <ul className="divide-y divide-border">
             {plants.map((plant) => {
-               // Using birthDate as a proxy for last updated date in this simplified version
-               const lastUpdated = `Cadastrada em: ${new Date(plant.birthDate).toLocaleDateString('pt-BR')}`;
+               // Using createdAt or birthDate for display
+                const lastUpdated = `Cadastrada em: ${plant.createdAt ? new Date(plant.createdAt).toLocaleDateString('pt-BR') : (plant.birthDate ? new Date(plant.birthDate).toLocaleDateString('pt-BR') : 'N/A')}`;
+
 
                return (
                  <li key={plant.id} className="py-3 group hover:bg-muted/30 rounded-md transition-colors duration-150">
-                   {/* Ensure Link points to the correct plant page using qrCode */}
-                   <Link href={`/plant/${plant.qrCode}`} className="flex items-center space-x-4 px-2">
+                   {/* Ensure Link points to the correct plant page using plant.id */}
+                   <Link href={`/plant/${plant.id}`} className="flex items-center space-x-4 px-2">
                      <div className="flex-shrink-0">
                        <Image
                          // Make hint more specific using plant status
@@ -80,3 +81,9 @@ export default function RecentPlants({ plants }: RecentPlantsProps) {
     </Card>
   );
 }
+
+```
+    </content>
+  </change>
+  <change>
+    <file>src/app/login/page

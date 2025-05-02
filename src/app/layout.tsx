@@ -7,6 +7,8 @@ import { ThemeProvider } from '@/components/theme-provider';
 import AppHeader from '@/components/app-header'; // Import the new AppHeader
 // Removed Geist Sans import as Inter is used
 // import { GeistSans } from 'geist/font/sans';
+// Removed AuthProvider import
+// import { AuthProvider } from '@/context/auth-context';
 
 const inter = Inter({
   variable: '--font-inter',
@@ -46,3 +48,6 @@ export default function RootLayout({
     </html>
   );
 }
+```
+    </content>
+  </change>

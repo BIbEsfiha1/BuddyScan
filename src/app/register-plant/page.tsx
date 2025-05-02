@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useCallback } from 'react';
@@ -19,22 +20,23 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Leaf, Calendar, Warehouse, Loader2, ArrowLeft, Sprout, CheckCircle, Download } from '@/components/ui/lucide-icons'; // Use centralized icons
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { addPlant, type Plant } from '@/services/plant-id';
+import { addPlant, type Plant } from '@/services/plant-id'; // Import Firestore function
 import Link from 'next/link';
 import { generateUniqueId } from '@/lib/utils';
 import { QrCode as QrCodeIcon } from 'lucide-react'; // Specific import if needed
 import { toDataURL } from 'qrcode'; // Import QR code generation function
 import Image from 'next/image'; // Import Next Image component
+import { firebaseInitializationError } from '@/lib/firebase/config'; // Import Firebase error state
 
 
-// Define the schema for plant registration - REMOVED qrCode field
+// Define the schema for plant registration
 const registerPlantSchema = z.object({
   strain: z.string().min(1, 'O nome da variedade é obrigatório.').max(100, 'Nome da variedade muito longo.'),
   birthDate: z.string().refine((date) => !isNaN(Date.parse(date)), {
-    message: 'Data de nascimento inválida.', // Validate if it's a parsable date string
+    message: 'Data de nascimento inválida.',
   }),
   growRoomId: z.string().min(1, 'O ID da sala de cultivo é obrigatório.').max(50, 'ID da sala muito longo.'),
-  status: z.string().min(1, 'O status inicial é obrigatório (ex: Plântula, Vegetativo)').max(50, 'Status muito longo.'), // Added status field
+  status: z.string().min(1, 'O status inicial é obrigatório (ex: Plântula, Vegetativo)').max(50, 'Status muito longo.'),
 });
 
 type RegisterPlantFormData = z.infer<typeof registerPlantSchema>;
@@ -44,8 +46,8 @@ export default function RegisterPlantPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [generatedQrCode, setGeneratedQrCode] = useState<string | null>(null); // State to hold generated QR code string
-  const [qrCodeImageDataUrl, setQrCodeImageDataUrl] = useState<string | null>(null); // State for QR code image data URL
+  const [generatedQrCode, setGeneratedQrCode] = useState<string | null>(null);
+  const [qrCodeImageDataUrl, setQrCodeImageDataUrl] = useState<string | null>(null);
 
 
   const form = useForm<RegisterPlantFormData>({
@@ -64,7 +66,6 @@ export default function RegisterPlantPage() {
 
     const link = document.createElement('a');
     link.href = qrCodeImageDataUrl;
-    // Suggest filename (browser might override)
     link.download = `qrcode-planta-${generatedQrCode}.png`;
     document.body.appendChild(link);
     link.click();
@@ -79,50 +80,61 @@ export default function RegisterPlantPage() {
     setIsSubmitting(true);
     setSubmitError(null);
     setGeneratedQrCode(null);
-    setQrCodeImageDataUrl(null); // Reset image URL
+    setQrCodeImageDataUrl(null);
+
+    // Check for Firebase initialization errors before proceeding
+    if (firebaseInitializationError) {
+        console.error("Firebase initialization error:", firebaseInitializationError);
+        setSubmitError(`Erro de configuração do Firebase: ${firebaseInitializationError.message}. Não é possível salvar.`);
+        toast({
+            variant: 'destructive',
+            title: 'Erro de Configuração',
+            description: 'Não foi possível conectar ao banco de dados. Verifique as configurações do Firebase.',
+        });
+        setIsSubmitting(false);
+        return;
+    }
 
 
     try {
       // Generate a unique ID for the plant, which will also be the QR code content
-      const uniqueId = generateUniqueId();
+      const uniqueId = generateUniqueId(); // Use the existing utility
 
-      // Construct the new plant object
+      // Construct the new plant object for Firestore
       const newPlantData: Plant = {
-        id: uniqueId,
-        qrCode: uniqueId,
+        id: uniqueId, // Use generated ID as Firestore document ID
+        qrCode: uniqueId, // QR Code content is the same as the ID
         strain: data.strain,
-        birthDate: new Date(data.birthDate).toISOString(),
+        birthDate: new Date(data.birthDate).toISOString(), // Store as ISO string
         growRoomId: data.growRoomId,
         status: data.status,
+        createdAt: new Date().toISOString(), // Add creation timestamp
       };
 
-      console.log('Tentando cadastrar planta:', newPlantData);
+      console.log('Tentando cadastrar planta no Firestore:', newPlantData);
 
       // Generate QR Code Image Data URL
       let qrImageDataUrl = null;
       try {
         qrImageDataUrl = await toDataURL(uniqueId, {
-            errorCorrectionLevel: 'H', // High error correction
+            errorCorrectionLevel: 'H',
             type: 'image/png',
             margin: 2,
-            scale: 8, // Scale factor for higher resolution
-            color: {
-                dark: '#000000', // Black modules
-                light: '#FFFFFF', // White background
-            },
+            scale: 8,
+            color: { dark: '#000000', light: '#FFFFFF' },
         });
-         setQrCodeImageDataUrl(qrImageDataUrl); // Store the generated image data URL
+         setQrCodeImageDataUrl(qrImageDataUrl);
       } catch (qrError) {
          console.error("Erro ao gerar a imagem do QR Code:", qrError);
-         throw new Error("Falha ao gerar a imagem do QR Code."); // Propagate error
+         throw new Error("Falha ao gerar a imagem do QR Code.");
       }
 
 
-      // Call the service function to add the plant
+      // Call the service function to add the plant to Firestore
       await addPlant(newPlantData);
 
-      console.log('Planta cadastrada com sucesso com QR Code:', uniqueId);
-      setGeneratedQrCode(uniqueId); // Store the generated QR code string
+      console.log('Planta cadastrada com sucesso no Firestore com ID:', uniqueId);
+      setGeneratedQrCode(uniqueId);
 
 
       toast({
@@ -130,19 +142,19 @@ export default function RegisterPlantPage() {
         description: (
            <div>
                <p>A planta '{data.strain}' foi adicionada com sucesso.</p>
-               <p className="font-semibold mt-2">QR Code Gerado: {uniqueId}</p>
+               <p className="font-semibold mt-2">QR Code / ID: {uniqueId}</p>
            </div>
         ),
         variant: 'default',
-        duration: 10000, // Keep toast longer
+        duration: 10000,
       });
 
-      // Reset form after successful submission BUT keep generated QR code displayed
-      // form.reset(); // Commented out to keep form data if user wants to register another quickly? Reconsider if needed.
+      // Keep form data for potentially adding another plant quickly
+      // form.reset();
 
 
     } catch (error: any) {
-      console.error('Erro ao cadastrar planta:', error);
+      console.error('Erro ao cadastrar planta no Firestore:', error);
       const errorMsg = error.message || 'Falha ao cadastrar a planta. Verifique os dados ou tente novamente.';
       setSubmitError(errorMsg);
       setQrCodeImageDataUrl(null); // Clear image on error
@@ -166,20 +178,14 @@ export default function RegisterPlantPage() {
                </Link>
             </Button>
            <div className="flex flex-col items-center text-center pt-8">
-              {/* Replace Sprout icon and CardTitle with BudScan Logo */}
-              {/* Ensure budscan-logo.png exists in the /public folder */}
                <Image
-                   src="/budscan-logo.png" // Path to the logo in the public folder - CONFIRMED PATH USAGE
+                   src="/budscan-logo.png"
                    alt="BudScan Logo"
-                   width={180} // Adjust size as needed for this context
+                   width={180}
                    height={51}
                    priority
                    className="mb-3"
                />
-               {/* <Sprout className="h-12 w-12 mb-3 text-primary animate-pulse" /> */}
-               {/* <CardTitle className="text-2xl md:text-3xl font-bold text-primary">
-                 Cadastrar Nova Planta
-               </CardTitle> */}
               <CardDescription className="text-muted-foreground mt-1">
                 Preencha os detalhes da nova planta. O QR Code será gerado automaticamente.
               </CardDescription>
@@ -194,7 +200,7 @@ export default function RegisterPlantPage() {
                     <CardTitle className="text-lg text-green-700 dark:text-green-300">Planta Cadastrada!</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0 space-y-3">
-                   <p className="text-sm text-muted-foreground mb-2">O QR Code único para esta planta é:</p>
+                   <p className="text-sm text-muted-foreground mb-2">O QR Code / ID único para esta planta é:</p>
                    <div className="flex items-center justify-center gap-2 bg-muted p-2 rounded-md">
                        <QrCodeIcon className="h-5 w-5 text-primary" />
                        <p className="text-lg font-mono font-semibold text-primary break-all">{generatedQrCode}</p>
@@ -204,10 +210,10 @@ export default function RegisterPlantPage() {
                        <Image
                            src={qrCodeImageDataUrl}
                            alt={`QR Code para ${generatedQrCode}`}
-                           width={180} // Increased size
+                           width={180}
                            height={180}
-                           className="border-2 border-muted p-1 rounded-md shadow-md bg-white" // Add white bg for contrast
-                           priority // Load image eagerly
+                           className="border-2 border-muted p-1 rounded-md shadow-md bg-white"
+                           priority
                        />
                         <Button
                             variant="secondary"
@@ -220,20 +226,15 @@ export default function RegisterPlantPage() {
                         </Button>
                     </div>
                      <Button variant="outline" size="sm" onClick={() => {
-                         // Optionally clear the form and QR code states if navigating away
-                         // setGeneratedQrCode(null);
-                         // setQrCodeImageDataUrl(null);
-                         // form.reset();
                          router.push('/')
                        }} className="mt-5 button">
                          Ir para o Painel
                      </Button>
                       <Button variant="link" size="sm" onClick={() => {
-                          // Reset state to allow registering another plant
                           setGeneratedQrCode(null);
                           setQrCodeImageDataUrl(null);
                           setSubmitError(null);
-                          form.reset(); // Clear form fields
+                          form.reset();
                           toast({ title: "Formulário limpo", description: "Pronto para cadastrar outra planta."});
                       }} className="mt-1 button">
                          Cadastrar Outra Planta
@@ -256,7 +257,7 @@ export default function RegisterPlantPage() {
                             <Leaf className="h-4 w-4 text-secondary" /> Variedade (Strain)
                         </FormLabel>
                         <FormControl>
-                            <Input placeholder="Ex: Northern Lights, Purple Haze..." {...field} disabled={isSubmitting} className="input"/>
+                            <Input placeholder="Ex: Northern Lights, Purple Haze..." {...field} disabled={isSubmitting || !!firebaseInitializationError} className="input"/>
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -273,7 +274,7 @@ export default function RegisterPlantPage() {
                             <Calendar className="h-4 w-4 text-secondary" /> Data de Nascimento / Plantio
                         </FormLabel>
                         <FormControl>
-                            <Input type="date" {...field} disabled={isSubmitting} className="input appearance-none"/>
+                            <Input type="date" {...field} disabled={isSubmitting || !!firebaseInitializationError} className="input appearance-none"/>
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -290,7 +291,7 @@ export default function RegisterPlantPage() {
                             <Warehouse className="h-4 w-4 text-secondary" /> ID da Sala de Cultivo
                         </FormLabel>
                         <FormControl>
-                            <Input placeholder="Ex: Tenda Veg, Sala Flora 1" {...field} disabled={isSubmitting} className="input"/>
+                            <Input placeholder="Ex: Tenda Veg, Sala Flora 1" {...field} disabled={isSubmitting || !!firebaseInitializationError} className="input"/>
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -307,7 +308,7 @@ export default function RegisterPlantPage() {
                             <Sprout className="h-4 w-4 text-secondary" /> Status Inicial
                             </FormLabel>
                             <FormControl>
-                            <Input placeholder="Ex: Plântula, Vegetativo" {...field} disabled={isSubmitting} className="input"/>
+                            <Input placeholder="Ex: Plântula, Vegetativo" {...field} disabled={isSubmitting || !!firebaseInitializationError} className="input"/>
                             </FormControl>
                             <FormDescription>O estágio inicial da planta.</FormDescription>
                             <FormMessage />
@@ -322,9 +323,14 @@ export default function RegisterPlantPage() {
                         {submitError}
                         </div>
                     )}
+                     {firebaseInitializationError && !submitError && (
+                         <div className="text-sm font-medium text-destructive text-center bg-destructive/10 p-3 rounded-md">
+                             Erro de Configuração: {firebaseInitializationError.message}. Não é possível salvar.
+                         </div>
+                     )}
 
                     {/* Submit Button */}
-                <Button type="submit" size="lg" className="w-full font-semibold button" disabled={isSubmitting}>
+                <Button type="submit" size="lg" className="w-full font-semibold button" disabled={isSubmitting || !!firebaseInitializationError}>
                     {isSubmitting ? (
                     <>
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Cadastrando...
@@ -341,3 +347,8 @@ export default function RegisterPlantPage() {
     </div>
   );
 }
+```
+    </content>
+  </change>
+  <change>
+    <file>src/

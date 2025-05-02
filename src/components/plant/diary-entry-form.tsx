@@ -22,12 +22,12 @@ import { Camera, Leaf, Bot, Loader2, AlertCircle, ImagePlus, RefreshCw, XCircle,
 import Image from 'next/image';
 import { analyzePlantPhoto, type AnalyzePlantPhotoOutput } from '@/ai/flows/analyze-plant-photo';
 import type { DiaryEntry } from '@/types/diary-entry';
-import { addDiaryEntryToLocalStorage } from '@/types/diary-entry';
+// Import Firestore add function
+import { addDiaryEntryToFirestore } from '@/types/diary-entry';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-// import { useAuth } from '@/context/auth-context'; // Remove useAuth import
-// import { firebaseInitializationError } from '@/lib/firebase/config'; // Remove firebase config import
+import { firebaseInitializationError } from '@/lib/firebase/config'; // Import Firebase error state
 
 const diaryEntrySchema = z.object({
   note: z.string().min(1, 'A nota não pode estar vazia').max(1000, 'Nota muito longa (máx 1000 caracteres)'),
@@ -59,6 +59,7 @@ type DiaryEntryFormData = z.infer<typeof diaryEntrySchema>;
 interface DiaryEntryFormProps {
   plantId: string;
   onNewEntry: (entry: DiaryEntry) => void;
+  // disabled?: boolean; // Optional disabled prop
 }
 
 type CameraStatus = 'idle' | 'permission-pending' | 'permission-denied' | 'streaming' | 'error';
@@ -66,7 +67,7 @@ type CameraStatus = 'idle' | 'permission-pending' | 'permission-denied' | 'strea
 // Placeholder author ID when authentication is disabled
 const GUEST_AUTHOR_ID = "guest-user";
 
-export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
+export function DiaryEntryForm({ plantId, onNewEntry /*, disabled = false */ }: DiaryEntryFormProps) {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalyzePlantPhotoOutput | null>(null);
@@ -74,7 +75,6 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const { toast } = useToast();
-  // const { user, userId, initializationError } = useAuth(); // Remove auth context usage
 
   // Camera related state
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle');
@@ -83,6 +83,9 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Determine if the form should be globally disabled
+  const isDisabled = isSubmitting || isAnalyzing || showCameraView || !!firebaseInitializationError;
 
 
   const form = useForm<DiaryEntryFormData>({
@@ -231,6 +234,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     canvasElement.width = videoElement.videoWidth;
     canvasElement.height = videoElement.videoHeight;
     context.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+    // Use JPEG for potentially smaller size, adjust quality (0.9 = 90%)
     const dataUrl = canvasElement.toDataURL('image/jpeg', 0.9);
 
     setPhotoPreview(dataUrl);
@@ -260,11 +264,10 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
         });
         return;
     }
-    // Remove Firebase init check
-    // if (initializationError) {
-    //    toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Serviço de análise indisponível.' });
-    //    return;
-    // }
+     if (firebaseInitializationError) {
+        toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Serviço de análise indisponível devido a erro do Firebase.' });
+        return;
+     }
 
 
     setIsAnalyzing(true);
@@ -286,7 +289,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
        });
     } catch (error) {
       console.error('Erro na Análise de IA:', error);
-      const errorMsg = 'Falha ao analisar a foto. Verifique sua conexão ou tente uma imagem diferente.';
+      const errorMsg = `Falha ao analisar a foto: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
       setAnalysisError(errorMsg);
       toast({
           variant: "destructive",
@@ -303,38 +306,30 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
      setIsSubmitting(true);
      setSubmitError(null);
 
-     // Remove authentication check
-     /*
-     if (!userId) {
-         setSubmitError("Você precisa estar logado para adicionar uma entrada.");
+     // Check for Firebase initialization errors before proceeding
+     if (firebaseInitializationError) {
+         console.error("Firebase initialization error:", firebaseInitializationError);
+         setSubmitError(`Erro de configuração do Firebase: ${firebaseInitializationError.message}. Não é possível salvar.`);
          toast({
-             variant: "destructive",
-             title: "Não Autenticado",
-             description: "Faça login para salvar entradas no diário.",
+             variant: 'destructive',
+             title: 'Erro de Configuração',
+             description: 'Não foi possível conectar ao banco de dados. Verifique as configurações do Firebase.',
          });
          setIsSubmitting(false);
          return;
      }
-     if (initializationError) { // Check for Firebase init error
-        setSubmitError("Erro de configuração: não é possível salvar.");
-        toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Não é possível salvar a entrada no diário.' });
-        setIsSubmitting(false);
-        return;
-     }
-     */
 
-    // Use placeholder author ID
     const currentAuthorId = GUEST_AUTHOR_ID;
-    console.log('Iniciando envio para localStorage:', data, 'by User:', currentAuthorId);
+    console.log('Iniciando envio para Firestore:', data, 'by User:', currentAuthorId);
 
     try {
-        const photoUrlForStorage = photoPreview;
+        const photoUrlForStorage = photoPreview; // Store data URI for now
 
-        const newEntry: DiaryEntry = {
-            id: `entry-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+        // Prepare data, excluding the ID field for Firestore's addDoc
+        const newEntryData: Omit<DiaryEntry, 'id'> = {
             plantId: plantId,
-            timestamp: new Date().toISOString(),
-            authorId: currentAuthorId, // Use placeholder ID
+            timestamp: new Date().toISOString(), // Use current time as ISO string
+            authorId: currentAuthorId,
             note: data.note,
             stage: data.stage || null,
             heightCm: data.heightCm ?? null,
@@ -342,16 +337,21 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
             ph: data.ph ?? null,
             temp: data.temp ?? null,
             humidity: data.humidity ?? null,
+            // CONSIDERATION: Store large data URIs? Better to upload to Firebase Storage
+            // and store the URL. For now, storing the data URI directly.
             photoUrl: photoUrlForStorage,
             aiSummary: analysisResult?.analysisResult || null,
         };
 
-        console.log('Novo objeto de entrada:', newEntry);
-        addDiaryEntryToLocalStorage(plantId, newEntry); // Save to local storage
-        console.log('Entrada adicionada ao armazenamento.');
+        console.log('Novo objeto de entrada para Firestore:', newEntryData);
 
-        onNewEntry(newEntry);
-        console.log('Callback onNewEntry chamado.');
+        // Call Firestore service function
+        const savedEntry = await addDiaryEntryToFirestore(plantId, newEntryData);
+        console.log('Entrada adicionada ao Firestore com ID:', savedEntry.id);
+
+        // Call the callback prop with the full entry object (including the new ID)
+        onNewEntry(savedEntry);
+        console.log('Callback onNewEntry chamado com a entrada salva.');
 
          toast({
            title: "Entrada Salva",
@@ -366,7 +366,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
         console.log('Formulário e estados resetados.');
 
     } catch (error: any) {
-        console.error('Erro ao salvar entrada:', error);
+        console.error('Erro ao salvar entrada no Firestore:', error);
         const errorMsg = `Falha ao salvar a entrada do diário: ${error.message || 'Erro desconhecido'}`;
         setSubmitError(errorMsg);
         toast({
@@ -393,6 +393,16 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
 
+             {/* Firebase Init Error Display */}
+              {firebaseInitializationError && (
+                 <Alert variant="destructive" className="p-3">
+                   <AlertCircle className="h-4 w-4"/>
+                   <AlertTitle>Erro de Configuração do Firebase</AlertTitle>
+                   <AlertDescription className="text-sm">{firebaseInitializationError.message}. Não é possível salvar entradas.</AlertDescription>
+                 </Alert>
+              )}
+
+
             {/* Note Section First */}
             <FormField
               control={form.control}
@@ -403,7 +413,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                   <FormControl>
                     <Textarea
                        placeholder="Descreva o que você vê, ações tomadas, ou qualquer detalhe relevante..." {...field}
-                       disabled={isSubmitting} // Remove init error check
+                       disabled={isDisabled}
                        rows={4}
                        className="textarea"
                     />
@@ -424,7 +434,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                            <FormLabel>Estágio</FormLabel>
                            <FormControl>
-                             <Input placeholder="ex: Floração S3" {...field} disabled={isSubmitting} className="input"/>
+                             <Input placeholder="ex: Floração S3" {...field} disabled={isDisabled} className="input"/>
                            </FormControl>
                            <FormMessage />
                          </FormItem>
@@ -437,7 +447,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                            <FormItem>
                              <FormLabel>Altura (cm)</FormLabel>
                              <FormControl>
-                                <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isSubmitting} className="input"/>
+                                <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isDisabled} className="input"/>
                              </FormControl>
                              <FormMessage />
                            </FormItem>
@@ -450,7 +460,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                              <FormItem>
                                  <FormLabel>EC</FormLabel>
                                  <FormControl>
-                                     <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isSubmitting} className="input"/>
+                                     <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isDisabled} className="input"/>
                                  </FormControl>
                                  <FormMessage />
                              </FormItem>
@@ -463,7 +473,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                              <FormItem>
                                  <FormLabel>pH</FormLabel>
                                  <FormControl>
-                                     <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isSubmitting} className="input"/>
+                                     <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isDisabled} className="input"/>
                                  </FormControl>
                                  <FormMessage />
                              </FormItem>
@@ -476,7 +486,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                              <FormItem>
                                  <FormLabel>Temp (°C)</FormLabel>
                                  <FormControl>
-                                     <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isSubmitting} className="input"/>
+                                     <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isDisabled} className="input"/>
                                  </FormControl>
                                  <FormMessage />
                              </FormItem>
@@ -489,7 +499,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                              <FormItem>
                                  <FormLabel>Umidade (%)</FormLabel>
                                  <FormControl>
-                                     <Input type="number" step="1" placeholder="ex: 55" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isSubmitting} className="input"/>
+                                     <Input type="number" step="1" placeholder="ex: 55" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isDisabled} className="input"/>
                                  </FormControl>
                                  <FormMessage />
                              </FormItem>
@@ -527,7 +537,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                                          <VideoOff className="h-10 w-10 text-destructive mb-3" />
                                          <p className="font-semibold text-destructive">Acesso negado</p>
                                          <p className="text-sm text-center mt-1">{cameraError || "Permissão da câmera negada."}</p>
-                                          <Button variant="secondary" size="sm" className="mt-4 button" onClick={startCamera} >Tentar Novamente</Button> {/* Removed disable */}
+                                          <Button variant="secondary" size="sm" className="mt-4 button" onClick={startCamera} disabled={isDisabled}>Tentar Novamente</Button>
                                      </div>
                                 )}
                                  {cameraStatus === 'error' && (
@@ -535,7 +545,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                                          <AlertCircle className="h-10 w-10 text-destructive mb-3" />
                                          <p className="font-semibold text-destructive">Erro na câmera</p>
                                          <p className="text-sm text-center mt-1">{cameraError || "Não foi possível iniciar a câmera."}</p>
-                                          <Button variant="secondary" size="sm" className="mt-4 button" onClick={startCamera} >Tentar Novamente</Button> {/* Removed disable */}
+                                          <Button variant="secondary" size="sm" className="mt-4 button" onClick={startCamera} disabled={isDisabled}>Tentar Novamente</Button>
                                      </div>
                                 )}
                             </div>
@@ -556,7 +566,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                                      size="sm"
                                      className="absolute bottom-2 right-2 z-10 opacity-80 hover:opacity-100 button"
                                      onClick={() => { setPhotoPreview(null); startCamera(); }}
-                                     disabled={isSubmitting || isAnalyzing} // Remove init error check
+                                     disabled={isDisabled}
                                 >
                                      <RefreshCw className="mr-2 h-4 w-4" /> Retirar Foto
                                 </Button>
@@ -574,7 +584,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                                      size="sm"
                                      className="mt-4 button"
                                      onClick={startCamera}
-                                     disabled={isSubmitting || isAnalyzing || cameraStatus === 'permission-pending'} // Remove init error check
+                                     disabled={isDisabled || cameraStatus === 'permission-pending'}
                                    >
                                      <Camera className="mr-2 h-4 w-4" /> Abrir Câmera
                                 </Button>
@@ -589,7 +599,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                                      size="icon"
                                      className="rounded-full h-12 w-12 shadow-lg button"
                                      onClick={() => { stopMediaStream(); setShowCameraView(false); }}
-                                     disabled={isSubmitting || isAnalyzing} // Remove init error check
+                                     disabled={isDisabled}
                                      aria-label="Cancelar Câmera"
                                 >
                                      <XCircle className="h-6 w-6" />
@@ -600,7 +610,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                                      size="icon"
                                      className="rounded-full h-16 w-16 shadow-lg button border-4 border-background"
                                      onClick={capturePhoto}
-                                     disabled={isSubmitting || isAnalyzing} // Remove init error check
+                                     disabled={isDisabled}
                                      aria-label="Capturar Foto"
                                 >
                                      <Camera className="h-7 w-7" />
@@ -615,7 +625,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <Button
                            type="button"
                            onClick={handleAnalyzePhoto}
-                           disabled={!photoPreview || isAnalyzing || isSubmitting || showCameraView} // Remove init error check
+                           disabled={!photoPreview || isDisabled}
                            variant="secondary"
                            className="w-full button"
                           >
@@ -655,7 +665,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
 
             {/* Submission Area */}
             <div className="pt-4 space-y-3">
-                 {submitError && (
+                 {submitError && !firebaseInitializationError && ( // Only show submit error if no init error
                     <Alert variant="destructive" className="p-3">
                       <AlertCircle className="h-4 w-4"/>
                       <AlertTitle>Erro ao Salvar</AlertTitle>
@@ -663,7 +673,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                      </Alert>
                  )}
 
-                <Button type="submit" size="lg" className="w-full font-semibold button" disabled={isSubmitting || isAnalyzing || showCameraView}>
+                <Button type="submit" size="lg" className="w-full font-semibold button" disabled={isDisabled}>
                    {isSubmitting ? (
                      <>
                        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Salvando Entrada...
@@ -672,8 +682,6 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                      'Salvar Entrada no Diário'
                    )}
                 </Button>
-                {/* Remove message related to login */}
-                 {/* {(!userId || initializationError) && (...) } */}
             </div>
           </form>
         </Form>
@@ -681,3 +689,9 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     </Card>
   );
 }
+
+```
+    </content>
+  </change>
+  <change>
+    

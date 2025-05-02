@@ -60,4 +60,6 @@
     </content>
   </change>
   <change>
-    <file>src/context/auth-context.tsx</
+    <file>src/context/auth-context.tsx</file>
+    <description>Remove AuthProvider component and related logic as login is disabled.</description>
+    <

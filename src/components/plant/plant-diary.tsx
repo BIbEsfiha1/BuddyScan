@@ -13,11 +13,11 @@ import {
 } from 'lucide-react'; // Added User, TestTube2
 import { Badge } from '@/components/ui/badge';
 import type { DiaryEntry } from '@/types/diary-entry';
-// Import localStorage functions for diary entries
-import { loadDiaryEntriesFromLocalStorage, addDiaryEntryToLocalStorage } from '@/types/diary-entry';
+// Import Firestore functions for diary entries
+import { loadDiaryEntriesFromFirestore, addDiaryEntryToFirestore } from '@/types/diary-entry';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert components
 import { Button } from '@/components/ui/button'; // Import Button for refresh
-// import { useAuth } from '@/context/auth-context'; // Remove useAuth import
+import { firebaseInitializationError } from '@/lib/firebase/config'; // Import Firebase error state
 
 interface PlantDiaryProps {
   plantId: string;
@@ -27,22 +27,32 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // const { user, userId } = useAuth(); // Remove auth usage
 
   // Use useCallback to memoize the load function
   const loadEntries = useCallback(async () => {
-    console.log(`Loading entries for plant ${plantId} from localStorage...`);
+    // Check Firebase availability before loading
+    if (firebaseInitializationError) {
+        setError(`Firebase não inicializado: ${firebaseInitializationError.message}`);
+        setIsLoading(false);
+        return;
+    }
+     if (!plantId) {
+       console.warn("loadEntries called without plantId.");
+       setError("ID da planta não fornecido para carregar o diário.");
+       setIsLoading(false);
+       return;
+     }
+
+    console.log(`Loading entries for plant ${plantId} from Firestore...`);
     setIsLoading(true);
     setError(null);
     try {
-      // Simulate slight delay even for localStorage to mimic loading feel
-      await new Promise(resolve => setTimeout(resolve, 100));
-      const fetchedEntries = loadDiaryEntriesFromLocalStorage(plantId);
-      console.log(`Loaded ${fetchedEntries.length} entries.`);
-      setEntries(fetchedEntries);
+      const fetchedEntries = await loadDiaryEntriesFromFirestore(plantId); // Use Firestore function
+      console.log(`Loaded ${fetchedEntries.length} entries from Firestore.`);
+      setEntries(fetchedEntries); // Already sorted by Firestore query
     } catch (err: any) {
-      console.error('Falha ao buscar entradas do diário no localStorage:', err); // Translated
-      setError(`Não foi possível carregar as entradas do diário: ${err.message || 'Erro desconhecido'}`); // Translated & Improved message
+      console.error('Falha ao buscar entradas do diário no Firestore:', err);
+      setError(`Não foi possível carregar as entradas do diário: ${err.message || 'Erro desconhecido'}`);
     } finally {
       setIsLoading(false);
     }
@@ -50,29 +60,31 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
 
   useEffect(() => {
     console.log("PlantDiary useEffect triggered for plantId:", plantId);
-    if (plantId) { // Ensure plantId is available
-        loadEntries();
-    } else {
-        console.warn("PlantDiary mounted without a plantId.");
-        setError("ID da planta não fornecido para carregar o diário.");
-        setIsLoading(false);
-    }
+    loadEntries(); // Load entries when plantId changes or component mounts
     // No cleanup needed here unless there were subscriptions
-  }, [loadEntries, plantId]); // Run effect when loadEntries changes (due to plantId change) or plantId itself changes
+  }, [loadEntries]); // Run effect when loadEntries changes (due to plantId change)
 
    // Handler for when DiaryEntryForm submits a new entry
-   const handleNewEntry = (newEntry: DiaryEntry) => {
-       console.log('Handling new entry in PlantDiary:', newEntry);
-       // The entry is already added to localStorage by the form's submit handler
-       // We just need to update the local state optimistically
-       setEntries(prevEntries => [newEntry, ...prevEntries].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+   // This function is called by DiaryEntryForm AFTER it successfully saves to Firestore
+   const handleNewEntry = (newlyAddedEntry: DiaryEntry) => {
+       console.log('Handling new entry in PlantDiary (already saved to Firestore):', newlyAddedEntry);
+       // Optimistically update the local state
+       // Add the new entry to the beginning (assuming Firestore returns the added doc)
+       setEntries(prevEntries => [newlyAddedEntry, ...prevEntries]);
+       // No need to re-sort if Firestore query sorts and we prepend
    };
 
 
   return (
     <div className="space-y-8">
-      {/* Always show form when authentication is disabled */}
-      <DiaryEntryForm plantId={plantId} onNewEntry={handleNewEntry} />
+      {/* Show form, disable if Firebase has init errors */}
+      <DiaryEntryForm
+        plantId={plantId}
+        onNewEntry={handleNewEntry}
+        // Pass disabled state based on Firebase init error
+        // (Need to add a disabled prop to DiaryEntryForm if not already present)
+        // disabled={!!firebaseInitializationError}
+      />
 
 
       {/* Display existing entries */}
@@ -82,27 +94,37 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                 <CardTitle className="text-2xl">Histórico do Diário</CardTitle>
                 <CardDescription>Registro cronológico de observações e ações.</CardDescription>
             </div>
-             <Button variant="outline" size="sm" onClick={loadEntries} disabled={isLoading} className="button">
+             <Button variant="outline" size="sm" onClick={loadEntries} disabled={isLoading || !!firebaseInitializationError} className="button">
                  {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                  {isLoading ? 'Atualizando...' : 'Atualizar'}
              </Button>
         </CardHeader>
         <CardContent className="space-y-6 pt-4 px-4">
-          {isLoading && (
-             <div className="space-y-6 pt-4">
-               <Skeleton className="h-48 w-full rounded-lg" />
-               <Skeleton className="h-48 w-full rounded-lg" />
-             </div>
-          )}
-          {error && (
-             <Alert variant="destructive" className="mt-4">
-                <AlertTriangle className="h-4 w-4" />
-               <AlertTitle>Erro ao Carregar Diário</AlertTitle>
-               <AlertDescription>{error}</AlertDescription>
-             </Alert>
-          )}
+          {/* Display Firebase Init Error first */}
+           {firebaseInitializationError && !error && ( // Show only if no other loading error
+              <Alert variant="destructive" className="mt-4">
+                 <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Erro de Configuração do Firebase</AlertTitle>
+                <AlertDescription>{firebaseInitializationError.message}. Não é possível carregar ou salvar entradas.</AlertDescription>
+              </Alert>
+           )}
 
-          {!isLoading && !error && entries.length === 0 && (
+           {isLoading && (
+              <div className="space-y-6 pt-4">
+                <Skeleton className="h-48 w-full rounded-lg" />
+                <Skeleton className="h-48 w-full rounded-lg" />
+              </div>
+           )}
+           {error && !firebaseInitializationError && ( // Show specific loading error if no init error
+              <Alert variant="destructive" className="mt-4">
+                 <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Erro ao Carregar Diário</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+           )}
+
+
+          {!isLoading && !error && !firebaseInitializationError && entries.length === 0 && (
             <div className="text-center py-10 text-muted-foreground border border-dashed rounded-lg mt-4">
                 <CalendarDays className="h-12 w-12 mx-auto mb-3 text-secondary/50"/>
                 <p className="font-medium">Nenhuma entrada no diário ainda.</p>
@@ -110,8 +132,8 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
             </div>
           )}
 
-          {/* Entries List */}
-          {!isLoading && !error && entries.length > 0 && (
+          {/* Entries List - Only show if no errors and not loading */}
+          {!isLoading && !error && !firebaseInitializationError && entries.length > 0 && (
             <div className="space-y-6 mt-4">
                 {entries.map((entry) => (
                   <Card key={entry.id} className="border shadow-md overflow-hidden bg-card/60 card">
@@ -119,7 +141,8 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                        <div className="flex items-center gap-2">
                           <CalendarDays className="h-5 w-5 text-primary"/>
                           <span className="font-semibold text-sm text-foreground/90">
-                            {new Date(entry.timestamp).toLocaleString('pt-BR', { dateStyle: 'medium', timeStyle: 'short' })}
+                             {/* Format date from ISO string */}
+                             {entry.timestamp ? new Date(entry.timestamp).toLocaleString('pt-BR', { dateStyle: 'medium', timeStyle: 'short' }) : 'Data inválida'}
                           </span>
                        </div>
                       {entry.stage && <Badge variant="outline" className="text-xs px-2 py-0.5">{entry.stage}</Badge>}
@@ -133,7 +156,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                               {entry.ec !== null && typeof entry.ec !== 'undefined' && <div className="flex items-center gap-1.5"><Activity className="h-4 w-4 text-secondary" /> <span>EC: {entry.ec}</span></div>}
                               {entry.ph !== null && typeof entry.ph !== 'undefined' && <div className="flex items-center gap-1.5"><TestTube2 className="h-4 w-4 text-secondary" /> <span>pH: {entry.ph}</span></div>}
                               {entry.temp !== null && typeof entry.temp !== 'undefined' && <div className="flex items-center gap-1.5"><Thermometer className="h-4 w-4 text-secondary" /> <span>{entry.temp}°C</span></div>}
-                              {entry.humidity !== null && typeof entry.humidity !== 'undefined' && <div className="flex items-center gap-1.5"><Droplets className="h-4 w-4 text-secondary" /> <span>{entry.humidity}%</span></div>}
+                              {entry.humidity !== null && typeof entry.humidity !== 'undefined' && <div className="flex items-center gap-1.5"><Droplet className="h-4 w-4 text-secondary" /> <span>{entry.humidity}%</span></div>}
                           </div>
                       )}
 
@@ -142,16 +165,16 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                            {/* Photo */}
                            {entry.photoUrl && (
                              <div className="lg:w-1/2 flex-shrink-0">
-                               {/* Display Data URI directly */}
+                               {/* Display Data URI directly or Cloud Storage URL */}
                                <Image
                                   data-ai-hint={entry.aiSummary ? `cannabis analysis ${entry.stage?.toLowerCase()}` : `cannabis plant ${entry.stage?.toLowerCase()} diary photo`}
-                                  src={entry.photoUrl} // Assume it's a Data URI
-                                  alt={`Foto da planta em ${new Date(entry.timestamp).toLocaleDateString('pt-BR')}`}
+                                  src={entry.photoUrl}
+                                  alt={`Foto da planta em ${entry.timestamp ? new Date(entry.timestamp).toLocaleDateString('pt-BR') : ''}`}
                                   width={400}
                                   height={300}
                                   className="rounded-lg shadow-md w-full h-auto object-cover border"
                                   onError={(e) => {
-                                     console.warn(`Failed to load image (data URI or URL): ${entry.photoUrl}. Using placeholder.`);
+                                     console.warn(`Failed to load image: ${entry.photoUrl}. Using placeholder.`);
                                      (e.target as HTMLImageElement).src = `https://picsum.photos/seed/cannabis-placeholder/400/300`;
                                      (e.target as HTMLImageElement).srcset = '';
                                   }}
@@ -188,7 +211,6 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                         {/* Author */}
                         <div className="text-xs text-muted-foreground text-right pt-2 border-t mt-4 flex justify-end items-center gap-1">
                            <User className="h-3.5 w-3.5"/>
-                            {/* Display placeholder text when auth is disabled */}
                             Registrado por: <span className="font-medium" title={entry.authorId}>
                                 {entry.authorId === 'guest-user' ? 'Usuário Convidado' : `Usuário (${entry.authorId.substring(0, 6)}...)`}
                            </span>
@@ -203,3 +225,8 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
     </div>
   );
 }
+```
+    </content>
+  </change>
+  <change>
+    <file>src/components/plant/diary-entry-form

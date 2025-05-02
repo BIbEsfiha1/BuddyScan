@@ -1,14 +1,30 @@
 
+import { db, firebaseInitializationError } from '@/lib/firebase/config'; // Import Firestore db instance
+import {
+    collection,
+    doc,
+    getDoc,
+    setDoc,
+    updateDoc,
+    query,
+    where,
+    getDocs,
+    orderBy,
+    limit as firestoreLimit, // Rename limit to avoid conflict
+    Timestamp,
+    writeBatch,
+} from 'firebase/firestore';
+
 /**
  * Representa os dados associados a uma planta de cannabis.
  */
 export interface Plant {
   /**
-   * O identificador único da planta (gerado automaticamente).
+   * O identificador único da planta (gerado automaticamente, também usado como ID do documento Firestore).
    */
   id: string;
   /**
-   * O código QR associado à planta (gerado automaticamente, igual ao id).
+   * O código QR associado à planta (geralmente igual ao id).
    */
   qrCode: string;
   /**
@@ -16,9 +32,9 @@ export interface Plant {
    */
   strain: string;
   /**
-   * A data em que a planta nasceu (foi plantada). Formato ISO 8601.
+   * A data em que a planta nasceu (foi plantada). Armazenado como string ISO 8601.
    */
-  birthDate: string;
+  birthDate: string; // Store as ISO string in object, convert to Timestamp for Firestore
   /**
    * O ID da sala de cultivo onde a planta está localizada.
    */
@@ -27,6 +43,10 @@ export interface Plant {
    * O status atual da planta (ex: Vegetativo, Floração, Secagem).
    */
   status: string;
+  /**
+   * Timestamp de quando a planta foi criada (opcional, mas útil para ordenação). Armazenado como string ISO 8601.
+   */
+  createdAt?: string; // Store as ISO string
 }
 
 // Define os estágios comuns de crescimento da cannabis
@@ -43,194 +63,347 @@ export const CANNABIS_STAGES = [
   'Finalizada', // Finished (e.g., discarded or completed lifecycle)
 ];
 
+// --- Firestore Collection Reference ---
+const plantsCollectionRef = collection(db!, 'plants'); // Assumes db is initialized successfully
 
-const LOCAL_STORAGE_KEY = 'budscanPlants'; // Updated key name
-
-// --- Helper Functions for localStorage ---
-
-/**
- * Loads plants from localStorage.
- * Handles potential errors during parsing.
- * @returns A record of plants or an empty object if none found or error occurs.
- */
-function loadPlantsFromLocalStorage(): Record<string, Plant> {
-  if (typeof window === 'undefined') {
-    // Cannot access localStorage on the server
-    console.warn('Attempted to load plants from localStorage on the server.');
-    return {};
+// Helper to check Firestore availability
+function ensureDbAvailable() {
+  if (firebaseInitializationError) {
+    console.error("Firebase initialization failed:", firebaseInitializationError);
+    throw new Error(`Firebase não inicializado: ${firebaseInitializationError.message}`);
   }
-  try {
-    const storedPlants = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (storedPlants) {
-      return JSON.parse(storedPlants);
-    }
-  } catch (error) {
-    console.error('Error loading plants from localStorage:', error);
-    // Optionally clear corrupted data: localStorage.removeItem(LOCAL_STORAGE_KEY);
-  }
-  return {};
-}
-
-/**
- * Saves the current plant data to localStorage.
- * @param plants The plant data record to save.
- */
-function savePlantsToLocalStorage(plants: Record<string, Plant>): void {
-   if (typeof window === 'undefined') {
-     console.warn('Attempted to save plants to localStorage on the server.');
-     return;
-   }
-  try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(plants));
-  } catch (error) {
-    console.error('Error saving plants to localStorage:', error);
+  if (!db) {
+    throw new Error('Instância do Firestore não está disponível. A inicialização pode ter falhado silenciosamente.');
   }
 }
 
-// --- Service Functions using localStorage ---
+// --- Service Functions using Firestore ---
 
 /**
- * Recupera de forma assíncrona as informações da planta com base em um código QR escaneado.
- * Reads from localStorage.
+ * Recupera de forma assíncrona as informações da planta com base em um ID/código QR.
+ * Reads from Firestore.
  *
- * @param qrCode O código QR escaneado da planta de cannabis.
+ * @param plantId The ID (or QR Code, assuming they are the same) of the plant.
  * @returns Uma promessa que resolve para um objeto Plant se encontrado, caso contrário, null.
  */
-export async function getPlantByQrCode(qrCode: string): Promise<Plant | null> {
-  // Simulate potential async nature if this were a real API
-  await new Promise(resolve => setTimeout(resolve, 50));
+export async function getPlantById(plantId: string): Promise<Plant | null> {
+  ensureDbAvailable();
+  console.log(`Buscando planta com ID: ${plantId} no Firestore.`);
+  try {
+    const plantDocRef = doc(db!, 'plants', plantId);
+    const plantSnap = await getDoc(plantDocRef);
 
-  console.log(`Buscando planta com QR Code: ${qrCode} no localStorage.`);
-  const plants = loadPlantsFromLocalStorage();
-  // Find the plant by QR code - iterate as QR code might not be the key if ID differs
-  const plant = Object.values(plants).find(p => p.qrCode === qrCode);
-
-  if (plant) {
-    console.log(`Planta encontrada: ${plant.strain} (ID: ${plant.id})`);
-    return plant;
-  } else {
-    console.warn(`Nenhuma planta encontrada para o QR Code: ${qrCode}`);
-    return null;
+    if (plantSnap.exists()) {
+      const data = plantSnap.data();
+      console.log(`Planta encontrada:`, data);
+      // Convert Timestamps back to ISO strings if needed
+      const birthDate = (data.birthDate as Timestamp)?.toDate().toISOString() ?? data.birthDate; // Handle potential direct string storage too
+      const createdAt = (data.createdAt as Timestamp)?.toDate().toISOString() ?? data.createdAt;
+      return { ...data, id: plantSnap.id, birthDate, createdAt } as Plant;
+    } else {
+      console.warn(`Nenhuma planta encontrada para o ID: ${plantId}`);
+      return null;
+    }
+  } catch (error) {
+    console.error(`Erro ao buscar planta ${plantId} no Firestore:`, error);
+    throw new Error(`Falha ao buscar dados da planta: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
   }
 }
 
+// Alias for getPlantByQrCode assuming qrCode === id
+export const getPlantByQrCode = getPlantById;
+
 
 /**
- * Adiciona uma nova planta ao armazenamento de dados (localStorage).
+ * Adiciona uma nova planta ao Firestore.
  * O ID e o QR Code são passados como parte do objeto plantData (gerados antes de chamar esta função).
  *
  * @param plantData Os dados da nova planta a ser adicionada, incluindo o ID e QR Code gerados.
- * @returns Uma promessa que resolve quando a planta é adicionada. Rejeita se o ID já existir.
+ * @returns Uma promessa que resolve quando a planta é adicionada. Rejeita se o ID já existir ou em caso de erro.
  */
 export async function addPlant(plantData: Plant): Promise<void> {
-  // Simulate potential async nature
-  await new Promise(resolve => setTimeout(resolve, 100));
+  ensureDbAvailable();
+  console.log(`Adicionando planta com ID: ${plantData.id} ao Firestore.`);
 
-  console.log(`Adicionando planta com ID/QR Code: ${plantData.id} ao localStorage.`);
-  const plants = loadPlantsFromLocalStorage();
+  try {
+    const plantDocRef = doc(db!, 'plants', plantData.id);
 
-  if (plants[plantData.id]) {
-    console.error(`Erro: ID '${plantData.id}' já existe no localStorage.`);
-    throw new Error(`O ID '${plantData.id}' já está em uso.`);
+    // Optional: Check if document already exists (setDoc overwrites, but good practice to check if needed)
+    const docSnap = await getDoc(plantDocRef);
+    if (docSnap.exists()) {
+      console.error(`Erro: Documento com ID '${plantData.id}' já existe no Firestore.`);
+      throw new Error(`O ID da planta '${plantData.id}' já está em uso.`);
+    }
+
+    const now = new Date();
+    const dataToSave = {
+      ...plantData,
+      birthDate: Timestamp.fromDate(new Date(plantData.birthDate)), // Convert ISO string to Timestamp
+      createdAt: Timestamp.fromDate(now), // Add creation timestamp
+    };
+
+    // Remove id from the data object itself, as it's the document ID
+    delete (dataToSave as any).id;
+
+
+    await setDoc(plantDocRef, dataToSave);
+    console.log(`Planta '${plantData.strain}' adicionada com sucesso com ID: ${plantData.id}.`);
+
+  } catch (error) {
+    console.error(`Erro ao adicionar planta ${plantData.id} ao Firestore:`, error);
+     throw new Error(`Falha ao adicionar planta: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
   }
-
-  plants[plantData.id] = { ...plantData };
-  savePlantsToLocalStorage(plants);
-  console.log(`Planta '${plantData.strain}' adicionada com sucesso com ID: ${plantData.id}.`);
 }
 
 /**
- * Updates the status of an existing plant in localStorage.
+ * Updates the status of an existing plant in Firestore.
  *
  * @param plantId The ID of the plant to update.
  * @param newStatus The new status string.
- * @returns A promise that resolves when the plant status is updated. Rejects if the plant ID is not found.
+ * @returns A promise that resolves when the plant status is updated. Rejects if the plant ID is not found or on error.
  */
 export async function updatePlantStatus(plantId: string, newStatus: string): Promise<void> {
-    // Simulate potential async nature
-    await new Promise(resolve => setTimeout(resolve, 50));
+  ensureDbAvailable();
+  console.log(`Atualizando status da planta ID: ${plantId} para "${newStatus}" no Firestore.`);
 
-    console.log(`Atualizando status da planta ID: ${plantId} para "${newStatus}" no localStorage.`);
-    const plants = loadPlantsFromLocalStorage();
+  // Validate if newStatus is one of the allowed stages (optional but good practice)
+  if (!CANNABIS_STAGES.includes(newStatus)) {
+       console.warn(`Status "${newStatus}" não é um estágio padrão. Salvando mesmo assim.`);
+      // Optionally throw an error: throw new Error(`Status inválido: ${newStatus}`);
+  }
 
-    if (!plants[plantId]) {
-        console.error(`Erro: Planta com ID '${plantId}' não encontrada para atualização de status.`);
-        throw new Error(`Planta com ID '${plantId}' não encontrada.`);
+  try {
+    const plantDocRef = doc(db!, 'plants', plantId);
+    await updateDoc(plantDocRef, {
+      status: newStatus,
+      // Optionally update a 'lastUpdated' timestamp here too
+      // lastUpdatedAt: Timestamp.now(),
+    });
+    console.log(`Status da planta (ID: ${plantId}) atualizado para "${newStatus}".`);
+  } catch (error) {
+    console.error(`Erro ao atualizar status da planta ${plantId} no Firestore:`, error);
+    // Check if the error is due to the document not existing
+    if ((error as any).code === 'not-found') {
+      throw new Error(`Planta com ID '${plantId}' não encontrada para atualização.`);
     }
-
-    // Validate if newStatus is one of the allowed stages (optional but good practice)
-    if (!CANNABIS_STAGES.includes(newStatus)) {
-         console.warn(`Status "${newStatus}" não é um estágio padrão. Salvando mesmo assim.`);
-        // Optionally throw an error: throw new Error(`Status inválido: ${newStatus}`);
-    }
-
-
-    plants[plantId].status = newStatus;
-    savePlantsToLocalStorage(plants);
-    console.log(`Status da planta '${plants[plantId].strain}' (ID: ${plantId}) atualizado para "${newStatus}".`);
+     throw new Error(`Falha ao atualizar status da planta: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+  }
 }
 
 
 /**
- * Recupera uma lista de plantas recentes do localStorage.
- * Ordena por data de nascimento como proxy para data de criação/atualização.
+ * Recupera uma lista de plantas recentes do Firestore.
+ * Ordena por data de criação (createdAt).
  *
- * @param limit O número máximo de plantas recentes a serem retornadas.
+ * @param count O número máximo de plantas recentes a serem retornadas.
  * @returns Uma promessa que resolve para um array de objetos Plant.
  */
-export async function getRecentPlants(limit: number = 3): Promise<Plant[]> {
-  await new Promise(resolve => setTimeout(resolve, 50)); // Simulate delay
-  console.log('Buscando plantas recentes do localStorage...');
+export async function getRecentPlants(count: number = 3): Promise<Plant[]> {
+  ensureDbAvailable();
+  console.log(`Buscando ${count} plantas recentes do Firestore...`);
+  try {
+    const q = query(plantsCollectionRef, orderBy('createdAt', 'desc'), firestoreLimit(count));
+    const querySnapshot = await getDocs(q);
 
-  const plants = loadPlantsFromLocalStorage();
-  const allPlants = Object.values(plants);
-
-  // Sort by birthDate (newest first)
-  const sortedPlants = allPlants.sort((a, b) =>
-    new Date(b.birthDate).getTime() - new Date(a.birthDate).getTime()
-  );
-
-  return sortedPlants.slice(0, limit);
+    const plants: Plant[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      const birthDate = (data.birthDate as Timestamp)?.toDate().toISOString() ?? data.birthDate;
+      const createdAt = (data.createdAt as Timestamp)?.toDate().toISOString() ?? data.createdAt;
+      plants.push({ ...data, id: doc.id, birthDate, createdAt } as Plant);
+    });
+    console.log(`Retornadas ${plants.length} plantas recentes.`);
+    return plants;
+  } catch (error) {
+    console.error('Erro ao buscar plantas recentes no Firestore:', error);
+    throw new Error(`Falha ao buscar plantas recentes: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+  }
 }
 
 /**
- * Recupera uma lista de plantas que precisam de atenção do localStorage.
- * Logic is client-side based on status keywords.
+ * Recupera uma lista de plantas que precisam de atenção do Firestore.
+ * A lógica para "atenção" agora precisa ser implementada no Firestore (por exemplo, um campo 'needsAttention' ou consulta por status específicos).
+ * ESTA IMPLEMENTAÇÃO É UM EXEMPLO SIMPLES - Ajuste conforme necessário.
  *
- * @param limit O número máximo de plantas a serem retornadas.
+ * @param count O número máximo de plantas a serem retornadas.
  * @returns Uma promessa que resolve para um array de objetos Plant.
  */
- export async function getAttentionPlants(limit: number = 3): Promise<Plant[]> {
-    await new Promise(resolve => setTimeout(resolve, 50)); // Simulate delay
-    console.log('Buscando plantas que precisam de atenção no localStorage...');
+ export async function getAttentionPlants(count: number = 3): Promise<Plant[]> {
+    ensureDbAvailable();
+    console.log(`Buscando ${count} plantas que precisam de atenção no Firestore...`);
+    try {
+      // EXEMPLO: Buscar plantas com status específicos que indicam atenção
+      // Adapte 'status' e os valores conforme sua lógica de negócio
+      const attentionStatuses = ['Problema Detectado', 'Deficiência', 'Doente']; // Status que indicam atenção
+      const q = query(
+          plantsCollectionRef,
+          where('status', 'in', attentionStatuses),
+          orderBy('createdAt', 'desc'), // Ou ordene por outro campo relevante
+          firestoreLimit(count)
+      );
+      const querySnapshot = await getDocs(q);
 
-    const plants = loadPlantsFromLocalStorage();
-    const allPlants = Object.values(plants);
-
-    // Simple client-side filter based on status keywords
-    const attentionKeywords = ['problema', 'deficiência', 'excesso', 'praga', 'doença', 'amarel', 'queima', 'lento']; // Example keywords
-    const attentionPlants = allPlants.filter(plant =>
-        attentionKeywords.some(keyword => plant.status.toLowerCase().includes(keyword))
-    );
-
-    // Optionally, sort by date or another factor if needed
-    attentionPlants.sort((a, b) => new Date(b.birthDate).getTime() - new Date(a.birthDate).getTime());
-
-    return attentionPlants.slice(0, limit);
+      const plants: Plant[] = [];
+      querySnapshot.forEach((doc) => {
+          const data = doc.data();
+           const birthDate = (data.birthDate as Timestamp)?.toDate().toISOString() ?? data.birthDate;
+           const createdAt = (data.createdAt as Timestamp)?.toDate().toISOString() ?? data.createdAt;
+          plants.push({ ...data, id: doc.id, birthDate, createdAt } as Plant);
+      });
+      console.log(`Retornadas ${plants.length} plantas que precisam de atenção.`);
+      return plants;
+    } catch (error) {
+        console.error('Erro ao buscar plantas que precisam de atenção no Firestore:', error);
+        throw new Error(`Falha ao buscar plantas com atenção: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    }
  }
 
 
  /**
-  * Recupera todas as plantas do localStorage.
+  * Recupera todas as plantas do Firestore.
+  * Ordena alfabeticamente por nome da variedade (strain).
   * @returns Uma promessa que resolve para um array com todos os objetos Plant.
   */
  export async function getAllPlants(): Promise<Plant[]> {
-    await new Promise(resolve => setTimeout(resolve, 50));
-    console.log('Buscando todas as plantas do localStorage...');
-    const plants = loadPlantsFromLocalStorage();
-    const allPlants = Object.values(plants);
-    // Sort alphabetically by strain name for consistent display
-    allPlants.sort((a, b) => a.strain.localeCompare(b.strain));
-    console.log(`Retornando ${allPlants.length} plantas.`);
-    return allPlants;
+    ensureDbAvailable();
+    console.log('Buscando todas as plantas do Firestore...');
+    try {
+        // Ordenar por 'strain' pode exigir um índice composto no Firestore se você combinar com outros filtros/ordens.
+        // Ordenar por 'createdAt' ou 'birthDate' é geralmente mais eficiente sem índices personalizados.
+        const q = query(plantsCollectionRef, orderBy('strain', 'asc')); // Ou orderBy('createdAt', 'desc')
+        const querySnapshot = await getDocs(q);
+
+        const plants: Plant[] = [];
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+             const birthDate = (data.birthDate as Timestamp)?.toDate().toISOString() ?? data.birthDate;
+             const createdAt = (data.createdAt as Timestamp)?.toDate().toISOString() ?? data.createdAt;
+            plants.push({ ...data, id: doc.id, birthDate, createdAt } as Plant);
+        });
+        console.log(`Retornadas ${plants.length} plantas.`);
+        // Sorting client-side might be needed if Firestore ordering isn't exactly right or possible
+        // plants.sort((a, b) => a.strain.localeCompare(b.strain));
+        return plants;
+    } catch (error) {
+        console.error('Erro ao buscar todas as plantas no Firestore:', error);
+        throw new Error(`Falha ao buscar todas as plantas: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    }
  }
+
+ // Exemplo de como migrar dados do localStorage para o Firestore (EXECUTAR UMA VEZ)
+ export async function migrateLocalStorageToFirestore() {
+    if (typeof window === 'undefined') {
+        console.log("A migração só pode ser executada no lado do cliente.");
+        return;
+    }
+
+    ensureDbAvailable();
+    console.log("Iniciando migração do localStorage para o Firestore...");
+
+    const localPlants = loadPlantsFromLocalStorage(); // Sua função existente
+    const plantEntries = Object.values(localPlants);
+
+    if (plantEntries.length === 0) {
+        console.log("Nenhuma planta encontrada no localStorage para migrar.");
+        return;
+    }
+
+    const batch = writeBatch(db!);
+    let writeCount = 0;
+
+    for (const plant of plantEntries) {
+        try {
+            const plantDocRef = doc(db!, 'plants', plant.id);
+            // Verifique se já existe no Firestore para evitar sobrescrever acidentalmente
+            const docSnap = await getDoc(plantDocRef);
+            if (docSnap.exists()) {
+                console.log(`Planta ID ${plant.id} já existe no Firestore. Ignorando.`);
+                continue; // Pula esta planta
+            }
+
+            const dataToSave = {
+                ...plant,
+                birthDate: Timestamp.fromDate(new Date(plant.birthDate)),
+                createdAt: Timestamp.fromDate(new Date(plant.createdAt || plant.birthDate)), // Use birthDate se createdAt não existir
+            };
+            delete (dataToSave as any).id; // Não salve o ID dentro do documento
+
+            batch.set(plantDocRef, dataToSave);
+            writeCount++;
+            console.log(`Preparando planta ID ${plant.id} (${plant.strain}) para o batch.`);
+
+            // Commits em lotes para evitar exceder limites
+            if (writeCount % 400 === 0) {
+                console.log(`Committing batch de ${writeCount % 400 === 0 ? 400 : writeCount % 400} plantas...`);
+                await batch.commit();
+                // batch = writeBatch(db); // Inicia um novo batch após commit
+                // É mais seguro recriar o batch:
+                // batch = writeBatch(db!); // Comentado - recrie o batch antes do próximo loop se necessário
+                console.log("Batch commitado com sucesso.");
+                 // Reinicia o batch para o próximo lote
+                 // batch = writeBatch(db!); // Comentado - Precisa ser recriado antes da próxima adição
+                 // Recreate the batch inside the loop before the next addition
+                 // If you commit inside the loop, you need a new batch instance.
+                 // For simplicity, let's handle the final commit outside the loop.
+            }
+        } catch (error) {
+            console.error(`Erro ao preparar a planta ID ${plant.id} para o batch:`, error);
+            // Considere parar a migração ou registrar o erro e continuar
+        }
+    }
+
+    try {
+        if (writeCount > 0) { // Commit final se houver escritas pendentes
+             console.log(`Committing batch final de ${writeCount % 400 === 0 ? (plantEntries.length % 400) : writeCount % 400 } plantas...`);
+             await batch.commit();
+             console.log("Batch final commitado com sucesso.");
+             console.log(`Migração concluída. ${writeCount} plantas migradas para o Firestore.`);
+             // Opcional: Limpar o localStorage após a migração bem-sucedida
+             // localStorage.removeItem(LOCAL_STORAGE_KEY);
+             // console.log("Dados do localStorage removidos após migração.");
+        } else {
+             console.log("Nenhuma nova planta para commitar no batch final.");
+        }
+    } catch (error) {
+        console.error('Erro ao commitar o batch final:', error);
+        console.error("A migração pode não ter sido totalmente concluída.");
+    }
+ }
+
+
+// --- Helper Function for Loading Plants (used by dashboard components) ---
+
+/**
+ * Loads plants from the appropriate source (Firestore).
+ * @returns A record of plants or an empty object if none found or error occurs.
+ */
+async function loadPlants(): Promise<Record<string, Plant>> {
+    const plants = await getAllPlants(); // Fetch all plants from Firestore
+    const plantRecord: Record<string, Plant> = {};
+    plants.forEach(plant => {
+        plantRecord[plant.id] = plant;
+    });
+    return plantRecord;
+}
+
+// Expose loadPlants if needed elsewhere, or keep it internal
+// export { loadPlants };
+
+// Remove localStorage specific functions or comment them out
+// function loadPlantsFromLocalStorage(): Record<string, Plant> { ... }
+// function savePlantsToLocalStorage(plants: Record<string, Plant>): void { ... }
+const LOCAL_STORAGE_KEY = 'budscanPlants_DISABLED'; // Disable localStorage key
+
+function loadPlantsFromLocalStorage(): Record<string, Plant> {
+    console.warn("loadPlantsFromLocalStorage está desabilitado. Usando Firestore.");
+    return {};
+}
+
+function savePlantsToLocalStorage(plants: Record<string, Plant>): void {
+    console.warn("savePlantsToLocalStorage está desabilitado. Usando Firestore.");
+}
+```
+    </content>
+  </change>
+  <change>
+    <file>src/app/page

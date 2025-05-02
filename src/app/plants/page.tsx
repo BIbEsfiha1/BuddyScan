@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { getAllPlants, CANNABIS_STAGES, Plant } from '@/services/plant-id';
+import { getAllPlants, CANNABIS_STAGES, Plant } from '@/services/plant-id'; // Import Firestore functions
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, ListFilter, X, ArrowRight, Sprout, History, Search } from 'lucide-react'; // Added Search
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/hooks/use-toast'; // Import useToast
 
 const ALL_STATUSES_VALUE = "all_statuses";
 const ALL_ROOMS_VALUE = "all_rooms";
@@ -23,6 +24,7 @@ interface Filters {
 }
 
 export default function AllPlantsPage() {
+  const { toast } = useToast();
   const [allPlants, setAllPlants] = useState<Plant[]>([]);
   const [displayedPlants, setDisplayedPlants] = useState<Plant[]>([]);
   // Store the raw filter selection, including "all" values
@@ -30,26 +32,30 @@ export default function AllPlantsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch all plants on mount
+  // Fetch all plants from Firestore on mount
   useEffect(() => {
     const fetchPlants = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        console.log("Fetching all plants from service...");
-        const fetchedPlants = await getAllPlants();
+        console.log("Fetching all plants from Firestore service...");
+        const fetchedPlants = await getAllPlants(); // Use Firestore function
         console.log(`Fetched ${fetchedPlants.length} plants.`);
         setAllPlants(fetchedPlants);
-        // Don't set displayedPlants here, let the filter effect handle it
       } catch (e) {
-        console.error('Failed to fetch all plant data:', e);
-        setError('Falha ao carregar a lista de plantas.');
+        console.error('Failed to fetch all plant data from Firestore:', e);
+        setError(`Falha ao carregar a lista de plantas: ${e instanceof Error ? e.message : 'Erro desconhecido'}`);
+         toast({
+           variant: 'destructive',
+           title: 'Erro ao Carregar Plantas',
+           description: `Não foi possível buscar os dados das plantas. ${e instanceof Error ? e.message : ''}`,
+         });
       } finally {
         setIsLoading(false);
       }
     };
     fetchPlants();
-  }, []);
+  }, [toast]); // Add toast to dependency array
 
   // Filter plants when selectedFilters or allPlants change
   useEffect(() => {
@@ -78,7 +84,6 @@ export default function AllPlantsPage() {
   }, [selectedFilters, allPlants]);
 
   const handleFilterChange = (filterName: keyof Filters, value: string) => {
-     // Directly update the selected filters state
      setSelectedFilters(prevFilters => ({
         ...prevFilters,
         [filterName]: value,
@@ -91,7 +96,7 @@ export default function AllPlantsPage() {
 
   // Get unique grow rooms for the filter dropdown
   const uniqueGrowRooms = useMemo(() => {
-    const rooms = new Set(allPlants.map(plant => plant.growRoomId));
+    const rooms = new Set(allPlants.map(plant => plant.growRoomId).filter(Boolean)); // Filter out potential null/empty values
     return Array.from(rooms).sort();
   }, [allPlants]);
 
@@ -139,14 +144,13 @@ export default function AllPlantsPage() {
           <div className="space-y-1">
              <label htmlFor="status-filter" className="text-sm font-medium text-muted-foreground flex items-center gap-1"><Sprout className="h-4 w-4"/> Filtrar por Status</label>
             <Select
-                value={selectedFilters.status} // Use selectedFilters state
+                value={selectedFilters.status}
                 onValueChange={(value) => handleFilterChange('status', value)}
             >
               <SelectTrigger id="status-filter" className="input">
                 <SelectValue placeholder="Todos os Status" />
               </SelectTrigger>
               <SelectContent>
-                {/* Use the specific value for the "All" option */}
                 <SelectItem value={ALL_STATUSES_VALUE}>Todos os Status</SelectItem>
                 {CANNABIS_STAGES.map((stage) => (
                   <SelectItem key={stage} value={stage}>{stage}</SelectItem>
@@ -159,7 +163,7 @@ export default function AllPlantsPage() {
           <div className="space-y-1">
               <label htmlFor="room-filter" className="text-sm font-medium text-muted-foreground flex items-center gap-1"><Sprout className="h-4 w-4"/> Filtrar por Sala</label>
              <Select
-                value={selectedFilters.growRoom} // Use selectedFilters state
+                value={selectedFilters.growRoom}
                 onValueChange={(value) => handleFilterChange('growRoom', value)}
                 disabled={uniqueGrowRooms.length === 0}
              >
@@ -167,7 +171,6 @@ export default function AllPlantsPage() {
                  <SelectValue placeholder="Todas as Salas" />
                </SelectTrigger>
                <SelectContent>
-                  {/* Use the specific value for the "All" option */}
                  <SelectItem value={ALL_ROOMS_VALUE}>Todas as Salas</SelectItem>
                  {uniqueGrowRooms.map((room) => (
                    <SelectItem key={room} value={room}>{room}</SelectItem>
@@ -208,7 +211,7 @@ export default function AllPlantsPage() {
           ) : error ? (
             <p className="text-center text-destructive py-10">{error}</p>
           ) : displayedPlants.length === 0 ? (
-             allPlants.length > 0 ? ( // Check if there are plants but filters match none
+             allPlants.length > 0 ? (
                 <p className="text-center text-muted-foreground py-10">Nenhuma planta encontrada com os filtros aplicados.</p>
              ) : (
                  <p className="text-center text-muted-foreground py-10">Nenhuma planta cadastrada ainda.</p>
@@ -217,7 +220,8 @@ export default function AllPlantsPage() {
             <ul className="divide-y divide-border">
               {displayedPlants.map((plant) => (
                 <li key={plant.id} className="py-3 group hover:bg-muted/30 rounded-md transition-colors duration-150">
-                  <Link href={`/plant/${plant.qrCode}`} className="flex items-center space-x-4 px-2">
+                   {/* Link uses plant.id now, assuming qrCode === id */}
+                  <Link href={`/plant/${plant.id}`} className="flex items-center space-x-4 px-2">
                     <div className="flex-shrink-0">
                       <Image
                         data-ai-hint={`cannabis plant ${plant.status.toLowerCase()}`}
@@ -235,7 +239,8 @@ export default function AllPlantsPage() {
                          <span>·</span>
                          <span>Sala: {plant.growRoomId}</span>
                          <span>·</span>
-                         <span>{`Plantada: ${new Date(plant.birthDate).toLocaleDateString('pt-BR')}`}</span>
+                         {/* Format date from ISO string */}
+                         <span>{`Plantada: ${plant.birthDate ? new Date(plant.birthDate).toLocaleDateString('pt-BR') : 'N/A'}`}</span>
                       </div>
                     </div>
                     <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
@@ -249,5 +254,8 @@ export default function AllPlantsPage() {
     </div>
   );
 }
-
-    
+```
+    </content>
+  </change>
+  <change>
+    <file>src/app

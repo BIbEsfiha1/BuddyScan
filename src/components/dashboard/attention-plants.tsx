@@ -43,12 +43,13 @@ export default function AttentionPlants({ plants }: AttentionPlantsProps) {
               // Derive attention reason and last updated from plant data here
               const attentionReason = `Status: ${plant.status}`; // Simple reason
               // Using birthDate as a proxy for last updated date in this simplified version
-              const lastUpdated = `Cadastrada em: ${new Date(plant.birthDate).toLocaleDateString('pt-BR')}`;
+               const lastUpdated = `Cadastrada em: ${plant.createdAt ? new Date(plant.createdAt).toLocaleDateString('pt-BR') : (plant.birthDate ? new Date(plant.birthDate).toLocaleDateString('pt-BR') : 'N/A')}`;
+
 
               return (
                 <li key={plant.id} className="py-3 group hover:bg-destructive/5 rounded-md transition-colors duration-150">
-                  {/* Ensure Link points to the correct plant page using qrCode */}
-                  <Link href={`/plant/${plant.qrCode}`} className="flex items-center space-x-4 px-2">
+                  {/* Ensure Link points to the correct plant page using plant.id */}
+                  <Link href={`/plant/${plant.id}`} className="flex items-center space-x-4 px-2">
                      <div className="flex-shrink-0">
                       <Image
                         // Updated hint to be more specific for AI search
@@ -91,3 +92,9 @@ export default function AttentionPlants({ plants }: AttentionPlantsProps) {
     </Card>
   );
 }
+
+```
+    </content>
+  </change>
+  <change>
+    <file>src/components

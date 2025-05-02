@@ -20,7 +20,7 @@ import RecentPlants from '@/components/dashboard/recent-plants';
 import AttentionPlants from '@/components/dashboard/attention-plants';
 import { Separator } from '@/components/ui/separator';
 import type { Plant } from '@/services/plant-id'; // Import Plant type
-import { getRecentPlants, getAttentionPlants } from '@/services/plant-id'; // Import fetch functions
+import { getRecentPlants, getAttentionPlants, getPlantById } from '@/services/plant-id'; // Import Firestore fetch functions
 import Image from 'next/image'; // Import Image component
 
 
@@ -72,24 +72,24 @@ export default function Home() {
 
    // --- Fetch Plant Data Function ---
    const fetchPlants = useCallback(async () => {
-     console.log("Fetching plant data from service...");
+     console.log("Fetching plant data from Firestore service...");
      setIsLoadingPlants(true);
      try {
-       // Use the persistent service functions
+       // Use the Firestore service functions
        const [fetchedRecent, fetchedAttention] = await Promise.all([
-         getRecentPlants(3), // Fetch 3 recent plants
-         getAttentionPlants(3) // Fetch 3 attention plants
+         getRecentPlants(3), // Fetch 3 recent plants from Firestore
+         getAttentionPlants(3) // Fetch 3 attention plants from Firestore
        ]);
        console.log("Fetched recent plants:", fetchedRecent);
        console.log("Fetched attention plants:", fetchedAttention);
        setRecentPlants(fetchedRecent);
        setAttentionPlants(fetchedAttention);
      } catch (error) {
-       console.error('Failed to fetch plant data:', error);
+       console.error('Failed to fetch plant data from Firestore:', error);
        toast({
          variant: 'destructive',
          title: 'Erro ao Carregar Dados',
-         description: 'Não foi possível buscar os dados das plantas do armazenamento local.',
+         description: `Não foi possível buscar os dados das plantas. ${error instanceof Error ? error.message : ''}`,
        });
      } finally {
        setIsLoadingPlants(false);
@@ -255,11 +255,10 @@ export default function Home() {
   }, [stopMediaStream, toast]); // Dependencies: cleanup func, toast
 
   // Define handleOpenChange *before* it's used as a dependency.
-  // Use placeholder for close logic initially, then refine.
   const handleOpenChangeCallbackRef = useRef<(open: boolean) => void>();
 
    // --- Start Scanning Interval ---
-   const startScanning = useCallback(() => {
+   const startScanning = useCallback(async () => { // Make async to potentially check plant existence
       stopScanInterval(); // Clear any existing interval first
       console.log("Attempting to start scan interval...");
 
@@ -273,25 +272,20 @@ export default function Home() {
 
       if (!videoRef.current || videoRef.current.paused || videoRef.current.ended || !videoRef.current.srcObject || videoRef.current.readyState < videoRef.current.HAVE_ENOUGH_DATA || videoRef.current.videoWidth === 0) {
           console.warn(`Video not ready/playing/attached for scanning. Status: ${scannerStatus}, Ref: ${!!videoRef.current}, Paused: ${videoRef.current?.paused}, Ended: ${videoRef.current?.ended}, SrcObj: ${!!videoRef.current?.srcObject}, ReadyState: ${videoRef.current?.readyState}, Width: ${videoRef.current?.videoWidth}`);
-          // Don't immediately set to error, let video events potentially trigger it again.
-          // Consider setting a timeout to try again briefly?
-          // If status is already 'scanning', maybe set back to 'initializing'?
            if (scannerStatus === 'scanning') {
                console.log("Scan attempt failed while status was 'scanning', resetting to 'initializing'.");
-               setScannerStatus('initializing'); // Revert to initializing if scan failed immediately
+               setScannerStatus('initializing');
            }
-          return; // Don't start interval if video isn't ready
+          return;
       }
 
      setScannerStatus('scanning');
      console.log("Scanner status set to 'scanning'. Interval starting.");
 
      scanIntervalRef.current = setInterval(async () => {
-         // Check conditions *inside* interval for robustness
          if (!videoRef.current || videoRef.current.paused || videoRef.current.ended || !isDialogOpen || scannerStatus !== 'scanning' || videoRef.current.readyState < videoRef.current.HAVE_ENOUGH_DATA || videoRef.current.videoWidth === 0) {
              console.log(`Scan interval tick skipped or stopping. Status: ${scannerStatus}, Dialog: ${isDialogOpen}, Video Paused: ${videoRef.current?.paused}, Ready: ${videoRef.current?.readyState}, Width: ${videoRef.current?.videoWidth}`);
-             stopScanInterval(); // Stop if conditions are no longer met
-             // Don't automatically stop the stream here, maybe let the close handler do it
+             stopScanInterval();
              return;
          }
 
@@ -304,49 +298,63 @@ export default function Home() {
               return;
           }
 
-          // console.log("Attempting barcode detection..."); // Reduce log noise
           const barcodes = await barcodeDetectorRef.current.detect(videoRef.current);
-          // console.log(`Detection result: ${barcodes.length} barcode(s) found.`); // Reduce log noise
 
-         if (barcodes.length > 0 && scannerStatus === 'scanning' && isDialogOpen) { // Double check status and dialog open
+         if (barcodes.length > 0 && scannerStatus === 'scanning' && isDialogOpen) {
            const qrCodeData = barcodes[0].rawValue;
            console.log('QR Code detectado:', qrCodeData);
 
-           stopScanInterval(); // Stop scanning interval first
-           setScannerStatus('stopped'); // Indicate scanning stopped successfully (keeps video frame)
+           // --- Verification Step ---
+           stopScanInterval(); // Stop scanning first
+           setScannerStatus('stopped'); // Keep video frame, indicate stopped
 
-           toast({ title: 'QR Code Detectado!', description: `Redirecionando para planta ${qrCodeData}...` });
+           toast({ title: 'QR Code Detectado!', description: `Verificando planta ${qrCodeData}...` });
 
-           // Use sessionStorage to pass data before navigation
-           sessionStorage.setItem('pendingNavigationQr', qrCodeData);
-           // Call handleOpenChange(false) to trigger close and navigation
-           if (handleOpenChangeCallbackRef.current) {
-             console.log("Triggering dialog close via handleOpenChange(false) after QR detection.");
-             handleOpenChangeCallbackRef.current(false);
-           } else {
-              console.error("handleOpenChange callback ref not set when QR code detected!");
-              // Fallback? Close manually?
-              setIsDialogOpen(false); // Force close if callback is missing
-              // router.push(`/plant/${qrCodeData}`); // Manually navigate? Risky.
+           try {
+             const plantExists = await getPlantById(qrCodeData); // Check Firestore
+             if (plantExists) {
+                 console.log(`Planta ${qrCodeData} encontrada no Firestore. Redirecionando...`);
+                 sessionStorage.setItem('pendingNavigationQr', qrCodeData);
+                 if (handleOpenChangeCallbackRef.current) {
+                   console.log("Triggering dialog close via handleOpenChange(false) after QR verification.");
+                   handleOpenChangeCallbackRef.current(false); // Close dialog and navigate
+                 } else {
+                    console.error("handleOpenChange callback ref not set when QR code verified!");
+                    setIsDialogOpen(false); // Force close as fallback
+                 }
+             } else {
+                 console.warn(`Planta ${qrCodeData} não encontrada no Firestore.`);
+                 toast({
+                     variant: 'destructive',
+                     title: 'Planta Não Encontrada',
+                     description: `O QR code ${qrCodeData} foi lido, mas a planta não existe no banco de dados.`,
+                 });
+                 // Keep dialog open, reset status to allow rescanning or closing
+                 setScannerStatus('initializing'); // Go back to initializing to allow rescan attempts
+                 startScanning(); // Optionally restart scanning automatically
+             }
+           } catch (verificationError) {
+               console.error(`Erro ao verificar planta ${qrCodeData}:`, verificationError);
+               toast({
+                   variant: 'destructive',
+                   title: 'Erro na Verificação',
+                   description: 'Não foi possível verificar a existência da planta. Tente novamente.',
+               });
+               setScannerStatus('error');
+               setScannerError('Erro ao verificar a planta no banco de dados.');
            }
 
          }
        } catch (error: any) {
-         // Ignore detection errors if they are DOMExceptions (can happen during stream transitions)
          if (error instanceof DOMException && (error.name === 'NotSupportedError' || error.name === 'InvalidStateError' || error.name === 'OperationError')) {
              console.warn('DOMException during barcode detection (likely temporary/benign):', error.message);
          } else {
              console.error('Erro durante a detecção do código de barras:', error);
-             // More cautious error handling - maybe don't stop everything?
-             // Consider logging without stopping if errors are frequent but temporary
-             // stopScanInterval();
-             // setScannerStatus('error');
-             // setScannerError(`Falha ao escanear QR code: ${error.message || 'Erro desconhecido'}`);
          }
        }
-     }, 500); // Slightly faster scan interval, adjust as needed
+     }, 500);
      console.log("Scan interval setup complete.");
-   }, [stopScanInterval, stopMediaStream, toast, scannerStatus, isDialogOpen]); // Remove handleOpenChange from deps for now, use ref
+   }, [stopScanInterval, stopMediaStream, toast, scannerStatus, isDialogOpen, startScanning]); // Added startScanning
 
 
   // --- Dialog Open/Close Handlers ---
@@ -358,7 +366,6 @@ export default function Home() {
         setScannerError(null);
         console.log("Dialog closed, status set to idle.");
 
-        // If navigation is pending due to QR code scan
         const qrCodeData = sessionStorage.getItem('pendingNavigationQr');
         if (qrCodeData) {
             console.log(`Found pending navigation for QR: ${qrCodeData}`);
@@ -371,7 +378,6 @@ export default function Home() {
 
    const handleDialogOpen = useCallback(() => {
         console.log(`Dialog opening intent received...`);
-        // Check prerequisites before attempting to start camera
         if (typeof window === 'undefined' || !('BarcodeDetector' in window) || !window.BarcodeDetector || !barcodeDetectorRef.current) {
             const errorMsg = typeof window === 'undefined' || !('BarcodeDetector' in window) || !window.BarcodeDetector
                 ? 'O escaneamento de QR code não é suportado neste navegador.'
@@ -382,34 +388,26 @@ export default function Home() {
                 title: 'Erro de Compatibilidade',
                 description: errorMsg,
             });
-            // Don't open the dialog if prerequisites fail
-            setIsDialogOpen(false); // Ensure it stays closed
+            setIsDialogOpen(false);
             return;
         }
 
-        // Reset state and start camera flow
         setScannerError(null);
-        setScannerStatus('idle'); // Start from idle before trying to open
-        setIsDialogOpen(true); // Open the dialog first
-        // Delay camera start slightly to allow dialog animation? May not be needed.
-        // setTimeout(() => startCamera(), 50);
-        startCamera(); // Attempt to start the camera immediately
+        setScannerStatus('idle');
+        setIsDialogOpen(true);
+        startCamera();
         console.log("Dialog state set to open, camera start initiated.");
 
    }, [startCamera, toast]);
 
-    // Define handleOpenChange *after* the handlers it depends on.
-    // Use useCallback to ensure stable reference.
     const handleOpenChange = useCallback((open: boolean) => {
        console.log(`handleOpenChange called with open: ${open}`);
        if (open) {
            handleDialogOpen();
        } else {
-           // Only handle close if dialog is actually open
-           // This prevents infinite loops if called multiple times
            if (isDialogOpen) {
                handleDialogClose();
-               setIsDialogOpen(false); // Update state *after* cleanup
+               setIsDialogOpen(false);
            } else {
                 console.log("handleOpenChange(false) called but dialog already closed.");
            }
@@ -423,11 +421,8 @@ export default function Home() {
 
 
    // --- Effect to manage video events ---
-   // This effect focuses on reacting to video state changes to trigger scanning reliably
    useEffect(() => {
      const videoElement = videoRef.current;
-
-     // Only attach listeners if the dialog is open and video ref exists
      if (!videoElement || !isDialogOpen) {
        return;
      }
@@ -436,7 +431,6 @@ export default function Home() {
 
      const handleCanPlay = () => {
          console.log(`Video 'canplay' event. Status: ${scannerStatus}. ReadyState: ${videoElement.readyState}.`);
-         // If initializing and ready, try scanning. Might be redundant with 'playing'.
          if (scannerStatus === 'initializing' && videoElement.readyState >= videoElement.HAVE_ENOUGH_DATA && !scanIntervalRef.current) {
              console.log("Video can play, attempting scan start from 'canplay'.");
              startScanning();
@@ -445,7 +439,6 @@ export default function Home() {
 
      const handlePlaying = () => {
          console.log(`Video 'playing' event. Status: ${scannerStatus}. Interval Running: ${!!scanIntervalRef.current}`);
-          // Main trigger for scanning: If initializing or scanning (and interval isn't running yet)
          if ((scannerStatus === 'initializing' || scannerStatus === 'scanning') && !scanIntervalRef.current) {
              console.log("Video is playing, attempting scan start from 'playing'.");
              startScanning();
@@ -454,7 +447,6 @@ export default function Home() {
 
      const handleLoadedMetadata = () => {
         console.log(`Video 'loadedmetadata' event. Dimensions: ${videoElement.videoWidth}x${videoElement.videoHeight}. Status: ${scannerStatus}`);
-        // Useful if dimensions weren't available initially. Attempt scan if conditions met.
         if ((scannerStatus === 'initializing' || scannerStatus === 'scanning') && !scanIntervalRef.current && !videoElement.paused && videoElement.readyState >= videoElement.HAVE_ENOUGH_DATA) {
            console.log("Metadata loaded, attempting scan start from 'loadedmetadata'.");
            startScanning();
@@ -476,11 +468,9 @@ export default function Home() {
 
      const handleWaiting = () => {
          console.warn("Video 'waiting' event. Playback stalled (buffering?).");
-         // If actively scanning, maybe stop the interval temporarily?
          if (scannerStatus === 'scanning') {
              console.log("Stopping scan interval due to video waiting.");
              stopScanInterval();
-             // Consider setting status back to 'initializing'?
              setScannerStatus('initializing');
          }
      };
@@ -490,10 +480,10 @@ export default function Home() {
      videoElement.addEventListener('playing', handlePlaying);
      videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
      videoElement.addEventListener('error', handleError);
-     videoElement.addEventListener('waiting', handleWaiting); // Listen for stalling
+     videoElement.addEventListener('waiting', handleWaiting);
 
 
-     // Initial check in case video is *already* playing when effect attaches
+     // Initial check
      if (!videoElement.paused && videoElement.readyState >= videoElement.HAVE_ENOUGH_DATA && (scannerStatus === 'initializing' || scannerStatus === 'scanning') && !scanIntervalRef.current) {
          console.log("Effect: Video already playing on listener attach, attempting scan start.");
          startScanning();
@@ -501,7 +491,6 @@ export default function Home() {
 
 
     return () => {
-        // Cleanup: Remove event listeners when dialog closes or component unmounts
         if (videoElement) {
             console.log("Effect cleanup: Removing video event listeners.");
             videoElement.removeEventListener('canplay', handleCanPlay);
@@ -510,22 +499,20 @@ export default function Home() {
             videoElement.removeEventListener('error', handleError);
             videoElement.removeEventListener('waiting', handleWaiting);
         }
-        // Also ensure interval is stopped on cleanup
         stopScanInterval();
     };
-   // Dependencies: Status, dialog state, the scanning function, and cleanup functions
   }, [isDialogOpen, scannerStatus, startScanning, stopMediaStream, stopScanInterval]);
 
 
   // --- Button Click Handlers ---
   const handleScanClick = () => {
     console.log("Scan button clicked.");
-    handleOpenChange(true); // Trigger dialog opening flow using the defined handler
+    handleOpenChange(true);
   };
 
   const handleRegister = () => {
     console.log('Navegar para a página de registro...');
-     router.push('/register-plant'); // Navigate to the register page
+     router.push('/register-plant');
   };
 
 
@@ -534,18 +521,14 @@ export default function Home() {
       {/* Header Section */}
        <header className="mb-8">
          <div className="flex items-center gap-3 mb-2">
-             {/* Use BudScan Logo Image */}
-             {/* Ensure budscan-logo.png exists in the /public folder */}
              <Image
-                 src="/budscan-logo.png" // Path to the logo in the public folder - CONFIRMED PATH USAGE
+                 src="/budscan-logo.png"
                  alt="BudScan Logo"
-                 width={200} // Adjust width as needed for main page heading
-                 height={57} // Adjust height proportionally
-                 priority // Load the logo quickly
-                 className="h-10 md:h-12 w-auto drop-shadow-sm" // Adjust size and add shadow
+                 width={200}
+                 height={57}
+                 priority
+                 className="h-10 md:h-12 w-auto drop-shadow-sm"
              />
-             {/* Removed text h1 */}
-             {/* <h1 className="text-4xl font-bold text-primary tracking-tight drop-shadow-sm">CannaLog</h1> */}
          </div>
          <p className="text-lg text-muted-foreground">Seu painel de controle de cultivo inteligente.</p>
        </header>
@@ -625,7 +608,6 @@ export default function Home() {
        </main>
 
       {/* Scanner Dialog */}
-      {/* Use controlled Dialog component */}
       <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-[425px] md:max-w-[550px] dialog-content border-primary/20 bg-background/95 backdrop-blur-sm">
           <DialogHeader>
@@ -637,34 +619,27 @@ export default function Home() {
 
           {/* Container for video and overlays */}
            <div className="relative mt-4 aspect-square w-full max-w-[400px] mx-auto overflow-hidden rounded-lg bg-muted shadow-inner">
-              {/* Video element - Always render, but control visibility/opacity based on status */}
+              {/* Video element */}
               <video
                   ref={videoRef}
                   className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
                       ['initializing', 'scanning', 'stopped'].includes(scannerStatus) ? 'opacity-100' : 'opacity-0'
                   }`}
-                  playsInline // Essential for iOS Safari
-                  muted // Required for autoplay in most browsers
-                  style={{ transform: 'scaleX(1)' }} // Default, will be overridden by JS if front camera
+                  playsInline
+                  muted
+                  style={{ transform: 'scaleX(1)' }}
               />
 
-             {/* Visual Guide Overlay - Show ONLY when scanning or actively initializing */}
+             {/* Visual Guide Overlay */}
              {(scannerStatus === 'scanning' || scannerStatus === 'initializing') && (
                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                     {/* Outer Mask for focus effect (subtle vignette) */}
                      <div className="absolute inset-0 bg-gradient-radial from-transparent via-background/70 to-background/90"></div>
-
-                     {/* Focus Box with Pulsing Border */}
                      <div className="relative w-[70%] h-[70%] border-2 border-primary/50 rounded-lg animate-pulse-border flex items-center justify-center overflow-hidden">
-                         {/* Pulsing Corner Brackets (more prominent) */}
                          <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-accent animate-pulse rounded-tl-md z-20"></div>
                          <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-accent animate-pulse rounded-tr-md z-20"></div>
                          <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-accent animate-pulse rounded-bl-md z-20"></div>
                          <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-accent animate-pulse rounded-br-md z-20"></div>
-
-                         {/* Animated Scan Line (only when actively scanning) */}
                          {scannerStatus === 'scanning' && (
-                           // Apply the animation class directly to a self-closing div
                            <div className="absolute bg-gradient-to-r from-transparent via-accent to-transparent shadow-[0_0_10px_1px_hsl(var(--accent)/0.6)] rounded-full animate-scan-line-vertical"/>
                          )}
                      </div>
@@ -672,11 +647,9 @@ export default function Home() {
              )}
 
 
-             {/* Status Overlay (Loading, Permission Denied, Error) - Show when NOT scanning/stopped/idle */}
-             {/* Simplified condition: Show overlay unless actively scanning or successfully stopped */}
+             {/* Status Overlay */}
              {!['scanning', 'stopped'].includes(scannerStatus) && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-background/90 via-background/95 to-background/90 text-center p-4 rounded-lg z-10 transition-opacity duration-300">
-                       {/* Permission Pending State */}
                        {scannerStatus === 'permission-pending' && (
                          <>
                            <Loader2 className="h-12 w-12 mb-4 text-primary animate-spin" />
@@ -684,7 +657,6 @@ export default function Home() {
                            <p className="text-muted-foreground text-sm mt-1">Solicitando acesso à câmera.</p>
                          </>
                        )}
-                       {/* Initializing State (Covers period before 'playing' or 'canplay') */}
                        {scannerStatus === 'initializing' && (
                            <>
                                <Loader2 className="h-12 w-12 mb-4 text-primary animate-spin" />
@@ -692,7 +664,6 @@ export default function Home() {
                                <p className="text-muted-foreground text-sm mt-1">Preparando o vídeo...</p>
                            </>
                        )}
-                       {/* Idle State (Before anything happens) */}
                        {scannerStatus === 'idle' && (
                            <>
                                <Camera className="h-12 w-12 mb-4 text-muted-foreground" />
@@ -700,13 +671,12 @@ export default function Home() {
                                <p className="text-muted-foreground text-sm mt-1">A câmera será ativada.</p>
                            </>
                        )}
-                       {/* Permission Denied or Camera Error State */}
                        {scannerStatus === 'permission-denied' || (scannerStatus === 'error' && scannerError?.toLowerCase().includes('câmera')) && (
                          <>
                             {scannerStatus === 'permission-denied' ? (
                                 <VideoOff className="h-12 w-12 mb-4 text-destructive" />
                             ) : (
-                                <Camera className="h-12 w-12 mb-4 text-destructive" /> // Keep camera icon for general camera errors
+                                <Camera className="h-12 w-12 mb-4 text-destructive" />
                             )}
                            <p className="text-lg font-semibold text-destructive">
                                {scannerStatus === 'permission-denied' ? 'Acesso Negado' : 'Erro na Câmera'}
@@ -714,7 +684,6 @@ export default function Home() {
                            <p className="text-muted-foreground text-sm mt-1 px-4">
                              {scannerError || 'Não foi possível acessar a câmera.'}
                            </p>
-                           {/* Show "Try Again" only for permission denied */}
                             {scannerStatus === 'permission-denied' && (
                                <Button variant="outline" size="sm" className="mt-4 button" onClick={startCamera}>
                                     Tentar Novamente
@@ -722,7 +691,6 @@ export default function Home() {
                             )}
                          </>
                        )}
-                       {/* General Scanner Error State (non-camera related, e.g., detector failure) */}
                        {scannerStatus === 'error' && scannerError && !scannerError?.toLowerCase().includes('câmera') && (
                           <>
                             <AlertTriangle className="h-12 w-12 mb-4 text-destructive" />
@@ -730,7 +698,6 @@ export default function Home() {
                             <p className="text-muted-foreground text-sm mt-1 px-4">
                                 {scannerError}
                             </p>
-                            {/* Let user close on general errors */}
                              <Button variant="outline" size="sm" className="mt-4 button" onClick={() => handleOpenChange(false)}>
                                  Fechar
                              </Button>
@@ -751,3 +718,8 @@ export default function Home() {
     </div>
   );
 }
+```
+    </content>
+  </change>
+  <change>
+    <file>src/app/plant/[qrCode]/page.tsx</
