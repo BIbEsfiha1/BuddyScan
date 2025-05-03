@@ -172,8 +172,9 @@ export default function RegisterPlantPage() {
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background via-muted/50 to-primary/10 text-foreground">
        <Card className="w-full max-w-lg shadow-xl border-primary/20 card">
          <CardHeader className="relative pb-4"> {/* Reduced padding bottom */}
-            <Button variant="ghost" size="icon" className="absolute top-4 left-4 button" asChild> {/* Adjusted position */}
-               <Link href="/dashboard" aria-label="Voltar ao Painel"> {/* Link to dashboard */}
+            {/* Ensure Button asChild wraps a single Link element */}
+            <Button variant="ghost" size="icon" className="absolute top-4 left-4 button" asChild>
+               <Link href="/dashboard" aria-label="Voltar ao Painel">
                   <HomeIcon className="h-5 w-5" />
                </Link>
             </Button>
