@@ -12,6 +12,8 @@ import {
     limit as firestoreLimit,
     CollectionReference, // Import CollectionReference type
     DocumentData, // Import DocumentData type
+    QueryDocumentSnapshot,
+    startAfter,
 } from 'firebase/firestore';
 
 /**
@@ -97,23 +99,33 @@ const getDiaryEntriesCollectionRef = (plantId: string): CollectionReference<Docu
 
 
 /**
- * Loads diary entries for a specific plant from Firestore.
+ * Loads paginated diary entries for a specific plant from Firestore.
  * @param plantId The ID of the plant whose entries to load.
- * @returns An array of DiaryEntry objects, sorted newest first, or empty array.
+ * @param limit The maximum number of entries per page.
+ * @param lastVisible The last document snapshot from the previous page for pagination.
+ * @returns An object containing the array of DiaryEntry objects and the last visible document snapshot.
  */
-export async function loadDiaryEntriesFromFirestore(plantId: string): Promise<DiaryEntry[]> {
+export async function loadDiaryEntriesPaginated(
+    plantId: string,
+    limit: number,
+    lastVisible?: QueryDocumentSnapshot<DocumentData>
+): Promise<{ entries: DiaryEntry[]; lastVisible: QueryDocumentSnapshot<DocumentData> | null }> {
   ensureDbAvailable(); // Checks for db initialization errors
-  console.log(`Carregando entradas do diário para planta ${plantId} do Firestore...`);
+  console.log(`Carregando entradas do diário paginadas para planta ${plantId} (limit: ${limit}) do Firestore...`);
   try {
     const diaryEntriesCollection = getDiaryEntriesCollectionRef(plantId);
-    const q = query(diaryEntriesCollection, orderBy('timestamp', 'desc')); // Order by Firestore timestamp
+    let q = query(diaryEntriesCollection, orderBy('timestamp', 'desc'), firestoreLimit(limit)); // Order by Firestore timestamp
+
+    if (lastVisible) {
+        q = query(q, startAfter(lastVisible));
+    }
+
     const querySnapshot = await getDocs(q);
 
     const entries: DiaryEntry[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       // Convert Firestore Timestamp back to ISO string
-      // Ensure data.timestamp exists and is a Timestamp before calling toDate()
       const timestamp = (data.timestamp instanceof Timestamp) ? data.timestamp.toDate().toISOString() : data.timestamp;
       entries.push({
         ...data,
@@ -121,13 +133,18 @@ export async function loadDiaryEntriesFromFirestore(plantId: string): Promise<Di
         timestamp: timestamp,
       } as DiaryEntry);
     });
-    console.log(`Carregadas ${entries.length} entradas do diário.`);
-    return entries; // Already sorted by Firestore query
+
+    const newLastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
+    console.log(`Carregadas ${entries.length} entradas do diário. Próxima página começa após: ${newLastVisible?.id}`);
+
+    return { entries, lastVisible: newLastVisible };
+
   } catch (error) {
-    console.error(`Erro ao carregar entradas do diário para ${plantId} do Firestore:`, error);
-    throw new Error(`Falha ao carregar entradas do diário: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    console.error(`Erro ao carregar entradas do diário paginadas para ${plantId} do Firestore:`, error);
+    throw new Error(`Falha ao carregar entradas do diário paginadas: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
   }
 }
+
 
 /**
  * Adds a single new diary entry for a plant to Firestore.
@@ -171,7 +188,7 @@ const DIARY_STORAGE_PREFIX = 'budscanDiary_DISABLED_'; // Disable localStorage p
  * Loads diary entries for a specific plant from localStorage.
  * @param plantId The ID of the plant whose entries to load.
  * @returns An array of DiaryEntry objects, sorted newest first, or empty array.
- * @deprecated Use loadDiaryEntriesFromFirestore instead.
+ * @deprecated Use loadDiaryEntriesPaginated instead.
  */
 export function loadDiaryEntriesFromLocalStorage(plantId: string): DiaryEntry[] {
   console.warn(`loadDiaryEntriesFromLocalStorage (plant ${plantId}) está desabilitado. Usando Firestore.`);
@@ -198,4 +215,11 @@ export function saveDiaryEntriesToLocalStorage(plantId: string, entries: DiaryEn
  */
 export function addDiaryEntryToLocalStorage(plantId: string, newEntry: DiaryEntry): void {
      console.warn(`addDiaryEntryToLocalStorage (plant ${plantId}) está desabilitado. Usando Firestore.`);
+}
+
+// Deprecated function, use loadDiaryEntriesPaginated
+export async function loadDiaryEntriesFromFirestore(plantId: string): Promise<DiaryEntry[]> {
+    console.warn("Deprecated: loadDiaryEntriesFromFirestore called. Use loadDiaryEntriesPaginated instead.");
+    const { entries } = await loadDiaryEntriesPaginated(plantId, 100); // Load a larger number initially if needed
+    return entries;
 }

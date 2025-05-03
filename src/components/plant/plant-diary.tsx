@@ -14,66 +14,93 @@ import {
 import { Badge } from '@/components/ui/badge';
 import type { DiaryEntry } from '@/types/diary-entry';
 // Import Firestore functions for diary entries
-import { loadDiaryEntriesFromFirestore, addDiaryEntryToFirestore } from '@/types/diary-entry';
+import { loadDiaryEntriesPaginated, addDiaryEntryToFirestore } from '@/types/diary-entry'; // Use paginated load function
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert components
 import { Button } from '@/components/ui/button'; // Import Button for refresh
 import { firebaseInitializationError } from '@/lib/firebase/config'; // Import Firebase error state
 import { useAuth } from '@/context/auth-context'; // Import useAuth to potentially map author IDs later
+import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore'; // Import Firestore types
 
 interface PlantDiaryProps {
   plantId: string;
 }
 
+const ENTRIES_PER_PAGE = 10; // Number of diary entries to load per page
+
 export default function PlantDiary({ plantId }: PlantDiaryProps) {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastVisibleEntry, setLastVisibleEntry] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [hasMoreEntries, setHasMoreEntries] = useState(true);
   const { user: currentUser } = useAuth(); // Get current user for display purposes if needed
 
   // Use useCallback to memoize the load function
-  const loadEntries = useCallback(async () => {
+  const loadEntries = useCallback(async (loadMore = false) => {
     // Check Firebase availability before loading
     if (firebaseInitializationError) {
         setError(`Firebase não inicializado: ${firebaseInitializationError.message}`);
         setIsLoading(false);
+        setIsFetchingMore(false);
         return;
     }
      if (!plantId) {
        console.warn("loadEntries called without plantId.");
        setError("ID da planta não fornecido para carregar o diário.");
        setIsLoading(false);
+       setIsFetchingMore(false);
        return;
      }
 
-    console.log(`Loading entries for plant ${plantId} from Firestore...`);
-    setIsLoading(true);
+    console.log(`Loading entries for plant ${plantId}... Load More: ${loadMore}, Last Visible:`, lastVisibleEntry?.id);
+    if (!loadMore) {
+        setIsLoading(true);
+        setEntries([]); // Reset entries on initial load/refresh
+        setLastVisibleEntry(null); // Reset cursor
+        setHasMoreEntries(true); // Assume more on initial load
+    } else {
+        setIsFetchingMore(true);
+    }
     setError(null);
+
     try {
-      const fetchedEntries = await loadDiaryEntriesFromFirestore(plantId); // Use Firestore function
-      console.log(`Loaded ${fetchedEntries.length} entries from Firestore.`);
-      setEntries(fetchedEntries); // Already sorted by Firestore query
+      const result = await loadDiaryEntriesPaginated(
+          plantId,
+          ENTRIES_PER_PAGE,
+          loadMore ? lastVisibleEntry : undefined // Pass cursor if loading more
+      );
+
+      console.log(`Loaded ${result.entries.length} entries. New Last Visible:`, result.lastVisible?.id);
+      setEntries(prevEntries => loadMore ? [...prevEntries, ...result.entries] : result.entries);
+      setLastVisibleEntry(result.lastVisible);
+      setHasMoreEntries(result.entries.length === ENTRIES_PER_PAGE); // Check if there might be more
+
     } catch (err: any) {
       console.error('Falha ao buscar entradas do diário no Firestore:', err);
       setError(`Não foi possível carregar as entradas do diário: ${err.message || 'Erro desconhecido'}`);
     } finally {
       setIsLoading(false);
+      setIsFetchingMore(false);
     }
-  }, [plantId]); // Dependency is plantId
+  }, [plantId, lastVisibleEntry]); // Dependency array includes plantId and the pagination cursor
 
+  // Load initial entries on mount or when plantId changes
   useEffect(() => {
-    console.log("PlantDiary useEffect triggered for plantId:", plantId);
-    loadEntries(); // Load entries when plantId changes or component mounts
-    // No cleanup needed here unless there were subscriptions
-  }, [loadEntries]); // Run effect when loadEntries changes (due to plantId change)
+    console.log("PlantDiary useEffect triggered for initial load, plantId:", plantId);
+    loadEntries(false);
+  }, [plantId]); // Only re-run initial load if plantId changes
+
 
    // Handler for when DiaryEntryForm submits a new entry
    // This function is called by DiaryEntryForm AFTER it successfully saves to Firestore
    const handleNewEntry = (newlyAddedEntry: DiaryEntry) => {
        console.log('Handling new entry in PlantDiary (already saved to Firestore):', newlyAddedEntry);
-       // Optimistically update the local state
-       // Add the new entry to the beginning (assuming Firestore returns the added doc)
+       // Optimistically update the local state by prepending the new entry
        setEntries(prevEntries => [newlyAddedEntry, ...prevEntries]);
-       // No need to re-sort if Firestore query sorts and we prepend
+       // Optional: Consider if prepending messes up pagination logic if user immediately loads more.
+       // A full refresh might be safer, or adjust `lastVisibleEntry` if needed.
+       // For simplicity, we prepend here.
    };
 
     // Helper function to display author information
@@ -82,40 +109,39 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
         // In a real app, you might fetch user profiles based on authorId
         if (!authorId) return 'Desconhecido';
         // Could check against currentUser?.uid, but entries might be from others
-        // if (currentUser && currentUser.uid === authorId) {
-        //     return currentUser.displayName || currentUser.email || `Usuário (${authorId.substring(0, 6)}...)`;
-        // }
+        if (currentUser && currentUser.uid === authorId) {
+             return currentUser.displayName || currentUser.email?.split('@')[0] || `Usuário (${authorId.substring(0, 6)}...)`; // Use display name or email prefix
+        }
         return `Usuário (${authorId.substring(0, 6)}...)`;
     };
 
 
   return (
     <div className="space-y-8">
-      {/* Show form, disable if Firebase has init errors */}
+      {/* Diary Entry Form */}
       <DiaryEntryForm
         plantId={plantId}
         onNewEntry={handleNewEntry}
-        // Pass disabled state based on Firebase init error
-        // (Need to add a disabled prop to DiaryEntryForm if not already present)
+        // Pass disabled state based on Firebase init error (prop needs to be added to form)
         // disabled={!!firebaseInitializationError}
       />
 
 
       {/* Display existing entries */}
       <Card className="shadow-lg border-primary/10 card">
-        <CardHeader className="flex flex-row justify-between items-center sticky top-0 bg-card/95 backdrop-blur-sm z-10 border-b pb-3 pt-4 px-4 md:px-6"> {/* Slightly more padding */}
+        <CardHeader className="flex flex-row justify-between items-center sticky top-0 bg-card/95 backdrop-blur-sm z-10 border-b pb-3 pt-4 px-4 md:px-6">
             <div>
-                <CardTitle className="text-2xl flex items-center gap-2"><History className="h-6 w-6 text-primary"/>Histórico do Diário</CardTitle> {/* Updated Icon */}
+                <CardTitle className="text-2xl flex items-center gap-2"><History className="h-6 w-6 text-primary"/>Histórico do Diário</CardTitle>
                 <CardDescription>Registro cronológico de observações e ações.</CardDescription>
             </div>
-             <Button variant="outline" size="sm" onClick={loadEntries} disabled={isLoading || !!firebaseInitializationError} className="button">
-                 {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                 {isLoading ? 'Atualizando...' : 'Atualizar'}
+             <Button variant="outline" size="sm" onClick={() => loadEntries(false)} disabled={isLoading || isFetchingMore || !!firebaseInitializationError} className="button">
+                 {isLoading && !isFetchingMore ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                 {isLoading && !isFetchingMore ? 'Atualizando...' : 'Atualizar'}
              </Button>
         </CardHeader>
-        <CardContent className="space-y-6 pt-6 px-4 md:px-6"> {/* More padding */}
-          {/* Display Firebase Init Error first */}
-           {firebaseInitializationError && !error && ( // Show only if no other loading error
+        <CardContent className="space-y-6 pt-6 px-4 md:px-6">
+          {/* Display Firebase Init Error */}
+           {firebaseInitializationError && (
               <Alert variant="destructive" className="mt-4">
                  <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Erro de Configuração do Firebase</AlertTitle>
@@ -123,49 +149,55 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
               </Alert>
            )}
 
-           {isLoading && (
+           {/* Loading Skeletons for initial load */}
+           {isLoading && !isFetchingMore && (
               <div className="space-y-6 pt-4">
-                <Skeleton className="h-56 w-full rounded-lg" /> {/* Taller skeleton */}
-                <Skeleton className="h-56 w-full rounded-lg" />
+                {[...Array(3)].map((_, i) => ( // Show 3 skeletons
+                    <Skeleton key={i} className="h-56 w-full rounded-lg" />
+                ))}
               </div>
            )}
-           {error && !firebaseInitializationError && ( // Show specific loading error if no init error
+
+           {/* Error Message */}
+           {error && !isLoading && (
               <Alert variant="destructive" className="mt-4">
                  <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Erro ao Carregar Diário</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
+                  <Button onClick={() => loadEntries(false)} variant="secondary" size="sm" className="mt-3 button">
+                      Tentar Novamente
+                  </Button>
               </Alert>
            )}
 
-
+          {/* No Entries Message */}
           {!isLoading && !error && !firebaseInitializationError && entries.length === 0 && (
             <div className="text-center py-10 text-muted-foreground border border-dashed rounded-lg mt-4">
-                <ClipboardList className="h-12 w-12 mx-auto mb-3 text-secondary/50"/> {/* Updated Icon */}
+                <ClipboardList className="h-12 w-12 mx-auto mb-3 text-secondary/50"/>
                 <p className="font-medium">Nenhuma entrada no diário ainda.</p>
                 <p className="text-sm">Adicione a primeira entrada usando o formulário acima!</p>
             </div>
           )}
 
-          {/* Entries List - Only show if no errors and not loading */}
+          {/* Entries List - Only show if no errors and not loading initially */}
           {!isLoading && !error && !firebaseInitializationError && entries.length > 0 && (
             <div className="space-y-6 mt-4">
                 {entries.map((entry) => (
-                  <Card key={entry.id} className="border shadow-md overflow-hidden bg-card/80 hover:shadow-lg transition-shadow card"> {/* Added hover shadow */}
-                    <CardHeader className="bg-muted/40 p-3 px-4 flex flex-row justify-between items-center border-b"> {/* Added border */}
+                  <Card key={entry.id} className="border shadow-md overflow-hidden bg-card/80 hover:shadow-lg transition-shadow card">
+                    <CardHeader className="bg-muted/40 p-3 px-4 flex flex-row justify-between items-center border-b">
                        <div className="flex items-center gap-2">
-                          <Clock className="h-5 w-5 text-primary"/> {/* Updated Icon */}
+                          <Clock className="h-5 w-5 text-primary"/>
                           <span className="font-semibold text-sm text-foreground/90">
-                             {/* Format date from ISO string */}
                              {entry.timestamp ? new Date(entry.timestamp).toLocaleString('pt-BR', { dateStyle: 'medium', timeStyle: 'short' }) : 'Data inválida'}
                           </span>
                        </div>
-                      {entry.stage && <Badge variant="outline" className="text-xs px-2 py-0.5"><Layers className="inline mr-1 h-3 w-3"/>{entry.stage}</Badge>} {/* Added icon */}
+                      {entry.stage && <Badge variant="outline" className="text-xs px-2 py-0.5"><Layers className="inline mr-1 h-3 w-3"/>{entry.stage}</Badge>}
                     </CardHeader>
                     <CardContent className="p-4 space-y-4">
 
                       {/* Sensor/Measurement Data */}
                       {(entry.heightCm || entry.ec !== null || entry.ph !== null || entry.temp !== null || entry.humidity !== null) && (
-                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-3 text-sm text-muted-foreground border-b pb-4 mb-4"> {/* Increased spacing */}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-3 text-sm text-muted-foreground border-b pb-4 mb-4">
                               {entry.heightCm && <div className="flex items-center gap-1.5"><Ruler className="h-4 w-4 text-secondary" /> <span>{entry.heightCm} cm</span></div>}
                               {entry.ec !== null && typeof entry.ec !== 'undefined' && <div className="flex items-center gap-1.5"><Gauge className="h-4 w-4 text-secondary" /> <span>EC: {entry.ec}</span></div>}
                               {entry.ph !== null && typeof entry.ph !== 'undefined' && <div className="flex items-center gap-1.5"><FlaskConical className="h-4 w-4 text-secondary" /> <span>pH: {entry.ph}</span></div>}
@@ -175,11 +207,10 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                       )}
 
                        {/* Photo and AI Analysis Side-by-Side */}
-                       <div className="flex flex-col lg:flex-row gap-6"> {/* Increased gap */}
+                       <div className="flex flex-col lg:flex-row gap-6">
                            {/* Photo */}
                            {entry.photoUrl && (
                              <div className="lg:w-1/2 flex-shrink-0">
-                               {/* Display Data URI directly or Cloud Storage URL */}
                                <Image
                                   data-ai-hint={entry.aiSummary ? `cannabis analysis ${entry.stage?.toLowerCase()}` : `cannabis plant ${entry.stage?.toLowerCase()} diary photo`}
                                   src={entry.photoUrl}
@@ -214,7 +245,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                                 {/* Note */}
                                 {entry.note && (
                                    <div className="text-sm text-foreground space-y-2">
-                                     <h4 className="font-semibold flex items-center gap-1.5"><FileText className="h-4 w-4 text-secondary" /> Observações</h4> {/* Updated Icon */}
+                                     <h4 className="font-semibold flex items-center gap-1.5"><FileText className="h-4 w-4 text-secondary" /> Observações</h4>
                                       <p className="pl-1 leading-relaxed whitespace-pre-wrap">{entry.note}</p>
                                    </div>
                                 )}
@@ -234,8 +265,35 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                 ))}
             </div>
           )}
+
+            {/* Load More Button */}
+             {!isLoading && entries.length > 0 && hasMoreEntries && (
+               <div className="text-center mt-6 py-4 border-t">
+                   <Button
+                       onClick={() => loadEntries(true)}
+                       disabled={isFetchingMore || !!firebaseInitializationError}
+                       variant="secondary"
+                       className="button"
+                   >
+                     {isFetchingMore ? (
+                       <>
+                         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando mais...
+                       </>
+                     ) : (
+                       'Carregar Entradas Anteriores'
+                     )}
+                   </Button>
+               </div>
+             )}
+
+             {/* End of List Indicator */}
+             {!isLoading && !hasMoreEntries && entries.length > 0 && (
+                 <p className="text-center text-muted-foreground text-sm mt-6 py-4 border-t">Fim do histórico.</p>
+             )}
+
         </CardContent>
       </Card>
     </div>
   );
 }
+

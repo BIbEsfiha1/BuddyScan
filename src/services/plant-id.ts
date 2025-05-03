@@ -13,6 +13,10 @@ import {
     limit as firestoreLimit, // Rename limit to avoid conflict
     Timestamp,
     writeBatch,
+    Query,
+    DocumentData,
+    QueryDocumentSnapshot,
+    startAfter,
 } from 'firebase/firestore';
 
 /**
@@ -267,37 +271,72 @@ export async function getRecentPlants(count: number = 3): Promise<Plant[]> {
 
 
  /**
-  * Recupera todas as plantas do Firestore.
-  * Ordena alfabeticamente por nome da variedade (strain).
-  * @returns Uma promessa que resolve para um array com todos os objetos Plant.
+  * Retrieves a paginated list of plants from Firestore, optionally filtered.
+  * Orders alphabetically by strain name.
+  *
+  * @param options - Options for filtering and pagination.
+  * @param options.filters - Object containing filter criteria (search, status, growRoom).
+  * @param options.limit - The maximum number of plants to return per page.
+  * @param options.lastVisible - The last visible document snapshot for pagination (fetches the next page).
+  * @returns A promise that resolves to an object containing the plants array and the last visible document snapshot.
   */
- export async function getAllPlants(): Promise<Plant[]> {
-    ensureDbAvailable();
-    console.log('Buscando todas as plantas do Firestore...');
-    try {
-        // Ensure plantsCollectionRef is not null before using it
-        if (!plantsCollectionRef) throw new Error("plantsCollectionRef is null");
-        // Ordenar por 'strain' pode exigir um índice composto no Firestore se você combinar com outros filtros/ordens.
-        // Ordenar por 'createdAt' ou 'birthDate' é geralmente mais eficiente sem índices personalizados.
-        const q = query(plantsCollectionRef, orderBy('strain', 'asc')); // Ou orderBy('createdAt', 'desc')
-        const querySnapshot = await getDocs(q);
+ export async function getAllPlantsPaginated(options: {
+   filters: { search?: string; status?: string; growRoom?: string };
+   limit: number;
+   lastVisible?: QueryDocumentSnapshot<DocumentData>;
+ }): Promise<{ plants: Plant[]; lastVisible: QueryDocumentSnapshot<DocumentData> | null }> {
+   ensureDbAvailable();
+   const { filters, limit, lastVisible } = options;
+   console.log(`Buscando plantas paginadas no Firestore (limit: ${limit}) com filtros:`, filters);
 
-        const plants: Plant[] = [];
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-             const birthDate = (data.birthDate instanceof Timestamp) ? data.birthDate.toDate().toISOString() : data.birthDate;
-             const createdAt = (data.createdAt instanceof Timestamp) ? data.createdAt.toDate().toISOString() : data.createdAt;
-            plants.push({ ...data, id: doc.id, birthDate, createdAt } as Plant);
-        });
-        console.log(`Retornadas ${plants.length} plantas.`);
-        // Sorting client-side might be needed if Firestore ordering isn't exactly right or possible
-        // plants.sort((a, b) => a.strain.localeCompare(b.strain));
-        return plants;
-    } catch (error) {
-        console.error('Erro ao buscar todas as plantas no Firestore:', error);
-        throw new Error(`Falha ao buscar todas as plantas: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-    }
+   try {
+     if (!plantsCollectionRef) throw new Error("plantsCollectionRef is null");
+
+     // Base query ordered by strain
+     let q: Query<DocumentData> = query(plantsCollectionRef, orderBy('strain', 'asc'));
+
+     // Apply filters (Important: Complex queries might require composite indexes in Firestore)
+     // Note: Firestore does not support direct 'contains' queries like SQL's LIKE.
+     // Strain search might need to be done client-side or using a dedicated search service (e.g., Algolia) for large datasets.
+     // For smaller datasets, we fetch and filter client-side (handled in the component).
+     // We'll filter status and growRoom server-side if provided.
+     if (filters.status && filters.status !== "all_statuses") {
+       q = query(q, where('status', '==', filters.status));
+     }
+     if (filters.growRoom && filters.growRoom !== "all_rooms") {
+       q = query(q, where('growRoomId', '==', filters.growRoom));
+     }
+
+     // Apply pagination limit
+     q = query(q, firestoreLimit(limit));
+
+     // Apply starting point for pagination
+     if (lastVisible) {
+       q = query(q, startAfter(lastVisible));
+     }
+
+     const querySnapshot = await getDocs(q);
+
+     const plants: Plant[] = [];
+     querySnapshot.forEach((doc) => {
+       const data = doc.data();
+       const birthDate = (data.birthDate instanceof Timestamp) ? data.birthDate.toDate().toISOString() : data.birthDate;
+       const createdAt = (data.createdAt instanceof Timestamp) ? data.createdAt.toDate().toISOString() : data.createdAt;
+       plants.push({ ...data, id: doc.id, birthDate, createdAt } as Plant);
+     });
+
+     // Get the last visible document for the next page query
+     const newLastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
+
+     console.log(`Retornadas ${plants.length} plantas.`);
+     return { plants, lastVisible: newLastVisible };
+
+   } catch (error) {
+     console.error('Erro ao buscar plantas paginadas no Firestore:', error);
+     throw new Error(`Falha ao buscar plantas paginadas: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+   }
  }
+
 
  // Exemplo de como migrar dados do localStorage para o Firestore (EXECUTAR UMA VEZ)
  export async function migrateLocalStorageToFirestore() {
@@ -385,15 +424,16 @@ export async function getRecentPlants(count: number = 3): Promise<Plant[]> {
 /**
  * Loads plants from the appropriate source (Firestore).
  * @returns A record of plants or an empty object if none found or error occurs.
+ * @deprecated Use specific fetching functions like getAllPlantsPaginated instead.
  */
-async function loadPlants(): Promise<Record<string, Plant>> {
-    const plants = await getAllPlants(); // Fetch all plants from Firestore
-    const plantRecord: Record<string, Plant> = {};
-    plants.forEach(plant => {
-        plantRecord[plant.id] = plant;
-    });
-    return plantRecord;
-}
+// async function loadPlants(): Promise<Record<string, Plant>> {
+//     const plants = await getAllPlants(); // Fetch all plants from Firestore
+//     const plantRecord: Record<string, Plant> = {};
+//     plants.forEach(plant => {
+//         plantRecord[plant.id] = plant;
+//     });
+//     return plantRecord;
+// }
 
 // Expose loadPlants if needed elsewhere, or keep it internal
 // export { loadPlants };
