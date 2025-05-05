@@ -4,32 +4,35 @@ import { getAuth, Auth, browserLocalPersistence, initializeAuth, connectAuthEmul
 import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/firestore'; // Import Firestore
 
 // Your web app's Firebase configuration
-// Ensure these environment variables are set in your .env.local file
-const EMULATOR_HOST = process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST; // Use Firestore emulator host var
-const AUTH_EMULATOR_PORT = 9099; // Default Auth port
-const FIRESTORE_EMULATOR_PORT = 8080; // Default Firestore port
-
+// These values are loaded from the .env file (prefixed with NEXT_PUBLIC_)
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, // Make sure this is correct
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+// --- Emulator Configuration ---
+// Use Firestore emulator host var, default ports if not specified
+const EMULATOR_HOST = process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST;
+const AUTH_EMULATOR_PORT = 9099; // Default Auth port
+const FIRESTORE_EMULATOR_PORT = 8080; // Default Firestore port
+
+
 // --- Detailed Config Logging ---
 // Log the config being used ONCE on the client side for easier debugging
 if (typeof window !== 'undefined' && !(window as any).__firebaseConfigLogged) {
-  console.log("--- Firebase Configuration ---");
+  console.log("--- Firebase Configuration Used ---");
   console.log("API Key:", firebaseConfig.apiKey ? 'Present' : 'MISSING!');
-  console.log("Auth Domain:", firebaseConfig.authDomain || 'MISSING! (CRITICAL for Social Login)'); // Highlight importance
+  console.log("Auth Domain:", firebaseConfig.authDomain || 'MISSING! (CRITICAL for Social Login)');
   console.log("Project ID:", firebaseConfig.projectId || 'MISSING!');
   console.log("Storage Bucket:", firebaseConfig.storageBucket || 'Optional - Missing');
   console.log("Messaging Sender ID:", firebaseConfig.messagingSenderId || 'Optional - Missing');
   console.log("App ID:", firebaseConfig.appId || 'Optional - Missing');
-  console.log("Firestore Emulator Host:", EMULATOR_HOST || 'Not Set (Using Production Firestore)');
-  console.log("-----------------------------");
+  console.log("Emulator Host (NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST):", EMULATOR_HOST || 'Not Set (Using Production)');
+  console.log("------------------------------------");
   (window as any).__firebaseConfigLogged = true; // Prevent repeated logging
 }
 
@@ -40,6 +43,7 @@ function hasFirebaseConfig(): boolean {
     return !!firebaseConfig.apiKey && !!firebaseConfig.projectId && !!firebaseConfig.authDomain;
 }
 
+// --- Global Error State ---
 let firebaseInitializationError: Error | null = null;
 
 // --- Configuration Validation ---
@@ -189,5 +193,3 @@ try {
 
 // Export the initialized instances and the potential error
 export { app, auth, db, firebaseInitializationError };
-
-
