@@ -5,13 +5,14 @@ import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/fire
 
 // Your web app's Firebase configuration
 // Using the latest config provided by the user.
+// Ensure these environment variables are set in your .env.local file
 const firebaseConfig = {
-  apiKey: "AIzaSyCI3PcqYwR3v4EZVD2EY6tnbqQK94olEOg", // Updated API Key
-  authDomain: "cannalog-c34fx.firebaseapp.com", // Updated Auth Domain
-  projectId: "cannalog-c34fx", // Updated Project ID
-  storageBucket: "cannalog-c34fx.firebasestorage.app", // Updated Storage Bucket - Make sure this matches your project
-  messagingSenderId: "581752624409", // Updated Sender ID
-  appId: "1:581752624409:web:e30cd8231db418dc2a6188" // Updated App ID
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
 
