@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -152,8 +153,13 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     }
 
     try {
+      // Try to get the environment-facing camera first.
+      // Note: The browser determines which camera fulfills 'environment'. On some devices,
+      // this might be the ultra-wide camera instead of the main wide-angle camera.
+      // Controlling the specific camera beyond 'facingMode' is complex and unreliable across devices.
+      console.log("Requesting environment camera...");
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      console.log("Camera permission granted (environment facing).");
+      console.log("Camera permission granted (environment facing). Stream tracks:", stream.getTracks());
       streamRef.current = stream;
 
        if (videoRef.current) {
@@ -184,8 +190,9 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     } catch (error) {
        console.warn('Error accessing environment camera, trying default:', error);
         try {
+             console.log("Requesting default camera...");
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            console.log("Camera permission granted (default).");
+            console.log("Camera permission granted (default). Stream tracks:", stream.getTracks());
             streamRef.current = stream;
 
             if (videoRef.current) {
@@ -798,3 +805,4 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     </Card>
   );
 }
+

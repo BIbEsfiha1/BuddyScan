@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -177,10 +178,14 @@ export default function DashboardPage() { // Renamed component to DashboardPage
 
 
     try {
-      // Try to get the environment-facing camera first
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      console.log("Camera permission granted (environment facing).");
-      streamRef.current = stream;
+       // Try to get the environment-facing camera first.
+       // Note: The browser determines which camera fulfills 'environment'. On some devices,
+       // this might be the ultra-wide camera instead of the main wide-angle camera.
+       // Controlling the specific camera beyond 'facingMode' is complex and unreliable across devices.
+       console.log("Requesting environment camera...");
+       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+       console.log("Camera permission granted (environment facing). Stream tracks:", stream.getTracks());
+       streamRef.current = stream;
 
        if (videoRef.current) {
            // Apply mirror transform logic
@@ -210,8 +215,9 @@ export default function DashboardPage() { // Renamed component to DashboardPage
        console.warn('Error accessing environment camera, trying default:', error);
         // Fallback to default camera if environment fails
         try {
+            console.log("Requesting default camera...");
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            console.log("Camera permission granted (default).");
+            console.log("Camera permission granted (default). Stream tracks:", stream.getTracks());
             streamRef.current = stream;
 
             if (videoRef.current) {
@@ -794,8 +800,8 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                          <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-accent animate-pulse-corners rounded-bl-md z-20"></div>
                          <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-accent animate-pulse-corners rounded-br-md z-20"></div>
 
-                         {/* Removed Scan Line */}
-                         {/* Removed Text inside focus box */}
+                         {/* Scan Line Animation - Removed */}
+                         {/* <div className="absolute top-0 left-1/2 w-0.5 h-full bg-gradient-to-b from-transparent via-primary/70 to-transparent animate-scan-line-vertical transform -translate-x-1/2"></div> */}
                      </div>
                  </div>
              )}
