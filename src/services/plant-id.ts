@@ -36,6 +36,14 @@ export interface Plant {
    */
   strain: string;
   /**
+   * O nome do lote ou grupo ao qual esta planta pertence.
+   */
+  lotName: string; // Added
+  /**
+   * Data estimada de colheita (opcional). Armazenado como string ISO 8601.
+   */
+  estimatedHarvestDate?: string | null; // Added
+  /**
    * A data em que a planta nasceu (foi plantada). Armazenado como string ISO 8601.
    */
   birthDate: string; // Store as ISO string in object, convert to Timestamp for Firestore
@@ -44,7 +52,7 @@ export interface Plant {
    */
   growRoomId: string;
   /**
-   * O status atual da planta (ex: Vegetativo, Floração, Secagem).
+   * O status atual da planta (ex: Ativa, Em tratamento, Colhida).
    */
   status: string;
   /**
@@ -53,18 +61,25 @@ export interface Plant {
   createdAt?: string; // Store as ISO string
 }
 
-// Define os estágios comuns de crescimento da cannabis
-export const CANNABIS_STAGES = [
-  'Semente', // Seed
-  'Plântula', // Seedling
-  'Clone',    // Clone
-  'Vegetativo', // Vegetative
-  'Pré-floração', // Pre-flowering
-  'Floração', // Flowering
-  'Colhida', // Harvested
-  'Secagem', // Drying
-  'Cura', // Curing
-  'Finalizada', // Finished (e.g., discarded or completed lifecycle)
+// Define os estados recomendados para uma planta individual
+export const PLANT_STATES = [
+  'Ativa',             // Active/Growing
+  'Em tratamento',     // Needs attention / Under treatment
+  'Diagnóstico Pendente', // AI Analysis pending
+  'Colhida',           // Harvested successfully
+  'Perdida',           // Lost/Dead/Discarded
+  // Add others if needed, like 'Secagem', 'Cura' if tracked per-plant
+];
+
+// Define os estágios comuns de crescimento da cannabis (pode ser usado no diário)
+export const CANNABIS_GROWTH_STAGES = [
+    'Semente', // Seed
+    'Plântula', // Seedling
+    'Clone',    // Clone
+    'Vegetativo', // Vegetative
+    'Pré-floração', // Pre-flowering
+    'Floração', // Flowering
+    // Colhida, Secagem, Cura, Finalizada might be PLANT_STATES instead
 ];
 
 // --- Firestore Collection Reference ---
@@ -106,7 +121,10 @@ export async function getPlantById(plantId: string): Promise<Plant | null> {
       // Convert Timestamps back to ISO strings if needed
       const birthDate = (data.birthDate instanceof Timestamp) ? data.birthDate.toDate().toISOString() : data.birthDate;
       const createdAt = (data.createdAt instanceof Timestamp) ? data.createdAt.toDate().toISOString() : data.createdAt;
-      return { ...data, id: plantSnap.id, birthDate, createdAt } as Plant;
+      const estimatedHarvestDate = data.estimatedHarvestDate ?
+                                     ((data.estimatedHarvestDate instanceof Timestamp) ? data.estimatedHarvestDate.toDate().toISOString() : data.estimatedHarvestDate)
+                                     : null; // Handle optional date
+      return { ...data, id: plantSnap.id, birthDate, createdAt, estimatedHarvestDate } as Plant;
     } else {
       console.warn(`Nenhuma planta encontrada para o ID: ${plantId}`);
       return null;
@@ -124,18 +142,19 @@ export const getPlantByQrCode = getPlantById;
 /**
  * Adiciona uma nova planta ao Firestore.
  * O ID e o QR Code são passados como parte do objeto plantData (gerados antes de chamar esta função).
+ * O status inicial é definido internamente.
  *
- * @param plantData Os dados da nova planta a ser adicionada, incluindo o ID e QR Code gerados.
- * @returns Uma promessa que resolve quando a planta é adicionada. Rejeita se o ID já existir ou em caso de erro.
+ * @param plantData Os dados da nova planta a ser adicionada, incluindo o ID, QR Code, lotName, etc. O campo 'status' será sobrescrito.
+ * @returns Uma promessa que resolve com o objeto Plant completo (incluindo status e createdAt) quando a planta é adicionada. Rejeita se o ID já existir ou em caso de erro.
  */
-export async function addPlant(plantData: Plant): Promise<void> {
+export async function addPlant(plantData: Omit<Plant, 'status' | 'createdAt'> & { status?: string; createdAt?: string }): Promise<Plant> {
   ensureDbAvailable();
   console.log(`Adicionando planta com ID: ${plantData.id} ao Firestore.`);
 
   try {
     const plantDocRef = doc(db!, 'plants', plantData.id);
 
-    // Optional: Check if document already exists (setDoc overwrites, but good practice to check if needed)
+    // Optional: Check if document already exists
     const docSnap = await getDoc(plantDocRef);
     if (docSnap.exists()) {
       console.error(`Erro: Documento com ID '${plantData.id}' já existe no Firestore.`);
@@ -145,8 +164,11 @@ export async function addPlant(plantData: Plant): Promise<void> {
     const now = new Date();
     const dataToSave = {
       ...plantData,
+      status: PLANT_STATES[0], // Set initial status to 'Ativa'
       birthDate: Timestamp.fromDate(new Date(plantData.birthDate)), // Convert ISO string to Timestamp
       createdAt: Timestamp.fromDate(now), // Add creation timestamp
+      // Convert optional date only if it exists
+      estimatedHarvestDate: plantData.estimatedHarvestDate ? Timestamp.fromDate(new Date(plantData.estimatedHarvestDate)) : null,
     };
 
     // Remove id from the data object itself, as it's the document ID
@@ -155,6 +177,17 @@ export async function addPlant(plantData: Plant): Promise<void> {
 
     await setDoc(plantDocRef, dataToSave);
     console.log(`Planta '${plantData.strain}' adicionada com sucesso com ID: ${plantData.id}.`);
+
+    // Return the full object as it was saved (converting Timestamps back to ISO strings)
+    const savedPlant: Plant = {
+      ...plantData,
+      id: plantData.id, // Add the id back
+      status: PLANT_STATES[0],
+      createdAt: now.toISOString(),
+      birthDate: plantData.birthDate, // Keep original ISO string format
+      estimatedHarvestDate: plantData.estimatedHarvestDate, // Keep original format or null
+    };
+    return savedPlant;
 
   } catch (error) {
     console.error(`Erro ao adicionar planta ${plantData.id} ao Firestore:`, error);
@@ -166,17 +199,17 @@ export async function addPlant(plantData: Plant): Promise<void> {
  * Updates the status of an existing plant in Firestore.
  *
  * @param plantId The ID of the plant to update.
- * @param newStatus The new status string.
+ * @param newStatus The new status string (should be one of PLANT_STATES).
  * @returns A promise that resolves when the plant status is updated. Rejects if the plant ID is not found or on error.
  */
 export async function updatePlantStatus(plantId: string, newStatus: string): Promise<void> {
   ensureDbAvailable();
   console.log(`Atualizando status da planta ID: ${plantId} para "${newStatus}" no Firestore.`);
 
-  // Validate if newStatus is one of the allowed stages (optional but good practice)
-  if (!CANNABIS_STAGES.includes(newStatus)) {
-       console.warn(`Status "${newStatus}" não é um estágio padrão. Salvando mesmo assim.`);
-      // Optionally throw an error: throw new Error(`Status inválido: ${newStatus}`);
+  // Validate if newStatus is one of the allowed states
+  if (!PLANT_STATES.includes(newStatus)) {
+       console.warn(`Status "${newStatus}" não é um estado de planta válido. Salvando mesmo assim, mas pode causar inconsistências.`);
+       // Optionally throw an error: throw new Error(`Status inválido: ${newStatus}`);
   }
 
   try {
@@ -219,7 +252,10 @@ export async function getRecentPlants(count: number = 3): Promise<Plant[]> {
       const data = doc.data();
       const birthDate = (data.birthDate instanceof Timestamp) ? data.birthDate.toDate().toISOString() : data.birthDate;
       const createdAt = (data.createdAt instanceof Timestamp) ? data.createdAt.toDate().toISOString() : data.createdAt;
-      plants.push({ ...data, id: doc.id, birthDate, createdAt } as Plant);
+      const estimatedHarvestDate = data.estimatedHarvestDate ?
+                                    ((data.estimatedHarvestDate instanceof Timestamp) ? data.estimatedHarvestDate.toDate().toISOString() : data.estimatedHarvestDate)
+                                    : null;
+      plants.push({ ...data, id: doc.id, birthDate, createdAt, estimatedHarvestDate } as Plant);
     });
     console.log(`Retornadas ${plants.length} plantas recentes.`);
     return plants;
@@ -231,8 +267,8 @@ export async function getRecentPlants(count: number = 3): Promise<Plant[]> {
 
 /**
  * Recupera uma lista de plantas que precisam de atenção do Firestore.
- * A lógica para "atenção" agora precisa ser implementada no Firestore (por exemplo, um campo 'needsAttention' ou consulta por status específicos).
- * ESTA IMPLEMENTAÇÃO É UM EXEMPLO SIMPLES - Ajuste conforme necessário.
+ * ATENÇÃO: A lógica atual considera 'Em tratamento' e 'Diagnóstico Pendente' como necessitando de atenção.
+ * Ajuste a lista `attentionStatuses` conforme necessário.
  *
  * @param count O número máximo de plantas a serem retornadas.
  * @returns Uma promessa que resolve para um array de objetos Plant.
@@ -243,13 +279,14 @@ export async function getRecentPlants(count: number = 3): Promise<Plant[]> {
     try {
       // Ensure plantsCollectionRef is not null before using it
       if (!plantsCollectionRef) throw new Error("plantsCollectionRef is null");
-      // EXEMPLO: Buscar plantas com status específicos que indicam atenção
-      // Adapte 'status' e os valores conforme sua lógica de negócio
-      const attentionStatuses = ['Problema Detectado', 'Deficiência', 'Doente']; // Status que indicam atenção
+
+      // Define quais status indicam necessidade de atenção
+      const attentionStatuses = ['Em tratamento', 'Diagnóstico Pendente']; // Adaptar conforme necessário
+
       const q = query(
           plantsCollectionRef,
           where('status', 'in', attentionStatuses),
-          orderBy('createdAt', 'desc'), // Ou ordene por outro campo relevante
+          orderBy('createdAt', 'desc'), // Ou ordene por data da última atualização/problema
           firestoreLimit(count)
       );
       const querySnapshot = await getDocs(q);
@@ -259,7 +296,10 @@ export async function getRecentPlants(count: number = 3): Promise<Plant[]> {
           const data = doc.data();
           const birthDate = (data.birthDate instanceof Timestamp) ? data.birthDate.toDate().toISOString() : data.birthDate;
           const createdAt = (data.createdAt instanceof Timestamp) ? data.createdAt.toDate().toISOString() : data.createdAt;
-          plants.push({ ...data, id: doc.id, birthDate, createdAt } as Plant);
+          const estimatedHarvestDate = data.estimatedHarvestDate ?
+                                        ((data.estimatedHarvestDate instanceof Timestamp) ? data.estimatedHarvestDate.toDate().toISOString() : data.estimatedHarvestDate)
+                                        : null;
+          plants.push({ ...data, id: doc.id, birthDate, createdAt, estimatedHarvestDate } as Plant);
       });
       console.log(`Retornadas ${plants.length} plantas que precisam de atenção.`);
       return plants;
@@ -322,7 +362,10 @@ export async function getRecentPlants(count: number = 3): Promise<Plant[]> {
        const data = doc.data();
        const birthDate = (data.birthDate instanceof Timestamp) ? data.birthDate.toDate().toISOString() : data.birthDate;
        const createdAt = (data.createdAt instanceof Timestamp) ? data.createdAt.toDate().toISOString() : data.createdAt;
-       plants.push({ ...data, id: doc.id, birthDate, createdAt } as Plant);
+        const estimatedHarvestDate = data.estimatedHarvestDate ?
+                                        ((data.estimatedHarvestDate instanceof Timestamp) ? data.estimatedHarvestDate.toDate().toISOString() : data.estimatedHarvestDate)
+                                        : null;
+       plants.push({ ...data, id: doc.id, birthDate, createdAt, estimatedHarvestDate } as Plant);
      });
 
      // Get the last visible document for the next page query
@@ -369,30 +412,38 @@ export async function getRecentPlants(count: number = 3): Promise<Plant[]> {
                 continue; // Pula esta planta
             }
 
-            const dataToSave = {
-                ...plant,
+             const dataToSave = {
+                qrCode: plant.qrCode,
+                strain: plant.strain,
+                lotName: plant.lotName || 'Lote Padrão', // Add default if missing
+                estimatedHarvestDate: plant.estimatedHarvestDate ? Timestamp.fromDate(new Date(plant.estimatedHarvestDate)) : null,
                 birthDate: Timestamp.fromDate(new Date(plant.birthDate)),
-                createdAt: Timestamp.fromDate(new Date(plant.createdAt || plant.birthDate)), // Use birthDate se createdAt não existir
+                growRoomId: plant.growRoomId,
+                status: plant.status || PLANT_STATES[0], // Default if missing
+                createdAt: plant.createdAt ? Timestamp.fromDate(new Date(plant.createdAt)) : Timestamp.fromDate(new Date(plant.birthDate)), // Use birthDate se createdAt não existir
             };
-            delete (dataToSave as any).id; // Não salve o ID dentro do documento
+            // delete (dataToSave as any).id; // ID is the doc ref, not part of data
 
             batch.set(plantDocRef, dataToSave);
             writeCount++;
             console.log(`Preparando planta ID ${plant.id} (${plant.strain}) para o batch.`);
 
             // Commits em lotes para evitar exceder limites
-            if (writeCount % 400 === 0) {
-                console.log(`Committing batch de ${writeCount % 400 === 0 ? 400 : writeCount % 400} plantas...`);
-                await batch.commit();
-                // batch = writeBatch(db); // Inicia um novo batch após commit
-                // É mais seguro recriar o batch:
-                // batch = writeBatch(db!); // Comentado - recrie o batch antes do próximo loop se necessário
-                console.log("Batch commitado com sucesso.");
-                 // Reinicia o batch para o próximo lote
-                 // batch = writeBatch(db!); // Comentado - Precisa ser recriado antes da próxima adição
-                 // Recreate the batch inside the loop before the next addition
-                 // If you commit inside the loop, you need a new batch instance.
-                 // For simplicity, let's handle the final commit outside the loop.
+            if (writeCount > 0 && writeCount % 400 === 0) { // Commit every 400 writes
+                 console.log(`Committing batch de 400 plantas...`);
+                 await batch.commit();
+                 // batch = writeBatch(db); // Inicia um novo batch após commit
+                 // É mais seguro recriar o batch:
+                 // batch = writeBatch(db!); // Comentado - recrie o batch antes do próximo loop se necessário
+                 console.log("Batch commitado com sucesso.");
+                  // Reinicia o batch para o próximo lote
+                  // batch = writeBatch(db!); // Comentado - Precisa ser recriado antes da próxima adição
+                  // Recreate the batch inside the loop before the next addition
+                  // If you commit inside the loop, you need a new batch instance.
+                  // For simplicity, let's handle the final commit outside the loop.
+                  // Re-initialize batch for the next set
+                  // batch = writeBatch(db!); // Actually need to reinitialize here
+                  // Let's stick to one large batch for simplicity unless hitting limits
             }
         } catch (error) {
             console.error(`Erro ao preparar a planta ID ${plant.id} para o batch:`, error);
@@ -401,17 +452,18 @@ export async function getRecentPlants(count: number = 3): Promise<Plant[]> {
     }
 
     try {
-        if (writeCount > 0) { // Commit final se houver escritas pendentes
-             console.log(`Committing batch final de ${writeCount % 400 === 0 ? (plantEntries.length % 400) : writeCount % 400 } plantas...`);
+        if (writeCount > 0 && writeCount % 400 !== 0) { // Commit final se houver escritas pendentes e não foi o último batch de 400
+             const remainingCount = writeCount % 400;
+             console.log(`Committing batch final de ${remainingCount} plantas...`);
              await batch.commit();
              console.log("Batch final commitado com sucesso.");
-             console.log(`Migração concluída. ${writeCount} plantas migradas para o Firestore.`);
-             // Opcional: Limpar o localStorage após a migração bem-sucedida
-             // localStorage.removeItem(LOCAL_STORAGE_KEY);
-             // console.log("Dados do localStorage removidos após migração.");
-        } else {
+        } else if (writeCount === 0) {
              console.log("Nenhuma nova planta para commitar no batch final.");
         }
+        console.log(`Migração concluída. Total de ${writeCount} plantas preparadas para o Firestore.`);
+        // Opcional: Limpar o localStorage após a migração bem-sucedida
+        // localStorage.removeItem(LOCAL_STORAGE_KEY);
+        // console.log("Dados do localStorage removidos após migração.");
     } catch (error) {
         console.error('Erro ao commitar o batch final:', error);
         console.error("A migração pode não ter sido totalmente concluída.");

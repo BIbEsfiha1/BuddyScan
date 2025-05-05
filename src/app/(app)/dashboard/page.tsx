@@ -26,6 +26,7 @@ import type { Plant } from '@/services/plant-id'; // Import Plant type
 import { getRecentPlants, getAttentionPlants, getPlantById } from '@/services/plant-id'; // Import Firestore fetch functions
 import Image from 'next/image'; // Import Image component
 import { cn } from '@/lib/utils'; // Import cn utility
+import { firebaseInitializationError } from '@/lib/firebase/config'; // Import firebase error state
 
 
 // Define states for camera/scanner
@@ -47,6 +48,8 @@ export default function DashboardPage() { // Renamed component to DashboardPage
   const [recentPlants, setRecentPlants] = useState<Plant[]>([]);
   const [attentionPlants, setAttentionPlants] = useState<Plant[]>([]);
   const [isLoadingPlants, setIsLoadingPlants] = useState(true);
+  // State for general error display
+  const [error, setError] = useState<string | null>(null);
 
 
   // Track mount state
@@ -78,6 +81,17 @@ export default function DashboardPage() { // Renamed component to DashboardPage
    const fetchPlants = useCallback(async () => {
      console.log("Fetching plant data from Firestore service...");
      setIsLoadingPlants(true);
+     setError(null); // Reset error state
+
+     // Check for Firebase initialization errors before proceeding
+     if (firebaseInitializationError) {
+         console.error("Firebase initialization error:", firebaseInitializationError);
+         setError(`Erro de configuração do Firebase: ${firebaseInitializationError.message}. Não é possível buscar dados.`);
+         setIsLoadingPlants(false);
+         return;
+     }
+
+
      try {
        // Use the Firestore service functions
        const [fetchedRecent, fetchedAttention] = await Promise.all([
@@ -90,10 +104,12 @@ export default function DashboardPage() { // Renamed component to DashboardPage
        setAttentionPlants(fetchedAttention);
      } catch (error) {
        console.error('Failed to fetch plant data from Firestore:', error);
+       const errorMsg = `Não foi possível buscar os dados das plantas. ${error instanceof Error ? error.message : ''}`;
+       setError(errorMsg); // Set error state
        toast({
          variant: 'destructive',
          title: 'Erro ao Carregar Dados',
-         description: `Não foi possível buscar os dados das plantas. ${error instanceof Error ? error.message : ''}`,
+         description: errorMsg,
        });
      } finally {
        setIsLoadingPlants(false);
@@ -316,6 +332,15 @@ export default function DashboardPage() { // Renamed component to DashboardPage
            setScannerStatus('stopped'); // Keep video frame, indicate stopped
 
            toast({ title: 'QR Code Detectado!', description: `Verificando planta ${qrCodeData}...` });
+
+           // Check for Firebase initialization errors before Firestore check
+           if (firebaseInitializationError) {
+               console.error("Firebase initialization error during QR verification:", firebaseInitializationError);
+               toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Não foi possível verificar a planta devido a erro do Firebase.' });
+               setScannerStatus('error');
+               setScannerError('Erro de configuração ao verificar planta.');
+               return; // Stop the process
+           }
 
            try {
              const plantExists = await getPlantById(qrCodeData); // Check Firestore
@@ -567,6 +592,31 @@ export default function DashboardPage() { // Renamed component to DashboardPage
          <p className="text-lg text-muted-foreground">Seu centro de controle de cultivo inteligente.</p>
        </header>
 
+       {/* Display Global Error if Firebase Failed */}
+        {firebaseInitializationError && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircleIcon className="h-4 w-4" />
+            <AlertTitle>Erro Crítico de Configuração</AlertTitle>
+            <AlertDescription>
+              {firebaseInitializationError.message}. Algumas funcionalidades podem estar indisponíveis. Verifique o console para mais detalhes.
+            </AlertDescription>
+          </Alert>
+        )}
+        {/* Display General Fetch Error */}
+        {error && !firebaseInitializationError && (
+           <Alert variant="destructive" className="mb-6">
+              <AlertCircleIcon className="h-4 w-4" />
+              <AlertTitle>Erro ao Carregar Dados</AlertTitle>
+              <AlertDescription>
+                 {error}
+                 <Button onClick={fetchPlants} variant="secondary" size="sm" className="ml-4 button">
+                     Tentar Novamente
+                 </Button>
+              </AlertDescription>
+           </Alert>
+        )}
+
+
       {/* Main Content Area - Grid Layout */}
        <main className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
 
@@ -586,7 +636,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                    className="w-full text-base font-medium button justify-start"
                    onClick={handleRegister}
                    aria-label="Cadastrar Nova Planta"
-                   disabled={isDialogOpen}
+                   disabled={isDialogOpen || !!firebaseInitializationError} // Disable if dialog open or Firebase error
                  >
                    <PlusCircle className="mr-3 h-5 w-5" />
                    Cadastrar Nova Planta
@@ -597,7 +647,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                    className="w-full text-base font-medium button justify-start"
                    onClick={handleScanClick}
                    aria-label="Escanear QR Code da Planta"
-                   disabled={isDialogOpen}
+                   disabled={isDialogOpen || !!firebaseInitializationError} // Disable if dialog open or Firebase error
                  >
                    <ScanLine className="mr-3 h-5 w-5" />
                    Escanear QR Code
@@ -608,7 +658,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                    className="w-full text-base font-medium button justify-start"
                    onClick={() => router.push('/plants')}
                    aria-label="Ver todas as plantas"
-                   disabled={isDialogOpen}
+                   disabled={isDialogOpen || !!firebaseInitializationError} // Disable if dialog open or Firebase error
                  >
                    <Package className="mr-3 h-5 w-5" />
                    Ver Todas as Plantas
@@ -628,7 +678,19 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                        <p className="text-center text-muted-foreground text-sm">Carregando plantas...</p>
                    </div>
                 </Card>
-               ) : (
+               ) : error ? ( // Show error state within the card if loading failed
+                 <Card className="shadow-md card border-destructive/30 p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                       <AlertTriangle className="h-5 w-5 text-destructive" />
+                       <CardTitle className="text-xl">Requer Atenção</CardTitle>
+                    </div>
+                    <Alert variant="destructive" className="border-none p-0">
+                        <AlertCircleIcon className="h-4 w-4" />
+                        <AlertTitle>Erro</AlertTitle>
+                        <AlertDescription>Não foi possível carregar.</AlertDescription>
+                    </Alert>
+                 </Card>
+                ) : ( // Show AttentionPlants only if no error and not loading
                  <AttentionPlants plants={attentionPlants} />
                )}
 
@@ -648,7 +710,21 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                          <p className="text-center text-muted-foreground">Carregando plantas recentes...</p>
                      </div>
                  </Card>
-              ) : (
+              ) : error ? ( // Show error state within the card if loading failed
+                  <Card className="shadow-md card h-full flex flex-col p-6">
+                     <div className="flex items-center gap-2 mb-4">
+                         <History className="h-5 w-5 text-primary" />
+                         <CardTitle className="text-xl">Plantas Recentes</CardTitle>
+                     </div>
+                     <div className="flex-1 flex flex-col items-center justify-center space-y-4">
+                          <Alert variant="destructive" className="w-full">
+                              <AlertCircleIcon className="h-4 w-4" />
+                              <AlertTitle>Erro</AlertTitle>
+                              <AlertDescription>Não foi possível carregar as plantas recentes.</AlertDescription>
+                          </Alert>
+                     </div>
+                  </Card>
+               ) : ( // Show RecentPlants only if no error and not loading
                  <RecentPlants plants={recentPlants} />
               )}
            </div>
@@ -683,7 +759,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                   playsInline // Important for mobile inline playback
                   muted // Mute to avoid feedback loops and allow autoplay
                   autoPlay // Request autoplay
-                  // Style is applied via mirror logic in startCamera
+                  style={{ transform: videoRef.current?.style.transform || 'scaleX(1)' }} // Persist transform
               />
 
              {/* Visual Guide Overlay */}

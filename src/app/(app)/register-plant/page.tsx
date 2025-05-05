@@ -17,26 +17,27 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Leaf, CalendarDays, Warehouse, Loader2, ArrowLeft, Sprout, CheckCircle, Download, Layers, Home as HomeIcon } from '@/components/ui/lucide-icons'; // Use centralized icons, added HomeIcon
+import { Leaf, CalendarDays, Warehouse, Loader2, ArrowLeft, Sprout, CheckCircle, Download, Layers, Home as HomeIcon, PackagePlus, QrCode as QrCodeIcon, Archive } from '@/components/ui/lucide-icons'; // Use centralized icons, added PackagePlus, Archive
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { addPlant, type Plant } from '@/services/plant-id'; // Import Firestore function
 import Link from 'next/link';
 import { generateUniqueId } from '@/lib/utils';
-import { QrCode as QrCodeIcon } from 'lucide-react'; // Specific import if needed
+// import { QrCode as QrCodeIcon } from 'lucide-react'; // Already imported from lucide-icons
 import { toDataURL } from 'qrcode'; // Import QR code generation function
 import Image from 'next/image'; // Import Next Image component
 import { firebaseInitializationError } from '@/lib/firebase/config'; // Import Firebase error state
 
 
-// Define the schema for plant registration
+// Define the schema for plant registration, updated fields
 const registerPlantSchema = z.object({
   strain: z.string().min(1, 'O nome da variedade é obrigatório.').max(100, 'Nome da variedade muito longo.'),
+  lotName: z.string().min(1, 'O nome do lote é obrigatório.').max(50, 'Nome do lote muito longo.'), // Added lotName
   birthDate: z.string().refine((date) => !isNaN(Date.parse(date)), {
     message: 'Data de nascimento inválida.',
   }),
   growRoomId: z.string().min(1, 'O ID da sala de cultivo é obrigatório.').max(50, 'ID da sala muito longo.'),
-  status: z.string().min(1, 'O status inicial é obrigatório (ex: Plântula, Vegetativo)').max(50, 'Status muito longo.'),
+  estimatedHarvestDate: z.string().optional().nullable(), // Added optional harvest date
 });
 
 type RegisterPlantFormData = z.infer<typeof registerPlantSchema>;
@@ -54,9 +55,10 @@ export default function RegisterPlantPage() {
     resolver: zodResolver(registerPlantSchema),
     defaultValues: {
       strain: '',
+      lotName: '', // Initialize lotName
       birthDate: '',
       growRoomId: '',
-      status: 'Plântula',
+      estimatedHarvestDate: '', // Initialize harvest date
     },
   });
 
@@ -100,15 +102,15 @@ export default function RegisterPlantPage() {
       // Generate a unique ID for the plant, which will also be the QR code content
       const uniqueId = generateUniqueId(); // Use the existing utility
 
-      // Construct the new plant object for Firestore
-      const newPlantData: Plant = {
+      // Construct the new plant object for Firestore (without status and createdAt)
+      const newPlantData: Omit<Plant, 'status' | 'createdAt'> = {
         id: uniqueId, // Use generated ID as Firestore document ID
         qrCode: uniqueId, // QR Code content is the same as the ID
         strain: data.strain,
-        birthDate: new Date(data.birthDate).toISOString(), // Store as ISO string
+        lotName: data.lotName, // Added lotName
+        estimatedHarvestDate: data.estimatedHarvestDate || null, // Added harvest date
+        birthDate: data.birthDate, // Store as ISO string temporarily, service converts to Timestamp
         growRoomId: data.growRoomId,
-        status: data.status,
-        createdAt: new Date().toISOString(), // Add creation timestamp
       };
 
       console.log('Tentando cadastrar planta no Firestore:', newPlantData);
@@ -131,18 +133,19 @@ export default function RegisterPlantPage() {
 
 
       // Call the service function to add the plant to Firestore
-      await addPlant(newPlantData);
+      // addPlant now handles setting the default status and createdAt
+      const savedPlant = await addPlant(newPlantData);
 
-      console.log('Planta cadastrada com sucesso no Firestore com ID:', uniqueId);
-      setGeneratedQrCode(uniqueId);
-
+      console.log('Planta cadastrada com sucesso no Firestore:', savedPlant);
+      setGeneratedQrCode(savedPlant.id); // Use the ID from the saved plant object
 
       toast({
         title: 'Planta Cadastrada!',
         description: (
            <div>
-               <p>A planta '{data.strain}' foi adicionada com sucesso.</p>
-               <p className="font-semibold mt-2">QR Code / ID: {uniqueId}</p>
+               <p>A planta '{savedPlant.strain}' (Lote: {savedPlant.lotName}) foi adicionada com sucesso.</p>
+               <p className="font-semibold mt-2">QR Code / ID: {savedPlant.id}</p>
+               <p className="text-sm text-muted-foreground">Status inicial: {savedPlant.status}</p>
            </div>
         ),
         variant: 'default',
@@ -180,7 +183,7 @@ export default function RegisterPlantPage() {
             </Button>
            <div className="flex flex-col items-center text-center pt-8">
                <div className="bg-primary/10 p-3 rounded-full mb-3 shadow-inner">
-                 <Leaf className="h-8 w-8 text-primary" /> {/* Icon */}
+                 <PackagePlus className="h-8 w-8 text-primary" /> {/* Changed Icon */}
                </div>
                <CardTitle className="text-2xl font-bold">Cadastrar Nova Planta</CardTitle>
               <CardDescription className="text-muted-foreground mt-1 max-w-xs">
@@ -261,6 +264,24 @@ export default function RegisterPlantPage() {
                     )}
                     />
 
+                     {/* Lot Name */}
+                    <FormField
+                      control={form.control}
+                      name="lotName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2">
+                            <Archive className="h-4 w-4 text-secondary" /> Nome do Lote/Grupo
+                          </FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ex: Lote Verão 24, Grupo A" {...field} disabled={isSubmitting || !!firebaseInitializationError} className="input"/>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+
                     {/* Birth Date */}
                     <FormField
                     control={form.control}
@@ -277,6 +298,25 @@ export default function RegisterPlantPage() {
                         </FormItem>
                     )}
                     />
+
+                    {/* Estimated Harvest Date */}
+                    <FormField
+                      control={form.control}
+                      name="estimatedHarvestDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2">
+                            <CalendarDays className="h-4 w-4 text-secondary" /> Data Estimada da Colheita (Opcional)
+                          </FormLabel>
+                          <FormControl>
+                            {/* Use field.value and handle empty string for optional date */}
+                            <Input type="date" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value || null)} disabled={isSubmitting || !!firebaseInitializationError} className="input appearance-none"/>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
 
                     {/* Grow Room ID */}
                     <FormField
@@ -295,23 +335,7 @@ export default function RegisterPlantPage() {
                     )}
                     />
 
-                    {/* Initial Status */}
-                    <FormField
-                        control={form.control}
-                        name="status"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel className="flex items-center gap-2">
-                            <Layers className="h-4 w-4 text-secondary" /> Status Inicial {/* Updated Icon */}
-                            </FormLabel>
-                            <FormControl>
-                            <Input placeholder="Ex: Plântula, Vegetativo" {...field} disabled={isSubmitting || !!firebaseInitializationError} className="input"/>
-                            </FormControl>
-                            <FormDescription>O estágio inicial da planta.</FormDescription>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
+                   {/* Initial Status field removed */}
 
 
                     {/* Submit Error Display */}
@@ -334,7 +358,7 @@ export default function RegisterPlantPage() {
                     </>
                     ) : (
                       <>
-                       <CheckCircle className="mr-2 h-5 w-5" /> Salvar Planta e Gerar QR Code {/* Updated Icon */}
+                       <CheckCircle className="mr-2 h-5 w-5" /> Salvar Planta e Gerar QR Code
                       </>
                     )}
                 </Button>

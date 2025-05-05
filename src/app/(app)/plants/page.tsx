@@ -4,18 +4,21 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { getAllPlantsPaginated, CANNABIS_STAGES, Plant } from '@/services/plant-id'; // Use paginated function
+import { getAllPlantsPaginated, PLANT_STATES, Plant } from '@/services/plant-id'; // Use PLANT_STATES instead of CANNABIS_STAGES
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Loader2, Filter, X, ArrowRight, Sprout, Warehouse, Search, Package, ArrowLeft } from '@/components/ui/lucide-icons';
+import { Loader2, Filter, X, ArrowRight, Sprout, Warehouse, Search, Package, ArrowLeft, AlertCircle as AlertCircleIcon } from '@/components/ui/lucide-icons'; // Added AlertCircleIcon
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { firebaseInitializationError } from '@/lib/firebase/config';
+import { firebaseInitializationError, db } from '@/lib/firebase/config'; // Import db and firebaseInitializationError
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { collection, getDocs, query } from 'firebase/firestore'; // Import Firestore functions for getting rooms
 import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore'; // Import Firestore types
+import { useRouter } from 'next/navigation'; // Import useRouter
+
 
 const ALL_STATUSES_VALUE = "all_statuses";
 const ALL_ROOMS_VALUE = "all_rooms";
@@ -29,6 +32,7 @@ interface Filters {
 
 export default function AllPlantsPage() {
   const { toast } = useToast();
+  const router = useRouter(); // Initialize useRouter
   const [allPlants, setAllPlants] = useState<Plant[]>([]); // Stores all currently loaded plants
   const [displayedPlants, setDisplayedPlants] = useState<Plant[]>([]); // Plants to display after client-side search filter
   const [filters, setFilters] = useState<Filters>({ search: '', status: ALL_STATUSES_VALUE, growRoom: ALL_ROOMS_VALUE });
@@ -97,26 +101,28 @@ export default function AllPlantsPage() {
         fetchPlants(false);
         // Fetch all unique grow rooms once for the filter dropdown
         const fetchAllGrowRooms = async () => {
+            // Check Firestore availability
+            if (firebaseInitializationError || !db) {
+                console.warn("Firestore not available, cannot fetch grow rooms.");
+                return;
+            }
             try {
-                // Temporary: Fetch all plants just to get rooms. Inefficient for large datasets.
-                // Ideally, have a separate 'growRooms' collection or query distinct values.
-                 if (!firebaseInitializationError && db) {
-                    const plantsCol = collection(db, 'plants');
-                    const q = query(plantsCol); // No filters needed here
-                    const snapshot = await getDocs(q);
-                    const rooms = new Set<string>();
-                    snapshot.forEach(doc => {
-                        const growRoomId = doc.data().growRoomId;
-                        if (growRoomId) rooms.add(growRoomId);
-                    });
-                    setAllUniqueGrowRooms(Array.from(rooms).sort());
-                 }
+                const plantsCol = collection(db, 'plants');
+                const q = query(plantsCol); // No filters needed here
+                const snapshot = await getDocs(q);
+                const rooms = new Set<string>();
+                snapshot.forEach(doc => {
+                    const growRoomId = doc.data().growRoomId;
+                    if (growRoomId) rooms.add(growRoomId);
+                });
+                setAllUniqueGrowRooms(Array.from(rooms).sort());
             } catch (e) {
                 console.error("Failed to fetch all grow rooms:", e);
                 // Don't block the UI for this, just log it.
             }
         };
         fetchAllGrowRooms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Run only on mount
 
     // Fetch when server-side filters change (status, growRoom)
@@ -132,7 +138,8 @@ export default function AllPlantsPage() {
         if (filters.search) {
         const lowerSearch = filters.search.toLowerCase();
         setDisplayedPlants(allPlants.filter(plant =>
-            plant.strain.toLowerCase().includes(lowerSearch)
+            plant.strain.toLowerCase().includes(lowerSearch) ||
+            (plant.lotName && plant.lotName.toLowerCase().includes(lowerSearch)) // Also search by lotName
         ));
         } else {
         setDisplayedPlants(allPlants); // Show all loaded plants if search is empty
@@ -186,10 +193,10 @@ export default function AllPlantsPage() {
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Search Input */}
           <div className="space-y-1.5">
-             <label htmlFor="search-filter" className="text-sm font-medium text-muted-foreground flex items-center gap-1.5"><Search className="h-4 w-4"/> Pesquisar Variedade</label>
+             <label htmlFor="search-filter" className="text-sm font-medium text-muted-foreground flex items-center gap-1.5"><Search className="h-4 w-4"/> Pesquisar Variedade / Lote</label>
             <Input
               id="search-filter"
-              placeholder="Nome da variedade..."
+              placeholder="Nome da variedade ou lote..."
               value={filters.search}
               onChange={(e) => handleFilterChange('search', e.target.value)}
               className="input"
@@ -210,8 +217,8 @@ export default function AllPlantsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL_STATUSES_VALUE}>Todos os Status</SelectItem>
-                {CANNABIS_STAGES.map((stage) => (
-                  <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+                {PLANT_STATES.map((state) => ( // Use PLANT_STATES
+                  <SelectItem key={state} value={state}>{state}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -244,7 +251,7 @@ export default function AllPlantsPage() {
                 onClick={clearFilters}
                 className="w-full lg:w-auto button"
                 disabled={
-                    isLoading || // Disable while loading
+                    isLoading || !!firebaseInitializationError || // Disable while loading or firebase error
                     (!filters.search &&
                     filters.status === ALL_STATUSES_VALUE &&
                     filters.growRoom === ALL_ROOMS_VALUE)
@@ -266,7 +273,7 @@ export default function AllPlantsPage() {
            {/* Firebase Init Error */}
             {firebaseInitializationError && (
                  <Alert variant="destructive" className="mb-4">
-                     <AlertCircle className="h-4 w-4" />
+                     <AlertCircleIcon className="h-4 w-4" />
                      <AlertTitle>Erro de Configuração do Firebase</AlertTitle>
                      <AlertDescription>{firebaseInitializationError.message}. Não é possível buscar plantas.</AlertDescription>
                  </Alert>
@@ -279,7 +286,7 @@ export default function AllPlantsPage() {
            ) : error ? (
                 // Error State
                 <Alert variant="destructive" className="mb-4">
-                    <AlertCircle className="h-4 w-4" />
+                    <AlertCircleIcon className="h-4 w-4" />
                     <AlertTitle>Erro ao Buscar Plantas</AlertTitle>
                     <AlertDescription>{error}</AlertDescription>
                      <Button onClick={() => fetchPlants(false)} variant="secondary" size="sm" className="mt-3 button">
@@ -313,8 +320,10 @@ export default function AllPlantsPage() {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="text-lg font-semibold text-foreground truncate group-hover:text-primary transition-colors">{plant.strain}</p>
+                                <p className="text-sm text-muted-foreground truncate">Lote: {plant.lotName || 'N/A'}</p>
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground mt-1">
-                                    <Badge variant="secondary" className="text-xs px-1.5 py-0.5 whitespace-nowrap"><Sprout className="inline mr-1 h-3 w-3"/>{plant.status}</Badge>
+                                    {/* Use destructive badge for attention states */}
+                                    <Badge variant={plant.status === 'Em tratamento' || plant.status === 'Diagnóstico Pendente' ? 'destructive' : 'secondary'} className="text-xs px-1.5 py-0.5 whitespace-nowrap"><Sprout className="inline mr-1 h-3 w-3"/>{plant.status}</Badge>
                                     <span className="flex items-center gap-1 whitespace-nowrap"><Warehouse className="h-3.5 w-3.5"/> Sala: {plant.growRoomId || 'N/A'}</span>
                                     <span className="flex items-center gap-1 whitespace-nowrap"><Sprout className="h-3.5 w-3.5"/>{`Plantada: ${plant.birthDate ? new Date(plant.birthDate).toLocaleDateString('pt-BR') : 'N/A'}`}</span>
                                 </div>

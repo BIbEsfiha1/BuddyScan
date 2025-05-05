@@ -2,13 +2,13 @@
 'use client'; // Add 'use client' directive
 
 import React, { useState, useEffect, useCallback, use } from 'react'; // Import hooks including 'use'
-import { getPlantById, updatePlantStatus, CANNABIS_STAGES } from '@/services/plant-id'; // Import Firestore functions
+import { getPlantById, updatePlantStatus, PLANT_STATES } from '@/services/plant-id'; // Import Firestore functions and PLANT_STATES
 import type { Plant } from '@/services/plant-id';
 import PlantDiary from '@/components/plant/plant-diary';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
-  Leaf, QrCode, CalendarDays, Warehouse, Loader2, AlertCircle, Sprout, Pencil, Home as HomeIcon
-} from '@/components/ui/lucide-icons'; // Use centralized icons, added HomeIcon
+  Leaf, QrCode, CalendarDays, Warehouse, Loader2, AlertCircle, Sprout, Pencil, Home as HomeIcon, Archive, Clock // Added Archive and Clock icons
+} from '@/components/ui/lucide-icons'; // Use centralized icons
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"; // Import Select components
 import { useToast } from '@/hooks/use-toast'; // Import useToast
+import { firebaseInitializationError } from '@/lib/firebase/config'; // Import firebase error
 
 // Define expected params structure remains the same
 interface PlantPageProps {
@@ -56,6 +57,14 @@ export default function PlantPage({ params }: PlantPageProps) {
           return;
       }
 
+       // Check for Firebase initialization errors before proceeding
+      if (firebaseInitializationError) {
+          console.error("Firebase initialization error:", firebaseInitializationError);
+          setError(`Erro de configuração do Firebase: ${firebaseInitializationError.message}. Não é possível buscar dados.`);
+          setIsLoading(false);
+          return;
+      }
+
       try {
         console.log(`Fetching plant data for ID: ${plantId} from Firestore...`);
         const fetchedPlant = await getPlantById(plantId); // Use Firestore function
@@ -84,6 +93,13 @@ export default function PlantPage({ params }: PlantPageProps) {
        return; // No change or already updating
      }
 
+      // Check for Firebase initialization errors before proceeding
+     if (firebaseInitializationError) {
+         toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Não é possível atualizar o status devido a erro do Firebase.' });
+         return;
+     }
+
+
      setIsUpdatingStatus(true);
      console.log(`Attempting to update status for plant ${plant.id} to ${newStatus} in Firestore`);
 
@@ -103,6 +119,8 @@ export default function PlantPage({ params }: PlantPageProps) {
          title: "Erro ao Atualizar Status",
          description: err.message || 'Não foi possível alterar o status da planta.',
        });
+       // Optionally revert local state if update fails
+       // setCurrentStatus(plant.status);
      } finally {
        setIsUpdatingStatus(false);
      }
@@ -187,18 +205,22 @@ export default function PlantPage({ params }: PlantPageProps) {
                              <CardDescription className="text-muted-foreground flex items-center gap-1.5 mt-1 text-sm">
                                <QrCode className="h-4 w-4" /> ID: {plant.id}
                              </CardDescription>
+                              {/* Display Lot Name */}
+                              <CardDescription className="text-muted-foreground flex items-center gap-1.5 mt-1 text-sm">
+                                <Archive className="h-4 w-4" /> Lote: {plant.lotName || 'N/A'}
+                             </CardDescription>
                          </div>
                     </div>
                     {/* Status Badge and Selector */}
                     <div className="flex items-center gap-2 self-start sm:self-center mt-2 sm:mt-0"> {/* Added margin top on small screens */}
-                        <Badge variant="secondary" className="text-base px-3 py-1 font-medium shadow-sm flex items-center gap-1.5">
+                        <Badge variant={currentStatus === 'Em tratamento' || currentStatus === 'Diagnóstico Pendente' ? 'destructive' : 'secondary'} className="text-base px-3 py-1 font-medium shadow-sm flex items-center gap-1.5">
                             Status: {currentStatus}
                         </Badge>
                         {/* Status Change Select */}
                         <Select
                             value={currentStatus}
                             onValueChange={handleStatusChange}
-                            disabled={isUpdatingStatus}
+                            disabled={isUpdatingStatus || !!firebaseInitializationError}
                         >
                             <SelectTrigger
                                 className="w-auto h-9 px-2 py-1 text-xs shadow-sm button focus:ring-offset-0 focus:ring-primary/50"
@@ -207,9 +229,9 @@ export default function PlantPage({ params }: PlantPageProps) {
                                 {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin"/> : <Pencil className="h-3 w-3" />}
                             </SelectTrigger>
                             <SelectContent align="end">
-                                {CANNABIS_STAGES.map((stage) => (
-                                    <SelectItem key={stage} value={stage}>
-                                        {stage}
+                                {PLANT_STATES.map((state) => ( // Use PLANT_STATES here
+                                    <SelectItem key={state} value={state}>
+                                        {state}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -230,7 +252,12 @@ export default function PlantPage({ params }: PlantPageProps) {
                    <Warehouse className="h-5 w-5 text-secondary flex-shrink-0" />
                     <span className="text-foreground"><strong className="font-medium">Sala de Cultivo:</strong> {plant.growRoomId || 'N/A'}</span>
                 </div>
-                 {/* Placeholder for creation date */}
+                 {/* Display Estimated Harvest Date */}
+                  <div className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
+                     <Clock className="h-5 w-5 text-secondary flex-shrink-0" />
+                     <span className="text-foreground"><strong className="font-medium">Colheita Estimada:</strong> {plant.estimatedHarvestDate ? new Date(plant.estimatedHarvestDate).toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Não definida'}</span>
+                  </div>
+                 {/* Display creation date */}
                   <div className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
                      <CalendarDays className="h-5 w-5 text-secondary flex-shrink-0" />
                      <span className="text-foreground"><strong className="font-medium">Cadastrada em:</strong> {plant.createdAt ? new Date(plant.createdAt).toLocaleDateString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Data desconhecida'}</span>
