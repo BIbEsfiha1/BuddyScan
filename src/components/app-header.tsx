@@ -31,14 +31,17 @@
    const { toast } = useToast();
 
    const handleLogout = async () => {
-       try {
-           await logout();
-           toast({ title: "Logout realizado", description: "Você foi desconectado." });
-           router.push('/'); // Redirect to landing page after logout
-       } catch (error) {
-           console.error("Logout failed:", error);
-           toast({ variant: "destructive", title: "Erro no Logout", description: "Não foi possível fazer logout." });
-       }
+       // Logout is currently disabled, so this function does nothing.
+       // When re-enabled, uncomment the following:
+        // try {
+        //     await logout();
+        //     toast({ title: "Logout realizado", description: "Você foi desconectado." });
+        //     router.push('/'); // Redirect to landing page after logout
+        // } catch (error) {
+        //     console.error("Logout failed:", error);
+        //     toast({ variant: "destructive", title: "Erro no Logout", description: "Não foi possível fazer logout." });
+        // }
+        toast({ title: "Logout Desabilitado", description: "A funcionalidade de logout está temporariamente desabilitada." });
    };
 
    return (
@@ -48,14 +51,14 @@
           <Link href="/dashboard" className="flex items-center gap-2 mr-6"> {/* Changed href to dashboard */}
             {/* Use Next Image for optimization */}
             {/* Ensure buddyscan-logo.png exists in the /public folder */}
-            <Image
-               src="/buddyscan-logo.png" // Path to the logo in the public folder
-               alt="BuddyScan Logo" // Updated alt text
-               width={140} // Adjust width as needed
-               height={40} // Adjust height as needed
-               priority // Load the logo quickly
-               className="h-8 md:h-10 w-auto dark:invert-[0.05]" // Minimal invert in dark mode
-            />
+             <Image
+                src="/buddyscan-logo.png" // Path to the logo in the public folder
+                alt="BuddyScan Logo" // Updated alt text
+                width={140} // Adjust width as needed
+                height={40} // Adjust height as needed
+                priority // Load the logo quickly
+                className="h-8 md:h-10 w-auto" // Removed dark mode invert
+             />
           </Link>
 
          {/* Right side actions */}
@@ -133,12 +136,13 @@
                          <DropdownMenuSeparator />
                          <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive">
                             <LogOut className="mr-2 h-4 w-4" />
-                            Sair
+                            Sair (Desabilitado) {/* Indicate disabled state */}
                          </DropdownMenuItem>
                      </DropdownMenuContent>
                   </DropdownMenu>
              ) : (
-                 <Button asChild className="button" disabled> {/* Disable login button */}
+                 // Remove asChild here as it's not needed for a simple span wrapper
+                 <Button className="button" disabled>
                      {/* <Link href="/login">Login</Link> */}
                      <span>Login Desabilitado</span> {/* Show placeholder text */}
                  </Button>
