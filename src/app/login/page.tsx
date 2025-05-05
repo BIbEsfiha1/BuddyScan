@@ -95,8 +95,8 @@ export default function LoginPage() {
                      console.error("CRITICAL: Invalid Firebase API Key detected during login.");
                      break;
                  case 'auth/argument-error': // Often related to invalid authDomain
-                     userMessage = "Erro de configuração interna (authDomain inválido?). Contate o suporte.";
-                     console.error("CRITICAL: Auth Argument Error - Likely Firebase config issue (check authDomain, projectId).", error);
+                     userMessage = "Erro de configuração interna (authDomain inválido ou API key?). Contate o suporte.";
+                     console.error("CRITICAL: Auth Argument Error - Likely Firebase config issue (check authDomain, projectId, apiKey).", error);
                      break;
                  case 'auth/operation-not-allowed':
                       userMessage = "Login com este método está desabilitado no momento.";
@@ -203,7 +203,7 @@ export default function LoginPage() {
         try {
             console.log(`--- Initiating ${providerName} signInWithPopup ---`);
             console.log("Auth Instance Available:", !!auth);
-            // Log the specific config details of the auth instance being used
+            // Log the specific config details of the auth instance being used RIGHT BEFORE the call
             if (auth) {
                 console.log("Auth Config Used by Instance:");
                 console.log("  apiKey:", auth.config.apiKey ? 'Present' : 'MISSING!');
@@ -397,5 +397,3 @@ export default function LoginPage() {
      </TooltipProvider>
   );
 }
-
-    
