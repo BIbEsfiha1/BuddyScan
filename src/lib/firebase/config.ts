@@ -5,14 +5,16 @@ import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/fire
 
 // Your web app's Firebase configuration
 // These values are loaded from the .env file (prefixed with NEXT_PUBLIC_)
+// Using the latest config provided by the user
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyBsoLTF3sEq1bcKsWqmQ51xFgTwSpsTdH4", // Default added from user prompt
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "cannalog-c34fx.firebaseapp.com", // Default added from user prompt
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "cannalog-c34fx", // Default added from user prompt
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "cannalog-c34fx.appspot.com", // Default added from user prompt (corrected from firebasestorage.app)
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "581752624409", // Default added from user prompt
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:581752624409:web:f3f57f33c7d8c17c2a6188" // Default added from user prompt
 };
+
 
 // --- Emulator Configuration ---
 // Use Firestore emulator host var, default ports if not specified
@@ -24,7 +26,7 @@ const FIRESTORE_EMULATOR_PORT = 8080; // Default Firestore port
 // --- Detailed Config Logging ---
 // Log the config being used ONCE on the client side for easier debugging
 if (typeof window !== 'undefined' && !(window as any).__firebaseConfigLogged) {
-  console.log("--- Firebase Configuration Used ---");
+  console.log("--- Firebase Configuration Used (config.ts) ---");
   console.log("API Key:", firebaseConfig.apiKey ? 'Present' : 'MISSING!');
   console.log("Auth Domain:", firebaseConfig.authDomain || 'MISSING! (CRITICAL for Social Login)');
   console.log("Project ID:", firebaseConfig.projectId || 'MISSING!');
@@ -79,7 +81,7 @@ try {
     // Prevent initialization if an error was already detected (e.g., missing required config)
     if (!firebaseInitializationError && hasFirebaseConfig()) {
         if (!getApps().length) {
-            console.log("Tentando inicializar Firebase App...");
+            console.log("Tentando inicializar Firebase App com a config:", firebaseConfig);
             app = initializeApp(firebaseConfig);
             console.log('App Firebase inicializado com sucesso.');
         } else {
@@ -87,7 +89,7 @@ try {
           console.log('App Firebase já existe, usando instância existente.');
         }
     } else {
-        const errorMsg = `Erro Crítico: Inicialização do Firebase App ignorada devido a ${firebaseInitializationError ? 'erro prévio' : 'configuração ausente (apiKey, projectId, ou authDomain)'}.`;
+        const errorMsg = `Erro Crítico: Inicialização do Firebase App ignorada devido a ${firebaseInitializationError ? 'erro prévio' : 'configuração ausente (apiKey, projectId, ou authDomain)'}. Verifique as variáveis de ambiente.`;
         console.error(errorMsg);
         if (!firebaseInitializationError) { // Avoid overwriting specific errors
             firebaseInitializationError = new Error("Configuração essencial do Firebase ausente (apiKey, projectId, ou authDomain).");
