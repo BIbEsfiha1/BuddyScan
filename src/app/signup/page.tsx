@@ -15,9 +15,9 @@ import { useToast } from '@/hooks/use-toast';
 import { UserPlus, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
 import { auth, firebaseInitializationError } from '@/lib/firebase/config';
-// Keep Image import if used elsewhere
-// import Image from 'next/image'; // No longer using Next Image for logo here
-import { useAuth } from '@/context/auth-context'; // Re-enabled auth
+// Using standard img tag now
+// import Image from 'next/image';
+import { useAuth } from '@/context/auth-context';
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; // Import Tooltip
 import { cn } from '@/lib/utils'; // Import cn
@@ -163,6 +163,13 @@ export default function SignupPage() {
             toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível." });
             return;
         }
+        // Check for critical Firebase initialization error
+        if (firebaseInitializationError) {
+            console.error(`${providerType} login failed: Firebase initialization error.`);
+            setSignupError(`Erro de Configuração: ${firebaseInitializationError.message}`);
+            toast({ variant: "destructive", title: "Erro de Configuração", description: firebaseInitializationError.message });
+            return;
+        }
 
         let provider: GoogleAuthProvider | OAuthProvider; // Define type explicitly
         let providerName = '';
@@ -188,9 +195,12 @@ export default function SignupPage() {
        setSignupError(null);
 
         try {
-            console.log(`Attempting signInWithPopup for ${providerName}...`);
+            console.log(`Attempting signInWithPopup for ${providerName}. Auth instance:`, auth ? 'OK' : 'NULL', 'Provider instance:', provider ? 'OK' : 'NULL');
              if (!auth) { // Double check auth right before the call
                 throw new Error("Auth instance became null before signInWithPopup call.");
+             }
+             if (!provider) { // Should not happen based on switch logic, but check anyway
+                throw new Error("Provider instance is null or undefined.");
              }
             const result = await signInWithPopup(auth, provider);
             const user = result.user;
@@ -227,15 +237,17 @@ export default function SignupPage() {
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
       <Card className="w-full max-w-md shadow-xl border-primary/20 card">
         <CardHeader className="text-center">
-           {/* Use standard img tag for the logo */}
-            <img
-                src="/buddyscan-logo.png" // Direct path to the public folder
-                alt="BuddyScan Logo"
-                width="180" // Adjust width as needed
-                height="66" // Adjust height based on aspect ratio
-                className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
-                // Removed onError for simplicity
-            />
+           {/* Standard img tag */}
+             <img
+                 src="/buddyscan-logo.png" // Direct path to public folder
+                 alt="BuddyScan Logo"
+                 width={180} // Adjust width as needed
+                 height={66} // Adjust height based on aspect ratio
+                 className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
+                 onError={(e) => {
+                     console.error('Standard <img> load error (Signup):', (e.target as HTMLImageElement).src);
+                 }}
+             />
           <CardTitle className="text-2xl font-bold text-primary">Crie sua Conta BuddyScan</CardTitle>
           <CardDescription>Cadastre-se para começar a monitorar suas plantas.</CardDescription>
         </CardHeader>
@@ -375,3 +387,4 @@ export default function SignupPage() {
     </TooltipProvider>
   );
 }
+

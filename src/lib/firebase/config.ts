@@ -1,3 +1,4 @@
+
 // src/lib/firebase/config.ts
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth, browserLocalPersistence, initializeAuth, connectAuthEmulator } from 'firebase/auth'; // Added connectAuthEmulator
@@ -23,7 +24,7 @@ const firebaseConfig = {
 if (typeof window !== 'undefined' && !(window as any).__firebaseConfigLogged) {
   console.log("--- Firebase Configuration ---");
   console.log("API Key:", firebaseConfig.apiKey ? 'Present' : 'MISSING!');
-  console.log("Auth Domain:", firebaseConfig.authDomain || 'MISSING!'); // Log Auth Domain
+  console.log("Auth Domain:", firebaseConfig.authDomain || 'MISSING! (CRITICAL for Social Login)'); // Highlight importance
   console.log("Project ID:", firebaseConfig.projectId || 'MISSING!');
   console.log("Storage Bucket:", firebaseConfig.storageBucket || 'Optional - Missing');
   console.log("Messaging Sender ID:", firebaseConfig.messagingSenderId || 'Optional - Missing');
@@ -36,9 +37,8 @@ if (typeof window !== 'undefined' && !(window as any).__firebaseConfigLogged) {
 
 // Function to check if all required Firebase config values are present
 function hasFirebaseConfig(): boolean {
-    // API Key and Project ID are crucial for basic auth and Firestore operations
-    // Auth Domain is critical for popup/redirect auth flows
-    return !!firebaseConfig.apiKey && !!firebaseConfig.projectId && !!firebaseConfig.authDomain; // MUST check authDomain
+    // API Key, Project ID, and Auth Domain are CRITICAL for basic auth and social login flows
+    return !!firebaseConfig.apiKey && !!firebaseConfig.projectId && !!firebaseConfig.authDomain;
 }
 
 let firebaseInitializationError: Error | null = null;
@@ -47,8 +47,8 @@ let firebaseInitializationError: Error | null = null;
 // Log missing variables only once on the client side
 if (typeof window !== 'undefined') {
     const requiredVars = {
-      apiKey: firebaseConfig.apiKey, // Use the already defined object
-      authDomain: firebaseConfig.authDomain, // Include authDomain here
+      apiKey: firebaseConfig.apiKey,
+      authDomain: firebaseConfig.authDomain, // MUST check authDomain
       projectId: firebaseConfig.projectId,
     };
 
@@ -189,3 +189,4 @@ try {
 
 // Export the initialized instances and the potential error
 export { app, auth, db, firebaseInitializationError };
+
