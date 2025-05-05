@@ -4,7 +4,7 @@
 
 /* Ensure consistent font */
 body {
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif; /* Use Geist Sans variable */
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif; /* Use Inter variable */
 }
 
 @layer base {
@@ -110,65 +110,38 @@ body {
 }
 
 /* Keyframes for animations */
-/* Enhanced vertical scan line animation */
-@keyframes scan-line-vertical {
-  0% {
-    transform: translateY(0);
-    opacity: 0.6; /* Slightly softer */
-    filter: drop-shadow(0 0 5px hsla(var(--accent) / 0.6)); /* Softer glow */
-  }
-  50% {
-    transform: translateY(calc(100% - 2px));
-    opacity: 0.8;
-    filter: drop-shadow(0 0 8px hsla(var(--accent) / 0.8)); /* Brighter glow at bottom */
-  }
-  100% {
-    transform: translateY(0);
-    opacity: 0.6; /* Slightly softer */
-    filter: drop-shadow(0 0 5px hsla(var(--accent) / 0.6));
-  }
-}
-
-.animate-scan-line-vertical {
-  animation: scan-line-vertical 2.5s cubic-bezier(0.5, 0, 0.5, 1) infinite; /* Faster, smoother easing */
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 2px; /* Slightly thinner */
-  z-index: 10;
-  background: linear-gradient(90deg, transparent, hsl(var(--accent)), transparent);
-  filter: blur(0.5px);
-}
+/* Vertical scan line animation - REMOVED - */
+/* @keyframes scan-line-vertical { ... } */
+/* .animate-scan-line-vertical { ... } */
 
 /* Keyframe for pulsing border - Keep subtle */
 @keyframes pulse-border {
-  0%, 100% { border-color: hsla(var(--primary) / 0.4); box-shadow: 0 0 8px 1px hsla(var(--primary) / 0.15); }
-  50% { border-color: hsla(var(--primary) / 0.7); box-shadow: 0 0 14px 3px hsla(var(--primary) / 0.25); }
+  0%, 100% { border-color: hsla(var(--primary) / 0.4); box-shadow: 0 0 6px 0px hsla(var(--primary) / 0.15); } /* Reduced shadow */
+  50% { border-color: hsla(var(--primary) / 0.7); box-shadow: 0 0 10px 1px hsla(var(--primary) / 0.25); } /* Reduced shadow */
 }
 
 .animate-pulse-border {
-  animation: pulse-border 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite; /* Slightly slower */
+  animation: pulse-border 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; /* Slightly slower */
 }
 
-/* Keyframe for pulsing corners - Enhanced */
+/* Keyframe for pulsing corners - Subtle glow */
 @keyframes pulse-corners {
   0%, 100% {
-    border-color: hsla(var(--accent) / 0.6);
-    box-shadow: 0 0 6px 1px hsla(var(--accent) / 0.25);
-    opacity: 0.7;
+    border-color: hsla(var(--accent) / 0.5); /* Less opaque */
+    box-shadow: 0 0 4px 0px hsla(var(--accent) / 0.15); /* Much softer glow */
+    opacity: 0.6;
   }
   50% {
-    border-color: hsla(var(--accent) / 0.9);
-    box-shadow: 0 0 12px 2px hsla(var(--accent) / 0.35);
-    opacity: 1;
+    border-color: hsla(var(--accent) / 0.8); /* Slightly more opaque */
+    box-shadow: 0 0 8px 1px hsla(var(--accent) / 0.25); /* Slightly brighter glow */
+    opacity: 0.9;
   }
 }
 .animate-pulse-corners {
-  animation: pulse-corners 1.9s cubic-bezier(0.4, 0, 0.6, 1) infinite; /* Slightly slower */
+  animation: pulse-corners 2.1s cubic-bezier(0.4, 0, 0.6, 1) infinite; /* Slightly adjusted timing */
 }
 
-/* Subtle background grid/scan effect (optional) */
+/* Subtle background grid/scan effect */
 @keyframes subtle-scan-bg {
     0% { background-position: 0% 0%; }
     100% { background-position: 0% 100%; }
@@ -179,6 +152,6 @@ body {
     background-image:
         linear-gradient(hsla(var(--primary) / 0.03) 1px, transparent 1px),
         linear-gradient(to right, hsla(var(--primary) / 0.03) 1px, transparent 1px);
-    background-size: 25px 25px; /* Larger grid squares */
-    /* animation: subtle-scan-bg 15s linear infinite; */ /* Can be too distracting, keep subtle */
+    background-size: 30px 30px; /* Larger grid squares */
+    /* animation: subtle-scan-bg 15s linear infinite; */ /* Keeping this commented, can be distracting */
 }

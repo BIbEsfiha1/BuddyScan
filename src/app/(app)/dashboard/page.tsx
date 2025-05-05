@@ -769,25 +769,14 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                      <div className="absolute inset-0 bg-gradient-radial from-transparent via-background/50 to-background/80"></div>
                       {/* Focus Box */}
                      <div className="relative w-[70%] h-[70%] border-2 border-primary/50 rounded-lg animate-pulse-border flex items-center justify-center overflow-hidden shadow-xl shadow-primary/20">
-                         {/* Corner Highlights - Now using the new pulse animation */}
+                         {/* Corner Highlights - Use pulse animation from globals.css */}
                          <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-accent animate-pulse-corners rounded-tl-md z-20"></div>
                          <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-accent animate-pulse-corners rounded-tr-md z-20"></div>
                          <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-accent animate-pulse-corners rounded-bl-md z-20"></div>
                          <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-accent animate-pulse-corners rounded-br-md z-20"></div>
 
-                         {/* Scan Line - Now using the new pulse animation */}
-                         {scannerStatus === 'scanning' && (
-                            <div
-                                className="animate-scan-line-vertical" // Use the enhanced animation class
-                                style={{ background: 'linear-gradient(90deg, transparent, hsl(var(--accent)), transparent)' }} // Explicit gradient
-                           />
-                         )}
-                         {/* Text inside focus box (optional) */}
-                          {scannerStatus === 'scanning' && (
-                            <p className="absolute bottom-4 text-xs text-accent font-medium drop-shadow-md z-30">
-                                ESCANEANDO...
-                            </p>
-                          )}
+                         {/* Removed Scan Line */}
+                         {/* Removed Text inside focus box */}
                      </div>
                  </div>
              )}
