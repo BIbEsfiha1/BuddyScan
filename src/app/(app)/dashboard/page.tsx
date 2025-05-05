@@ -17,6 +17,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogTrigger // Import DialogTrigger
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import RecentPlants from '@/components/dashboard/recent-plants';
@@ -27,6 +28,7 @@ import { getRecentPlants, getAttentionPlants, getPlantById } from '@/services/pl
 import Image from 'next/image'; // Import Image component
 import { cn } from '@/lib/utils'; // Import cn utility
 import { firebaseInitializationError } from '@/lib/firebase/config'; // Import firebase error state
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; // Import Tooltip components
 
 
 // Define states for camera/scanner
@@ -43,6 +45,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
   const barcodeDetectorRef = useRef<any | null>(null); // Using any for BarcodeDetector due to type issues
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isMounted, setIsMounted] = useState(false); // Track mount state
+  const [isScannerSupported, setIsScannerSupported] = useState(false); // State for scanner support
 
   // State for fetched plant data
   const [recentPlants, setRecentPlants] = useState<Plant[]>([]);
@@ -52,28 +55,26 @@ export default function DashboardPage() { // Renamed component to DashboardPage
   const [error, setError] = useState<string | null>(null);
 
 
-  // Track mount state
+  // Track mount state and check scanner support
   useEffect(() => {
     setIsMounted(true);
-    return () => setIsMounted(false);
-  }, []);
-
-
-  // Initialize BarcodeDetector only once on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'BarcodeDetector' in window && !barcodeDetectorRef.current) {
-      try {
-        // @ts-ignore - Suppress type checking for experimental API
-        barcodeDetectorRef.current = new BarcodeDetector({ formats: ['qr_code'] });
-        console.log('BarcodeDetector initialized successfully.');
-      } catch (error) {
-        console.error('Failed to initialize BarcodeDetector:', error);
-        // Don't set state immediately, let user trigger scan first
+    // Check for BarcodeDetector support once the component is mounted on the client
+    if (typeof window !== 'undefined') {
+      const supported = 'BarcodeDetector' in window && typeof BarcodeDetector !== 'undefined';
+      setIsScannerSupported(supported);
+      console.log(`BarcodeDetector supported: ${supported}`);
+      if (supported && !barcodeDetectorRef.current) {
+        try {
+          // @ts-ignore - Suppress type checking for experimental API
+          barcodeDetectorRef.current = new BarcodeDetector({ formats: ['qr_code'] });
+          console.log('BarcodeDetector initialized successfully.');
+        } catch (initError) {
+          console.error('Failed to initialize BarcodeDetector:', initError);
+          setIsScannerSupported(false); // Mark as unsupported if init fails
+        }
       }
-    } else if (typeof window !== 'undefined' && !('BarcodeDetector' in window)) {
-        console.warn('BarcodeDetector API not supported in this browser.');
-        // Don't set state immediately
     }
+    return () => setIsMounted(false);
   }, []); // Empty dependency array ensures this runs only once
 
 
@@ -423,19 +424,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
 
    const handleDialogOpen = useCallback(() => {
         console.log(`Dialog opening intent received...`);
-        if (typeof window === 'undefined' || !('BarcodeDetector' in window) || !window.BarcodeDetector || !barcodeDetectorRef.current) {
-            const errorMsg = typeof window === 'undefined' || !('BarcodeDetector' in window) || !window.BarcodeDetector
-                ? 'O escaneamento de QR code não é suportado neste navegador.'
-                : 'Não foi possível inicializar o leitor de QR code. Tente recarregar a página.';
-            console.error("Prerequisite check failed:", errorMsg);
-            toast({
-                variant: 'destructive',
-                title: 'Erro de Compatibilidade',
-                description: errorMsg,
-            });
-            setIsDialogOpen(false); // Prevent opening if incompatible
-            return;
-        }
+        // Prerequisite check moved to handleScanClick and useEffect for initial load
 
         setScannerError(null);
         setScannerStatus('idle'); // Start as idle, camera starts, then initializing
@@ -443,7 +432,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
         startCamera(); // Initiate camera start
         console.log("Dialog state set to open, camera start initiated.");
 
-   }, [startCamera, toast]);
+   }, [startCamera]);
 
     const handleOpenChange = useCallback((open: boolean) => {
        console.log(`handleOpenChange called with open: ${open}`);
@@ -572,6 +561,25 @@ export default function DashboardPage() { // Renamed component to DashboardPage
   // --- Button Click Handlers ---
   const handleScanClick = () => {
     console.log("Scan button clicked.");
+    if (!isScannerSupported) {
+        console.error("Cannot open scanner dialog: BarcodeDetector API not supported.");
+        toast({
+            variant: 'destructive',
+            title: 'Erro de Compatibilidade',
+            description: 'O escaneamento de QR code não é suportado neste navegador.',
+        });
+        return;
+    }
+    if (!barcodeDetectorRef.current) {
+        console.error("Cannot open scanner dialog: BarcodeDetector failed to initialize.");
+        toast({
+            variant: 'destructive',
+            title: 'Erro de Inicialização',
+            description: 'Não foi possível inicializar o leitor de QR code. Tente recarregar a página.',
+        });
+        return;
+    }
+    // Proceed to open dialog only if supported and initialized
     handleOpenChange(true);
   };
 
@@ -582,6 +590,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
 
 
   return (
+    <TooltipProvider>
     <div className="flex flex-col min-h-screen p-4 md:p-8 bg-gradient-to-br from-background via-muted/5 to-primary/10 text-foreground">
       {/* Header Section */}
        <header className="mb-8">
@@ -641,17 +650,32 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                    <PlusCircle className="mr-3 h-5 w-5" />
                    Cadastrar Nova Planta
                  </Button>
-                 <Button
-                   size="lg"
-                   variant="secondary"
-                   className="w-full text-base font-medium button justify-start"
-                   onClick={handleScanClick}
-                   aria-label="Escanear QR Code da Planta"
-                   disabled={isDialogOpen || !!firebaseInitializationError} // Disable if dialog open or Firebase error
-                 >
-                   <ScanLine className="mr-3 h-5 w-5" />
-                   Escanear QR Code
-                 </Button>
+
+                 <Tooltip>
+                     <TooltipTrigger asChild>
+                         {/* Wrap the button that might be disabled in a span for the tooltip to work */}
+                         <span tabIndex={0} className={cn(!isScannerSupported && 'cursor-not-allowed')}>
+                             <Button
+                                size="lg"
+                                variant="secondary"
+                                className="w-full text-base font-medium button justify-start"
+                                onClick={handleScanClick}
+                                aria-label="Escanear QR Code da Planta"
+                                disabled={isDialogOpen || !!firebaseInitializationError || !isScannerSupported} // Disable if dialog open, Firebase error, or scanner not supported
+                             >
+                               <ScanLine className="mr-3 h-5 w-5" />
+                               Escanear QR Code
+                             </Button>
+                         </span>
+                     </TooltipTrigger>
+                      {!isScannerSupported && (
+                          <TooltipContent side="bottom">
+                             <p>Leitura de QR Code não suportada neste navegador.</p>
+                          </TooltipContent>
+                      )}
+                 </Tooltip>
+
+
                  <Button
                    size="lg"
                    variant="outline"
@@ -851,5 +875,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
         </DialogContent>
       </Dialog>
     </div>
+     </TooltipProvider>
   );
 }
+
