@@ -1,7 +1,8 @@
 // src/app/(landing)/page.tsx
-'use client'; // Add this directive
+'use client'; // Keep 'use client'
 
 import React from 'react';
+// Import Image component (still used for other images on the page)
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -15,18 +16,18 @@ export default function LandingPage() {
        {/* Header Section for Landing Page */}
        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
          <div className="container flex h-16 items-center justify-between">
-           {/* Logo */}
+           {/* Logo - Use standard img tag for debugging */}
            <Link href="/" className="flex items-center gap-2 mr-6">
-               {/* Verify path: '/buddyscan-logo.png' assumes the file is directly in /public */}
-              <Image
-                 src="/buddyscan-logo.png" // Ensure this path is correct and file exists in /public
+              {/* Verify path: '/buddyscan-logo.png' assumes the file is directly in /public */}
+             {/* Use standard img tag for easier debugging */}
+              <img
+                 src="/buddyscan-logo.png" // Path relative to the public folder
                  alt="BuddyScan Logo"
-                 width={140} // Adjusted width
-                 height={51} // Adjusted height based on 2048x742 aspect ratio
-                 priority // Load the logo quickly
-                 className="object-contain" // Ensure image scales nicely
-                 // Log potential errors
-                 onError={(e) => console.error('Logo load error (Landing):', e)}
+                 width="140" // Set width directly
+                 height="51" // Set height based on aspect ratio (2048/742 * 140 ≈ 51)
+                 className="object-contain h-[51px]" // Use explicit height class if needed
+                 // Add error logging for the standard img tag
+                 onError={(e) => console.error('Standard <img> load error (Landing):', e.target.src, e)}
               />
            </Link>
             {/* Navigation/Actions */}

@@ -14,9 +14,11 @@ import { useToast } from '@/hooks/use-toast';
 import { LogIn, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider, getRedirectResult } from 'firebase/auth';
 import { auth, firebaseInitializationError } from '@/lib/firebase/config';
+// Keep Image import if used elsewhere, but replacing logo usage
 import Image from 'next/image';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; // Import Tooltip
 
 // Schema for email/password login
 const loginSchema = z.object({
@@ -33,18 +35,19 @@ export default function LoginPage() {
   const [socialLoginLoading, setSocialLoginLoading] = useState<string | null>(null); // Loading state for specific provider
   const [loginError, setLoginError] = useState<string | null>(null);
   const { user, loading: authLoading } = useAuth(); // Use auth context
+  const isAuthEnabled = false; // Set to false to disable auth features temporarily
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
   });
 
-   // Redirect if user is already logged in
+   // Redirect if user is already logged in AND auth is enabled
    useEffect(() => {
-       if (!authLoading && user) {
+       if (isAuthEnabled && !authLoading && user) {
            console.log("User already logged in, redirecting to dashboard...");
            router.replace('/dashboard'); // Use replace to avoid login in history
        }
-   }, [user, authLoading, router]);
+   }, [user, authLoading, router, isAuthEnabled]);
 
    // --- Handle Firebase Errors ---
    const handleAuthError = (error: any, providerName: string) => {
@@ -111,6 +114,11 @@ export default function LoginPage() {
 
   // --- Email/Password Login Handler ---
   const onEmailSubmit = async (data: LoginFormInputs) => {
+      if (!isAuthEnabled) {
+           setLoginError("Login está temporariamente desabilitado.");
+           toast({ variant: "destructive", title: "Login Desabilitado", description: "O login com email/senha está desativado no momento." });
+           return;
+      }
       if (!auth) {
            console.error("Email login failed: Auth instance not available.");
            setLoginError("Serviço de autenticação indisponível.");
@@ -134,6 +142,12 @@ export default function LoginPage() {
 
   // --- Social Login Handler ---
    const handleSocialLogin = async (providerType: 'google' | 'facebook' | 'twitter') => {
+       if (!isAuthEnabled) {
+           setLoginError("Login está temporariamente desabilitado.");
+           toast({ variant: "destructive", title: "Login Desabilitado", description: `Login com ${providerType} está desativado no momento.` });
+           return;
+       }
+
         let provider: GoogleAuthProvider | OAuthProvider; // Define type explicitly
         let providerName = '';
 
@@ -173,9 +187,11 @@ export default function LoginPage() {
             if (!auth) { // Double-check auth before the call
                 throw new Error("Auth instance became null before signInWithPopup call.");
             }
-            const result = await signInWithPopup(auth, provider);
+            // Use signInWithPopup for social logins
+            const result = await signInWithPopup(auth, provider); // This is the line that often throws auth/argument-error
             const user = result.user;
             console.log(`${providerName} login successful. User:`, user.email, user.uid);
+
             toast({ title: "Login bem-sucedido!", description: `Conectado com ${providerName}.` });
             router.push('/dashboard');
         } catch (error: any) {
@@ -185,8 +201,8 @@ export default function LoginPage() {
         }
    };
 
-   // Show loading state while checking auth status or if user is already defined
-   if (authLoading || (!authLoading && user)) {
+   // Show loading state while checking auth status or if user is already defined (only if auth is enabled)
+   if (isAuthEnabled && (authLoading || (!authLoading && user))) {
       return (
           <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
              <Card className="w-full max-w-md text-center shadow-lg card p-6">
@@ -204,19 +220,19 @@ export default function LoginPage() {
 
 
   return (
+    <TooltipProvider>
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
       <Card className="w-full max-w-md shadow-xl border-primary/20 card">
         <CardHeader className="text-center">
-           {/* Use Next.js Image component for the logo */}
-           <Image
-                src="/buddyscan-logo.png" // Ensure this path is correct and file exists in /public
-                alt="BuddyScan Logo"
-                width={180} // Adjust width as needed
-                height={51} // Adjust height based on aspect ratio
-                priority // Load logo quickly
-                className="mx-auto mb-4 object-contain" // Ensure proper scaling
-                onError={(e) => console.error('Logo load error (Login):', e)}
-           />
+           {/* Use standard img tag for logo */}
+           <img
+              src="/buddyscan-logo.png"
+              alt="BuddyScan Logo"
+              width="180" // Adjust width as needed
+              height="66" // Adjust height based on aspect ratio (2048/742 * 180 ≈ 66)
+              className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
+              onError={(e) => console.error('Standard <img> load error (Login):', e.target.src, e)}
+            />
           <CardTitle className="text-2xl font-bold text-primary">Bem-vindo de volta!</CardTitle>
           <CardDescription>Faça login para acessar seu painel BuddyScan.</CardDescription>
         </CardHeader>
@@ -240,7 +256,7 @@ export default function LoginPage() {
                     type="email"
                     placeholder="seuemail@exemplo.com"
                     {...register('email')}
-                    disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading}
+                    disabled={!isAuthEnabled || isLoading || !!firebaseInitializationError || !!socialLoginLoading}
                     className={`input ${errors.email ? 'border-destructive focus:ring-destructive' : ''}`}
                     aria-invalid={errors.email ? "true" : "false"}
                   />
@@ -253,7 +269,7 @@ export default function LoginPage() {
                     type="password"
                     placeholder="Sua senha"
                     {...register('password')}
-                    disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading}
+                    disabled={!isAuthEnabled || isLoading || !!firebaseInitializationError || !!socialLoginLoading}
                     className={`input ${errors.password ? 'border-destructive focus:ring-destructive' : ''}`}
                      aria-invalid={errors.password ? "true" : "false"}
                   />
@@ -268,9 +284,9 @@ export default function LoginPage() {
                    </Alert>
                 )}
 
-                <Button type="submit" className="w-full font-semibold button" disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading}>
+                <Button type="submit" className="w-full font-semibold button" disabled={!isAuthEnabled || isLoading || !!firebaseInitializationError || !!socialLoginLoading}>
                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
-                   {isLoading ? 'Entrando...' : 'Entrar'}
+                   {isLoading ? 'Entrando...' : (isAuthEnabled ? 'Entrar' : 'Login Desabilitado')}
                 </Button>
             </form>
 
@@ -285,20 +301,33 @@ export default function LoginPage() {
 
           <div className="grid grid-cols-1 gap-3">
             {/* Social Login Buttons */}
-            <Button
-              variant="outline"
-              onClick={() => handleSocialLogin('google')}
-              disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading}
-              className="button justify-center gap-2"
-            >
-               {socialLoginLoading === 'Google' ? <Loader2 className="h-5 w-5 animate-spin"/> : <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.36 1.67-4.06 1.67-3.4 0-6.33-2.83-6.33-6.33s2.93-6.33 6.33-6.33c1.9 0 3.21.73 4.18 1.69l2.6-2.6C16.84 3.18 14.91 2 12.48 2 7.48 2 3.11 6.33 3.11 11.33s4.37 9.33 9.37 9.33c3.19 0 5.64-1.18 7.57-3.01 2-1.9 2.6-4.5 2.6-6.66 0-.58-.05-1.14-.13-1.67z"></path></svg>}
-               {socialLoginLoading === 'Google' ? 'Conectando...' : 'Continuar com Google'}
-            </Button>
+             <Tooltip>
+                <TooltipTrigger asChild>
+                  {/* Wrap button in span if it might be disabled */}
+                   <span className={cn(!isAuthEnabled && 'cursor-not-allowed')}>
+                       <Button
+                         variant="outline"
+                         onClick={() => handleSocialLogin('google')}
+                         disabled={!isAuthEnabled || isLoading || !!firebaseInitializationError || !!socialLoginLoading}
+                         className="button justify-center gap-2 w-full"
+                       >
+                          {socialLoginLoading === 'Google' ? <Loader2 className="h-5 w-5 animate-spin"/> : <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.36 1.67-4.06 1.67-3.4 0-6.33-2.83-6.33-6.33s2.93-6.33 6.33-6.33c1.9 0 3.21.73 4.18 1.69l2.6-2.6C16.84 3.18 14.91 2 12.48 2 7.48 2 3.11 6.33 3.11 11.33s4.37 9.33 9.37 9.33c3.19 0 5.64-1.18 7.57-3.01 2-1.9 2.6-4.5 2.6-6.66 0-.58-.05-1.14-.13-1.67z"></path></svg>}
+                          {socialLoginLoading === 'Google' ? 'Conectando...' : (isAuthEnabled ? 'Continuar com Google' : 'Login Desabilitado')}
+                       </Button>
+                    </span>
+                </TooltipTrigger>
+                 {!isAuthEnabled && (
+                    <TooltipContent>
+                      <p>Login está temporariamente desabilitado.</p>
+                    </TooltipContent>
+                 )}
+            </Tooltip>
+
             {/* Placeholder for other social logins */}
              <Button
                variant="outline"
                onClick={() => handleSocialLogin('facebook')}
-               disabled={true} // Keep disabled until implemented
+               disabled={true} // Keep disabled until implemented or if auth disabled
                className="button justify-center gap-2 opacity-50 cursor-not-allowed"
              >
                <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M18.77 7.46H14.5v-1.9c0-.9.6-1.1 1-1.1h3V.5h-4.33C10.24.5 9.5 3.14 9.5 5.35V7.46H6.11v4.05H9.5v10h5V11.51h3.27l.59-4.05z"></path></svg>
@@ -307,7 +336,7 @@ export default function LoginPage() {
              <Button
                variant="outline"
                onClick={() => handleSocialLogin('twitter')}
-               disabled={true} // Keep disabled until implemented
+               disabled={true} // Keep disabled until implemented or if auth disabled
                className="button justify-center gap-2 opacity-50 cursor-not-allowed"
              >
                <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>
@@ -323,5 +352,6 @@ export default function LoginPage() {
         </CardFooter>
       </Card>
     </div>
+     </TooltipProvider>
   );
 }
