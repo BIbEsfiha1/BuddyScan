@@ -4,15 +4,15 @@ import { getAuth, Auth, browserLocalPersistence, initializeAuth, connectAuthEmul
 import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/firestore'; // Import Firestore
 
 // Your web app's Firebase configuration
-// These values are loaded from the .env file (prefixed with NEXT_PUBLIC_)
-// Using the latest config provided by the user
+// These values should match your Firebase project settings EXACTLY.
+// Using the corrected config provided by the user.
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyBsoLTF3sEq1bcKsWqmQ51xFgTwSpsTdH4", // Default added from user prompt
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "cannalog-c34fx.firebaseapp.com", // Default added from user prompt
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "cannalog-c34fx", // Default added from user prompt
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "cannalog-c34fx.appspot.com", // Default added from user prompt (corrected from firebasestorage.app)
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "581752624409", // Default added from user prompt
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:581752624409:web:f3f57f33c7d8c17c2a6188" // Default added from user prompt
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCI3PcqYwR3v4EZVD2EY6tnbqQK94olEOg", // Corrected API Key
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "cannalog-c34fx.firebaseapp.com", // Corrected Auth Domain
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "cannalog-c34fx", // Corrected Project ID
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "cannalog-c34fx.appspot.com", // Corrected Storage Bucket (was firebasestorage.app)
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "581752624409", // Corrected Sender ID
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:581752624409:web:3a31528ac166d79f2a6188" // Corrected App ID (was ...2a6188)
 };
 
 
