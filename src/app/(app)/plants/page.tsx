@@ -237,8 +237,8 @@ export default function AllPlantsPage() {
                </SelectTrigger>
                <SelectContent>
                  <SelectItem value={ALL_ROOMS_VALUE}>Todas as Salas</SelectItem>
-                 {allUniqueGrowRooms.map((room) => (
-                   <SelectItem key={room} value={room}>{room}</SelectItem>
+                 {allUniqueGrowRooms.map((room, index) => (
+                   <SelectItem key={index} value={room}>{room}</SelectItem>
                  ))}
                </SelectContent>
              </Select>
@@ -305,8 +305,8 @@ export default function AllPlantsPage() {
                 // Results List
                 <>
                     <ul className="divide-y divide-border -mx-6">
-                    {displayedPlants.map((plant) => (
-                        <li key={plant.id} className="py-4 group hover:bg-muted/30 rounded-md transition-colors duration-150 px-6">
+                    {displayedPlants.map((plant, index) => (
+                        <li key={index} className="py-4 group hover:bg-muted/30 rounded-md transition-colors duration-150 px-6">
                         <Link href={`/plant/${plant.id}`} className="flex items-center space-x-4">
                             <div className="flex-shrink-0">
                                 <Image

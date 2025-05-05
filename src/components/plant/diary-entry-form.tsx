@@ -798,5 +798,3 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     </Card>
   );
 }
-
-    

@@ -65,16 +65,33 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
     setError(null);
 
     try {
-      const result = await loadDiaryEntriesPaginated(
-          plantId,
-          ENTRIES_PER_PAGE,
-          loadMore ? lastVisibleEntry : undefined // Pass cursor if loading more
-      );
+      const diaryEntriesCollection = getDiaryEntriesCollectionRef(plantId);
+      let q = query(diaryEntriesCollection, orderBy('timestamp', 'desc'), firestoreLimit(ENTRIES_PER_PAGE)); // Order by Firestore timestamp
 
-      console.log(`Loaded ${result.entries.length} entries. New Last Visible:`, result.lastVisible?.id);
-      setEntries(prevEntries => loadMore ? [...prevEntries, ...result.entries] : result.entries);
-      setLastVisibleEntry(result.lastVisible);
-      setHasMoreEntries(result.entries.length === ENTRIES_PER_PAGE); // Check if there might be more
+      if (lastVisibleEntry) {
+          q = query(q, startAfter(lastVisibleEntry));
+      }
+
+      const querySnapshot = await getDocs(q);
+
+      const entries: DiaryEntry[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        // Convert Firestore Timestamp back to ISO string
+        const timestamp = (data.timestamp instanceof Timestamp) ? data.timestamp.toDate().toISOString() : data.timestamp;
+        entries.push({
+          ...data,
+          id: doc.id,
+          timestamp: timestamp,
+        } as DiaryEntry);
+      });
+
+      const newLastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
+      console.log(`Carregadas ${entries.length} entradas do diário. Próxima página começa após: ${newLastVisible?.id}`);
+
+      setEntries(prevEntries => loadMore ? [...prevEntries, ...entries] : entries);
+      setLastVisibleEntry(newLastVisible);
+      setHasMoreEntries(entries.length === ENTRIES_PER_PAGE);
 
     } catch (err: any) {
       console.error('Falha ao buscar entradas do diário no Firestore:', err);
@@ -83,13 +100,13 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
       setIsLoading(false);
       setIsFetchingMore(false);
     }
-  }, [plantId, lastVisibleEntry]); // Dependency array includes plantId and the pagination cursor
+  }, [plantId]); // Dependency array includes plantId and the pagination cursor
 
   // Load initial entries on mount or when plantId changes
   useEffect(() => {
     console.log("PlantDiary useEffect triggered for initial load, plantId:", plantId);
     loadEntries(false);
-  }, [plantId]); // Only re-run initial load if plantId changes
+  }, [loadEntries, plantId]); // Only re-run initial load if plantId changes or loadEntries changes
 
 
    // Handler for when DiaryEntryForm submits a new entry
@@ -296,4 +313,3 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
     </div>
   );
 }
-

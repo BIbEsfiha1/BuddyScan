@@ -152,7 +152,7 @@ export default function RegisterPlantPage() {
       });
 
       // Keep form data for potentially adding another plant quickly
-      // form.reset();
+       form.reset();
 
 
     } catch (error: any) {
