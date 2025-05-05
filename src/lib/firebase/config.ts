@@ -19,10 +19,27 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+// --- Detailed Config Logging ---
+// Log the config being used ONCE on the client side for easier debugging
+if (typeof window !== 'undefined' && !(window as any).__firebaseConfigLogged) {
+  console.log("--- Firebase Configuration ---");
+  console.log("API Key:", firebaseConfig.apiKey ? 'Present' : 'MISSING!');
+  console.log("Auth Domain:", firebaseConfig.authDomain || 'MISSING!');
+  console.log("Project ID:", firebaseConfig.projectId || 'MISSING!');
+  console.log("Storage Bucket:", firebaseConfig.storageBucket || 'Optional - Missing');
+  console.log("Messaging Sender ID:", firebaseConfig.messagingSenderId || 'Optional - Missing');
+  console.log("App ID:", firebaseConfig.appId || 'Optional - Missing');
+  console.log("Emulator Host:", EMULATOR_HOST || 'Not Set (Using Production)');
+  console.log("-----------------------------");
+  (window as any).__firebaseConfigLogged = true; // Prevent repeated logging
+}
+
+
 // Function to check if all required Firebase config values are present
 function hasFirebaseConfig(): boolean {
     // API Key and Project ID are crucial for basic auth and Firestore operations
-    return !!firebaseConfig.apiKey && !!firebaseConfig.projectId && !!firebaseConfig.authDomain; // Also check authDomain
+    // Auth Domain is critical for popup/redirect auth flows
+    return !!firebaseConfig.apiKey && !!firebaseConfig.projectId && !!firebaseConfig.authDomain; // MUST check authDomain
 }
 
 let firebaseInitializationError: Error | null = null;
@@ -31,9 +48,9 @@ let firebaseInitializationError: Error | null = null;
 // Log missing variables only once on the client side
 if (typeof window !== 'undefined') {
     const requiredVars = {
-      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, // Crucial for auth
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, // Needed for Firestore
+      apiKey: firebaseConfig.apiKey, // Use the already defined object
+      authDomain: firebaseConfig.authDomain,
+      projectId: firebaseConfig.projectId,
     };
 
     const missingEnvVars = Object.entries(requiredVars)
@@ -41,11 +58,11 @@ if (typeof window !== 'undefined') {
         .map(([key]) => `NEXT_PUBLIC_FIREBASE_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`);
 
     if (missingEnvVars.length > 0) {
-         const message = `AVISO: Variáveis de ambiente da configuração do Firebase ausentes ou inválidas: ${missingEnvVars.join(', ')}. Verifique seu arquivo .env ou as configurações do ambiente. Funcionalidades do Firebase podem não operar corretamente.`;
+         const message = `AVISO: Variáveis de ambiente CRÍTICAS da configuração do Firebase ausentes ou inválidas: ${missingEnvVars.join(', ')}. Verifique seu arquivo .env.local ou as configurações do ambiente. Login social e outras funcionalidades podem FALHAR.`;
          console.warn(message); // Use warn for missing config
          // Set initialization error only if it hasn't been set by a catch block later
          if (!firebaseInitializationError) {
-             firebaseInitializationError = new Error("Variáveis de ambiente da configuração do Firebase ausentes ou inválidas.");
+             firebaseInitializationError = new Error(`Variáveis de ambiente CRÍTICAS do Firebase ausentes: ${missingEnvVars.join(', ')}`);
          }
     }
 }
@@ -62,16 +79,16 @@ try {
         if (!getApps().length) {
             console.log("Tentando inicializar Firebase App...");
             app = initializeApp(firebaseConfig);
-            console.log('App Firebase inicializado.');
+            console.log('App Firebase inicializado com sucesso.');
         } else {
           app = getApp();
-          console.log('App Firebase já existe.');
+          console.log('App Firebase já existe, usando instância existente.');
         }
     } else {
-        const errorMsg = "Erro Crítico: Inicialização do Firebase App ignorada devido a configuração ausente ou erro prévio.";
+        const errorMsg = `Erro Crítico: Inicialização do Firebase App ignorada devido a ${firebaseInitializationError ? 'erro prévio' : 'configuração ausente (apiKey, projectId, ou authDomain)'}.`;
         console.error(errorMsg);
         if (!firebaseInitializationError) { // Avoid overwriting specific errors
-            firebaseInitializationError = new Error(errorMsg);
+            firebaseInitializationError = new Error("Configuração essencial do Firebase ausente (apiKey, projectId, ou authDomain).");
         }
     }
 
@@ -83,19 +100,27 @@ try {
             persistence: browserLocalPersistence, // Use local persistence
             // errorMap: customErrorMap, // Optional: Add custom error mapping if needed
         });
-        console.log('Firebase Auth inicializado.');
+        console.log('Firebase Auth inicializado com sucesso.');
 
         // Connect to Auth Emulator if running locally
-        if (EMULATOR_HOST) {
+        if (EMULATOR_HOST && auth) { // Check if auth is not null before connecting emulator
             const authEmulatorUrl = `http://${EMULATOR_HOST}:${AUTH_EMULATOR_PORT}`;
             console.log(`Tentando conectar ao Emulador de Autenticação: ${authEmulatorUrl}`);
             try {
-                connectAuthEmulator(auth, authEmulatorUrl);
-                console.log('Conectado ao Emulador de Autenticação.');
-            } catch (emulatorError) {
+                // Ensure connectAuthEmulator is called only once
+                if (!(auth as any).__emulatorConnected) {
+                    connectAuthEmulator(auth, authEmulatorUrl);
+                    (auth as any).__emulatorConnected = true; // Mark as connected
+                    console.log('Conectado ao Emulador de Autenticação.');
+                } else {
+                    console.log('Já conectado ao Emulador de Autenticação.');
+                }
+            } catch (emulatorError: any) {
                  console.error(`Erro ao conectar ao Emulador de Autenticação em ${authEmulatorUrl}:`, emulatorError);
                  // Optionally set firebaseInitializationError here if emulator connection is critical for dev
-                 // firebaseInitializationError = new Error(`Falha ao conectar ao emulador de Auth: ${emulatorError.message}`);
+                 if (!firebaseInitializationError) { // Avoid overwriting specific errors
+                    firebaseInitializationError = new Error(`Falha ao conectar ao emulador de Auth: ${emulatorError.message}`);
+                 }
             }
         }
 
@@ -109,17 +134,25 @@ try {
      if (app && !firebaseInitializationError) {
         console.log("Tentando inicializar Firebase Firestore...");
         db = getFirestore(app);
-        console.log('Firebase Firestore inicializado.');
+        console.log('Firebase Firestore inicializado com sucesso.');
 
          // Connect to Firestore Emulator if running locally
-        if (EMULATOR_HOST) {
+        if (EMULATOR_HOST && db) { // Check if db is not null
              console.log(`Tentando conectar ao Emulador do Firestore: host=${EMULATOR_HOST} port=${FIRESTORE_EMULATOR_PORT}`);
             try {
-                connectFirestoreEmulator(db, EMULATOR_HOST, FIRESTORE_EMULATOR_PORT);
-                console.log('Conectado ao Emulador do Firestore.');
+                // Ensure connectFirestoreEmulator is called only once
+                 if (!(db as any).__emulatorConnected) {
+                    connectFirestoreEmulator(db, EMULATOR_HOST, FIRESTORE_EMULATOR_PORT);
+                    (db as any).__emulatorConnected = true; // Mark as connected
+                    console.log('Conectado ao Emulador do Firestore.');
+                 } else {
+                    console.log('Já conectado ao Emulador do Firestore.');
+                 }
              } catch (emulatorError: any) {
                  console.error(`Erro ao conectar ao Emulador do Firestore em ${EMULATOR_HOST}:${FIRESTORE_EMULATOR_PORT}:`, emulatorError);
-                 // firebaseInitializationError = new Error(`Falha ao conectar ao emulador do Firestore: ${emulatorError.message}`);
+                 if (!firebaseInitializationError) {
+                    firebaseInitializationError = new Error(`Falha ao conectar ao emulador do Firestore: ${emulatorError.message}`);
+                 }
              }
          }
 
@@ -142,6 +175,10 @@ try {
          const authDomainErrorMsg = "Erro Crítico: Auth Domain do Firebase inválido ou ausente. Verifique o valor de NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN.";
          console.error(authDomainErrorMsg);
          firebaseInitializationError = new Error(authDomainErrorMsg);
+    } else if (error.code === 'auth/argument-error' || error.message?.includes('argument-error')) {
+         const argErrorMsg = "Erro Crítico: Argumento inválido durante a inicialização do Firebase (possivelmente authDomain ou config inválida). Verifique a configuração no console e .env.local.";
+         console.error(argErrorMsg);
+         firebaseInitializationError = new Error(argErrorMsg);
     } else {
          firebaseInitializationError = new Error(`Falha na inicialização do Firebase: ${error.message || 'Erro desconhecido'}`);
     }

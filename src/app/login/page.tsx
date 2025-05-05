@@ -15,8 +15,8 @@ import { useToast } from '@/hooks/use-toast';
 import { LogIn, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider, getRedirectResult } from 'firebase/auth';
 import { auth, firebaseInitializationError } from '@/lib/firebase/config';
-// Keep Image import if used elsewhere, but replacing logo usage
-// import Image from 'next/image'; // No longer using Next Image for logo here
+// Using standard img tag now
+import Image from 'next/image';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; // Import Tooltip
@@ -89,14 +89,14 @@ export default function LoginPage() {
                 case 'auth/internal-error':
                      userMessage = 'Ocorreu um erro interno no servidor de autenticação. Tente novamente mais tarde.';
                      break;
-                 case 'auth/invalid-api-key': // Corrected code
+                 case 'auth/invalid-api-key':
                  case 'auth/api-key-not-valid':
                      userMessage = "Erro de configuração: Chave de API inválida. Contate o suporte.";
                      console.error("CRITICAL: Invalid Firebase API Key detected during login.");
                      break;
-                 case 'auth/argument-error': // Often related to invalid authDomain
-                     userMessage = "Erro de configuração interna (authDomain inválido?). Contate o suporte.";
-                     console.error("CRITICAL: Auth Argument Error - Likely Firebase config issue (check authDomain, projectId).", error);
+                 case 'auth/argument-error':
+                     userMessage = "Erro de configuração interna (authDomain inválido ou API key?). Contate o suporte.";
+                     console.error("CRITICAL: Auth Argument Error - Likely Firebase config issue (check authDomain, API Key).", error);
                      break;
                  case 'auth/operation-not-allowed':
                       userMessage = "Login com este método está desabilitado no momento.";
@@ -161,6 +161,14 @@ export default function LoginPage() {
            toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível." });
            return;
        }
+       // Check for critical Firebase initialization error
+        if (firebaseInitializationError) {
+            console.error(`${providerType} login failed: Firebase initialization error.`);
+            setLoginError(`Erro de Configuração: ${firebaseInitializationError.message}`);
+            toast({ variant: "destructive", title: "Erro de Configuração", description: firebaseInitializationError.message });
+            return;
+        }
+
 
         let provider: GoogleAuthProvider | OAuthProvider; // Define type explicitly
         let providerName = '';
@@ -186,10 +194,14 @@ export default function LoginPage() {
         setLoginError(null);
 
         try {
-            console.log(`Attempting signInWithPopup for ${providerName}...`);
+            console.log(`Attempting signInWithPopup for ${providerName}. Auth instance:`, auth ? 'OK' : 'NULL', 'Provider instance:', provider ? 'OK' : 'NULL');
              if (!auth) { // Double check auth right before the call
                 throw new Error("Auth instance became null before signInWithPopup call.");
              }
+             if (!provider) { // Should not happen based on switch logic, but check anyway
+                throw new Error("Provider instance is null or undefined.");
+             }
+            // Use signInWithPopup for social logins
             const result = await signInWithPopup(auth, provider); // This is the line that often throws auth/argument-error
             const user = result.user;
             console.log(`${providerName} login successful. User:`, user.email, user.uid);
@@ -226,15 +238,19 @@ export default function LoginPage() {
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
       <Card className="w-full max-w-md shadow-xl border-primary/20 card">
         <CardHeader className="text-center">
-           {/* Use standard img tag for logo */}
-           <img
-              src="/buddyscan-logo.png" // Direct path to the public folder
-              alt="BuddyScan Logo"
-              width="180" // Adjust width as needed
-              height="66" // Adjust height based on aspect ratio (742 / 2048 * 180 ≈ 66)
-              className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
-              // Removed onError for simplicity with standard img tag
-            />
+            <Image
+                src="/buddyscan-logo.png" // Direct path to the public folder
+                alt="BuddyScan Logo"
+                width={180} // Adjust width as needed
+                height={66} // Adjust height based on aspect ratio (742 / 2048 * 180 ≈ 66)
+                className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
+                priority // Prioritize loading the logo
+                 onError={(e) => {
+                    console.error('Standard <img> load error (Login):', (e.target as HTMLImageElement).src);
+                    // Optionally set a fallback or hide the image on error
+                    // (e.target as HTMLImageElement).style.display = 'none';
+                }}
+             />
           <CardTitle className="text-2xl font-bold text-primary">Bem-vindo de volta!</CardTitle>
           <CardDescription>Faça login para acessar seu painel BuddyScan.</CardDescription>
         </CardHeader>
