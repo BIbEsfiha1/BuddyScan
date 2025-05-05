@@ -12,10 +12,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { LogIn, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider, getRedirectResult } from 'firebase/auth'; // Added getRedirectResult
 import { auth, firebaseInitializationError } from '@/lib/firebase/config';
 import Image from 'next/image';
-// import { useAuth } from '@/context/auth-context'; // Authentication disabled
+import { useAuth } from '@/context/auth-context'; // Authentication disabled
 
 // Schema for email/password login
 const loginSchema = z.object({
@@ -29,10 +29,11 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [socialLoginLoading, setSocialLoginLoading] = useState<string | null>(null); // Loading state for specific provider
   const [loginError, setLoginError] = useState<string | null>(null);
-  // const { user, loading: authLoading } = useAuth(); // Authentication disabled
   const user = null; // Placeholder
   const authLoading = false; // Placeholder
+
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
@@ -47,16 +48,142 @@ export default function LoginPage() {
    }, [user, authLoading, router]);
 
 
+   // --- Handle Firebase Errors ---
+   const handleAuthError = (error: any, providerName: string) => {
+        setIsLoading(false);
+        setSocialLoginLoading(null);
+        console.error(`${providerName} login error:`, error);
+        let userMessage = 'Ocorreu um erro durante o login. Tente novamente.';
+        if (error.code) {
+            switch (error.code) {
+                case 'auth/user-not-found':
+                    userMessage = 'Usuário não encontrado. Verifique o email ou cadastre-se.';
+                    break;
+                case 'auth/wrong-password':
+                    userMessage = 'Senha incorreta. Tente novamente.';
+                    break;
+                case 'auth/invalid-email':
+                    userMessage = 'O formato do email é inválido.';
+                    break;
+                case 'auth/user-disabled':
+                    userMessage = 'Este usuário foi desabilitado.';
+                    break;
+                case 'auth/popup-closed-by-user':
+                    userMessage = 'Login cancelado pelo usuário.';
+                    break;
+                case 'auth/cancelled-popup-request':
+                case 'auth/popup-blocked':
+                    userMessage = 'Popup de login bloqueado pelo navegador. Habilite popups para este site.';
+                    break;
+                case 'auth/account-exists-with-different-credential':
+                    userMessage = 'Já existe uma conta com este email usando outro método de login (ex: Google, Email). Tente fazer login com o método original.';
+                    break;
+                case 'auth/network-request-failed':
+                     userMessage = 'Erro de rede. Verifique sua conexão e tente novamente.';
+                     break;
+                case 'auth/invalid-credential':
+                     userMessage = 'Credenciais inválidas. Verifique seus dados.';
+                     break;
+                case 'auth/internal-error':
+                     userMessage = 'Ocorreu um erro interno no servidor de autenticação. Tente novamente mais tarde.';
+                     break;
+                 case 'auth/api-key-not-valid':
+                     userMessage = "Erro de configuração: Chave de API inválida. Contate o suporte.";
+                     console.error("CRITICAL: Invalid Firebase API Key detected during login.");
+                     break;
+                 case 'auth/argument-error':
+                     userMessage = "Erro de configuração interna. Contate o suporte.";
+                     console.error("CRITICAL: Auth Argument Error - Likely Firebase config issue (check authDomain, projectId).");
+                     break;
+                default:
+                    userMessage = `Erro de login (${error.code}). Tente novamente.`;
+            }
+        } else if (error.message) {
+            // Handle potential non-Firebase errors
+            userMessage = error.message;
+        }
+        setLoginError(userMessage);
+        toast({
+            variant: 'destructive',
+            title: `Erro de Login (${providerName})`,
+            description: userMessage,
+        });
+   };
+
   // --- Email/Password Login Handler ---
   const onEmailSubmit = async (data: LoginFormInputs) => {
-     console.warn("Login com email e senha está desabilitado.");
-     toast({ variant: "destructive", title: "Login Desabilitado", description: "O login com email e senha está temporariamente desabilitado." });
+      if (!auth) {
+           console.error("Email login failed: Auth instance not available.");
+           setLoginError("Serviço de autenticação indisponível.");
+           toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível."});
+           return;
+       }
+     setIsLoading(true);
+     setLoginError(null);
+     try {
+       console.log('Attempting email login for:', data.email);
+       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+       console.log('Email login successful:', userCredential.user.email);
+       toast({ title: "Login bem-sucedido!", description: `Bem-vindo de volta!` });
+       router.push('/dashboard'); // Redirect to dashboard on success
+     } catch (error: any) {
+        handleAuthError(error, 'Email');
+     } finally {
+       setIsLoading(false);
+     }
   };
 
   // --- Social Login Handler ---
    const handleSocialLogin = async (providerType: 'google' | 'facebook' | 'twitter') => {
-        console.warn("Login social está desabilitado.");
-        toast({ variant: "destructive", title: "Login Desabilitado", description: "O login com redes sociais está temporariamente desabilitado." });
+        let provider;
+        let providerName = '';
+
+       if (!auth) {
+           console.error(`${providerName} login failed: Auth instance not available.`);
+           setLoginError("Serviço de autenticação indisponível.");
+           toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível."});
+           return;
+       }
+
+        switch (providerType) {
+            case 'google':
+                provider = new GoogleAuthProvider();
+                providerName = 'Google';
+                break;
+            case 'facebook':
+                // provider = new OAuthProvider('facebook.com'); // Example for Facebook
+                // providerName = 'Facebook';
+                toast({ variant: "destructive", title: "Indisponível", description: "Login com Facebook ainda não implementado." });
+                return;
+            case 'twitter':
+                 // provider = new OAuthProvider('twitter.com'); // Example for Twitter (X)
+                // providerName = 'Twitter';
+                toast({ variant: "destructive", title: "Indisponível", description: "Login com Twitter (X) ainda não implementado." });
+                return;
+            default:
+                console.error('Provider type desconhecido:', providerType);
+                toast({ variant: "destructive", title: "Erro", description: "Método de login desconhecido." });
+                return;
+        }
+
+        setSocialLoginLoading(providerName);
+        setLoginError(null);
+
+        try {
+            console.log(`Attempting signInWithPopup for ${providerName}...`);
+            if (!auth) { // Double-check auth before the call
+                throw new Error("Auth instance became null before signInWithPopup call.");
+            }
+            const result = await signInWithPopup(auth, provider); // This is the line that often throws auth/argument-error
+            const user = result.user;
+            console.log(`${providerName} login successful. User:`, user.email, user.uid);
+            toast({ title: "Login bem-sucedido!", description: `Conectado com ${providerName}.` });
+            router.push('/dashboard');
+        } catch (error: any) {
+             handleAuthError(error, providerName);
+        } finally {
+            setSocialLoginLoading(null);
+        }
    };
 
    // Show loading state while checking auth status or if user is already defined
@@ -84,12 +211,12 @@ export default function LoginPage() {
         <CardHeader className="text-center">
            {/* Use Next.js Image component for the logo */}
            <Image
-               src="/buddyscan-logo.png" // Ensure this path is correct (relative to public folder)
-               alt="BuddyScan Logo"
-               width={180} // Set appropriate width
-               height={51} // Set appropriate height based on aspect ratio
-               priority // Load logo quickly
-               className="mx-auto mb-4" // Keep styling for centering etc.
+                src="/buddyscan-logo.png" // Ensure this path is correct (relative to public folder)
+                alt="BuddyScan Logo"
+                width={180} // Set appropriate width
+                height={51} // Set appropriate height based on aspect ratio
+                priority // Load logo quickly
+                className="mx-auto mb-4 object-contain" // Added object-contain
            />
           <CardTitle className="text-2xl font-bold text-primary">Bem-vindo de volta!</CardTitle>
           <CardDescription>Faça login para acessar seu painel BuddyScan.</CardDescription>
@@ -98,15 +225,15 @@ export default function LoginPage() {
             {firebaseInitializationError && (
                  <Alert variant="destructive">
                      <AlertCircle className="h-4 w-4" />
-                     <AlertTitle>Erro de Configuração</AlertTitle>
+                     <AlertTitle>Erro Crítico de Configuração</AlertTitle>
                      <AlertDescription>
-                         {firebaseInitializationError.message}. A autenticação pode não funcionar.
+                         {firebaseInitializationError.message}. A autenticação pode não funcionar. Verifique as variáveis de ambiente (API Key, Auth Domain, etc.).
                      </AlertDescription>
                  </Alert>
              )}
 
-           {/* Login Form - Disabled */}
-            <div className="space-y-4 opacity-50 pointer-events-none">
+           {/* Login Form - Enabled */}
+            <form onSubmit={handleSubmit(onEmailSubmit)} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email" className="flex items-center gap-1.5"><Mail className="h-4 w-4 text-secondary" />Email</Label>
                   <Input
@@ -114,7 +241,7 @@ export default function LoginPage() {
                     type="email"
                     placeholder="seuemail@exemplo.com"
                     {...register('email')}
-                    disabled={true} // Always disabled
+                    disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading}
                     className={`input ${errors.email ? 'border-destructive focus:ring-destructive' : ''}`}
                     aria-invalid={errors.email ? "true" : "false"}
                   />
@@ -127,7 +254,7 @@ export default function LoginPage() {
                     type="password"
                     placeholder="Sua senha"
                     {...register('password')}
-                    disabled={true} // Always disabled
+                    disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading}
                     className={`input ${errors.password ? 'border-destructive focus:ring-destructive' : ''}`}
                      aria-invalid={errors.password ? "true" : "false"}
                   />
@@ -135,14 +262,18 @@ export default function LoginPage() {
                 </div>
 
                 {loginError && (
-                  <p className="text-sm text-destructive text-center bg-destructive/10 p-2 rounded-md">{loginError}</p>
+                  <Alert variant="destructive" className="p-3">
+                     <AlertCircle className="h-4 w-4"/>
+                     <AlertTitle>Erro de Login</AlertTitle>
+                     <AlertDescription className="text-sm">{loginError}</AlertDescription>
+                   </Alert>
                 )}
 
-                <Button type="submit" className="w-full font-semibold button" disabled={true}> {/* Always disabled */}
-                  <LogIn className="mr-2 h-4 w-4" />
-                  Entrar (Desabilitado)
+                <Button type="submit" className="w-full font-semibold button" disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading}>
+                   {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
+                   {isLoading ? 'Entrando...' : 'Entrar'}
                 </Button>
-            </div>
+            </form>
 
           <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">
@@ -154,17 +285,37 @@ export default function LoginPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-3">
-            {/* Social Login Buttons - Disabled */}
+            {/* Social Login Buttons - Enabled */}
             <Button
               variant="outline"
               onClick={() => handleSocialLogin('google')}
-              disabled={true} // Always disabled
+              disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading}
               className="button justify-center gap-2"
             >
-              <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.36 1.67-4.06 1.67-3.4 0-6.33-2.83-6.33-6.33s2.93-6.33 6.33-6.33c1.9 0 3.21.73 4.18 1.69l2.6-2.6C16.84 3.18 14.91 2 12.48 2 7.48 2 3.11 6.33 3.11 11.33s4.37 9.33 9.37 9.33c3.19 0 5.64-1.18 7.57-3.01 2-1.9 2.6-4.5 2.6-6.66 0-.58-.05-1.14-.13-1.67z"></path></svg>
-              Google (Desabilitado)
+               {socialLoginLoading === 'Google' ? <Loader2 className="h-5 w-5 animate-spin"/> : <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.36 1.67-4.06 1.67-3.4 0-6.33-2.83-6.33-6.33s2.93-6.33 6.33-6.33c1.9 0 3.21.73 4.18 1.69l2.6-2.6C16.84 3.18 14.91 2 12.48 2 7.48 2 3.11 6.33 3.11 11.33s4.37 9.33 9.37 9.33c3.19 0 5.64-1.18 7.57-3.01 2-1.9 2.6-4.5 2.6-6.66 0-.58-.05-1.14-.13-1.67z"></path></svg>}
+               {socialLoginLoading === 'Google' ? 'Conectando...' : 'Continuar com Google'}
             </Button>
             {/* Placeholder for other social logins */}
+             <Button
+               variant="outline"
+               onClick={() => handleSocialLogin('facebook')}
+               disabled={true} // Keep disabled until implemented
+               className="button justify-center gap-2 opacity-50 cursor-not-allowed"
+             >
+               {/* Placeholder Facebook Icon */}
+               <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M18.77 7.46H14.5v-1.9c0-.9.6-1.1 1-1.1h3V.5h-4.33C10.24.5 9.5 3.14 9.5 5.35V7.46H6.11v4.05H9.5v10h5V11.51h3.27l.59-4.05z"></path></svg>
+               Facebook (Em Breve)
+             </Button>
+             <Button
+               variant="outline"
+               onClick={() => handleSocialLogin('twitter')}
+               disabled={true} // Keep disabled until implemented
+               className="button justify-center gap-2 opacity-50 cursor-not-allowed"
+             >
+               {/* Placeholder Twitter (X) Icon */}
+               <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>
+               Twitter/X (Em Breve)
+             </Button>
           </div>
         </CardContent>
         <CardFooter className="text-center text-sm text-muted-foreground justify-center">
@@ -178,4 +329,3 @@ export default function LoginPage() {
   );
 }
 
-    

@@ -1,7 +1,7 @@
 // src/components/app-header.tsx
  'use client';
 
- import React, { useState } from 'react'; // Added useState
+ import React, { useState } from 'react';
  import Link from 'next/link';
  import Image from 'next/image'; // Import Image component
  import ThemeToggle from '@/components/theme-toggle';
@@ -42,15 +42,14 @@
        <div className="container flex h-16 items-center justify-between"> {/* Increased height */}
          {/* Logo/Brand - Use Image component */}
           <Link href="/dashboard" className="flex items-center gap-2 mr-6"> {/* Changed href to dashboard */}
-            {/* Use Next Image for optimization */}
-            {/* Ensure buddyscan-logo.png exists in the /public folder */}
+             {/* Ensure buddyscan-logo.png exists in the /public folder */}
              <Image
-                src="/buddyscan-logo.png" // Correct path from public folder
+                src="/buddyscan-logo.png" // Path starts with / referencing the public folder
                 alt="BuddyScan Logo"
-                width={140} // Adjust width as needed
-                height={40} // Adjust height as needed
+                width={140} // Set desired width
+                height={40} // Set desired height
                 priority // Load the logo quickly
-                // Removed potentially conflicting height/width classes like h-8, h-10, w-auto
+                className="object-contain" // Ensure image scales nicely if needed
              />
           </Link>
 
@@ -105,16 +104,17 @@
              ) : user ? (
                   <DropdownMenu>
                      <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="relative h-9 w-9 rounded-full button p-0">
-                            <Avatar className="h-9 w-9 border-2 border-primary/30">
-                                {/* Use a dynamic src or fallback */}
-                                <AvatarImage src={user.photoURL || undefined} alt={user.displayName || user.email || 'Usuário'} />
-                                <AvatarFallback>
-                                   {/* Display initial or icon */}
-                                   {user.email ? user.email[0].toUpperCase() : <UserCircle className="h-5 w-5"/>}
-                                </AvatarFallback>
-                             </Avatar>
-                          </Button>
+                         {/* Ensure Button wraps a single element */}
+                         <Button variant="ghost" className="relative h-9 w-9 rounded-full button p-0">
+                             <Avatar className="h-9 w-9 border-2 border-primary/30">
+                                 {/* Use a dynamic src or fallback */}
+                                 <AvatarImage src={user.photoURL || undefined} alt={user.displayName || user.email || 'Usuário'} />
+                                 <AvatarFallback>
+                                    {/* Display initial or icon */}
+                                    {user.email ? user.email[0].toUpperCase() : <UserCircle className="h-5 w-5"/>}
+                                 </AvatarFallback>
+                              </Avatar>
+                         </Button>
                      </DropdownMenuTrigger>
                      <DropdownMenuContent className="w-56" align="end" forceMount>
                          <DropdownMenuLabel className="font-normal">

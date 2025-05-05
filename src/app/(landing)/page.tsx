@@ -15,12 +15,14 @@ export default function LandingPage() {
          <div className="container flex h-16 items-center justify-between">
            {/* Logo */}
            <Link href="/" className="flex items-center gap-2 mr-6">
+               {/* Ensure buddyscan-logo.png exists in the /public folder */}
               <Image
-                 src="/buddyscan-logo.png" // Path to the logo in the public folder
+                 src="/buddyscan-logo.png" // Path starts with / referencing the public folder
                  alt="BuddyScan Logo"
-                 width={140} // Adjust width as needed
-                 height={40} // Adjust height as needed
-                 priority
+                 width={140} // Set desired width
+                 height={40} // Set desired height
+                 priority // Load the logo quickly
+                 className="object-contain" // Ensure image scales nicely if needed
               />
            </Link>
             {/* Navigation/Actions */}
@@ -32,6 +34,7 @@ export default function LandingPage() {
                  <Link href="#how-it-works">Como Funciona</Link>
                </Button>
                <Button asChild className="button">
+                 {/* This should ideally point to /login or /dashboard depending on auth state */}
                  <Link href="/dashboard">Acessar o App</Link>
               </Button>
            </nav>
@@ -56,6 +59,7 @@ export default function LandingPage() {
                 <div className="flex flex-col gap-2 min-[400px]:flex-row">
                   {/* Ensure this button navigates correctly based on routing setup */}
                    <Button size="lg" asChild className="button">
+                     {/* This should ideally point to /login or /dashboard depending on auth state */}
                      <Link href="/dashboard">Acessar o App</Link>
                    </Button>
                   {/* Optional: Add a secondary button like "Learn More" */}
@@ -69,8 +73,8 @@ export default function LandingPage() {
               <Image
                 data-ai-hint="modern cannabis cultivation technology app interface"
                 src="https://picsum.photos/seed/buddyscan-hero/600/400" // Updated seed
-                width="600"
-                height="400"
+                width={600}
+                height={400}
                 alt="BuddyScan Hero Image" // Updated alt text
                 className="mx-auto aspect-video overflow-hidden rounded-xl object-cover sm:w-full lg:order-last lg:aspect-square shadow-lg border border-primary/20"
               />
@@ -171,6 +175,7 @@ export default function LandingPage() {
              <div className="mt-10">
                  {/* Ensure this button navigates correctly based on routing setup */}
                   <Button size="lg" asChild className="button">
+                     {/* This should ideally point to /login or /dashboard depending on auth state */}
                      <Link href="/dashboard">Começar Agora</Link>
                   </Button>
              </div>
