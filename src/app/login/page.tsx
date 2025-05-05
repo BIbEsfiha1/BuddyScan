@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -95,7 +94,7 @@ export default function LoginPage() {
                      console.error("CRITICAL: Invalid Firebase API Key detected during login.");
                      break;
                  case 'auth/argument-error': // Often related to invalid authDomain
-                     userMessage = "Erro de configuração interna (authDomain inválido ou API key?). Contate o suporte.";
+                     userMessage = "Erro de configuração interna (authDomain inválido ou API key?). Verifique a configuração do Firebase e as variáveis de ambiente (NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN). Contate o suporte.";
                      console.error("CRITICAL: Auth Argument Error - Likely Firebase config issue (check authDomain, projectId, apiKey).", error);
                      break;
                  case 'auth/operation-not-allowed':
@@ -201,16 +200,16 @@ export default function LoginPage() {
         setLoginError(null);
 
         try {
-            console.log(`--- Initiating ${providerName} signInWithPopup ---`);
-            console.log("Auth Instance Available:", !!auth);
+            console.log(`--- [DEBUG] Initiating ${providerName} signInWithPopup ---`);
+            console.log("[DEBUG] Auth Instance Available:", !!auth);
             // Log the specific config details of the auth instance being used RIGHT BEFORE the call
             if (auth) {
-                console.log("Auth Config Used by Instance:");
+                console.log("[DEBUG] Auth Config Used by Instance:");
                 console.log("  apiKey:", auth.config.apiKey ? 'Present' : 'MISSING!');
                 console.log("  authDomain:", auth.config.authDomain || 'MISSING! (Likely cause of auth/argument-error)');
                 console.log("  projectId:", auth.config.projectId || 'MISSING!');
             } else {
-                 console.error("Critical Error: Auth instance is null just before signInWithPopup!");
+                 console.error("CRITICAL Error: Auth instance is null just before signInWithPopup!");
                  throw new Error("Auth instance is null or undefined.");
             }
 
@@ -219,7 +218,7 @@ export default function LoginPage() {
              }
              // Explicitly check authDomain right before the call
              if (!auth.config.authDomain) {
-                 console.error("FATAL: authDomain is missing or invalid in Firebase Auth config. This is the cause of auth/argument-error for popup logins.");
+                 console.error("FATAL: authDomain is missing or invalid in Firebase Auth config. This is the likely cause of auth/argument-error for popup logins.");
                  throw new Error("authDomain inválido ou ausente na configuração do Firebase.");
              }
             // Use signInWithPopup for social logins

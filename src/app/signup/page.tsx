@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -99,9 +98,9 @@ export default function SignupPage() {
                      console.error("CRITICAL: Invalid Firebase API Key detected during signup.");
                      break;
                  case 'auth/argument-error': // Often related to invalid authDomain
-                     userMessage = "Erro de configuração interna (authDomain inválido?). Contate o suporte.";
-                     console.error("CRITICAL: Auth Argument Error - Likely Firebase config issue (check authDomain, projectId).", error);
-                     break;
+                      userMessage = "Erro de configuração interna (authDomain inválido ou API key?). Verifique a configuração do Firebase e as variáveis de ambiente (NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN). Contate o suporte.";
+                      console.error("CRITICAL: Auth Argument Error - Likely Firebase config issue (check authDomain, projectId).", error);
+                      break;
                  case 'auth/invalid-credential': // Can happen if email format is wrong during create
                      userMessage = 'Formato de email inválido.';
                      break;
@@ -133,6 +132,14 @@ export default function SignupPage() {
            toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível." });
            return;
        }
+       // Check for critical Firebase initialization error
+       if (firebaseInitializationError) {
+           console.error("Email signup failed due to Firebase initialization error:", firebaseInitializationError.message);
+           setSignupError(`Erro de Configuração: ${firebaseInitializationError.message}`);
+           toast({ variant: "destructive", title: "Erro de Configuração", description: firebaseInitializationError.message });
+           return;
+       }
+
      setIsLoading(true);
      setSignupError(null);
      try {
@@ -195,10 +202,17 @@ export default function SignupPage() {
        setSignupError(null);
 
         try {
-            console.log(`Attempting signInWithPopup for ${providerName}. Auth instance available: ${!!auth}. Auth Domain: ${auth?.config?.authDomain}`);
+            console.log(`--- [DEBUG] Initiating ${providerName} signInWithPopup (Signup Page) ---`);
+            console.log("[DEBUG] Auth Instance Available:", !!auth);
              if (!auth) { // Double check auth right before the call
                 throw new Error("Auth instance became null before signInWithPopup call.");
              }
+             // Log the specific config details of the auth instance being used RIGHT BEFORE the call
+             console.log("[DEBUG] Auth Config Used by Instance (Signup):");
+             console.log("  apiKey:", auth.config.apiKey ? 'Present' : 'MISSING!');
+             console.log("  authDomain:", auth.config.authDomain || 'MISSING! (Likely cause of auth/argument-error)');
+             console.log("  projectId:", auth.config.projectId || 'MISSING!');
+
              if (!provider) { // Should not happen based on switch logic, but check anyway
                 throw new Error("Provider instance is null or undefined.");
              }
@@ -212,6 +226,7 @@ export default function SignupPage() {
             toast({ title: "Conectado!", description: `Bem-vindo ao BuddyScan via ${providerName}.` });
             router.push('/dashboard');
         } catch (error: any) {
+             console.error(`Error during ${providerName} signInWithPopup (Signup):`, error);
              handleAuthError(error, providerName);
         } finally {
             setSocialLoginLoading(null);
@@ -389,4 +404,3 @@ export default function SignupPage() {
     </TooltipProvider>
   );
 }
-

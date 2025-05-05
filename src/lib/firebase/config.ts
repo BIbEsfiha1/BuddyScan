@@ -1,4 +1,3 @@
-
 // src/lib/firebase/config.ts
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth, browserLocalPersistence, initializeAuth, connectAuthEmulator } from 'firebase/auth'; // Added connectAuthEmulator
@@ -10,7 +9,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyCI3PcqYwR3v4EZVD2EY6tnbqQK94olEOg", // Updated API Key
   authDomain: "cannalog-c34fx.firebaseapp.com", // Updated Auth Domain
   projectId: "cannalog-c34fx", // Updated Project ID
-  storageBucket: "cannalog-c34fx.firebasestorage.app", // Updated Storage Bucket
+  storageBucket: "cannalog-c34fx.firebasestorage.app", // Updated Storage Bucket - Make sure this matches your project
   messagingSenderId: "581752624409", // Updated Sender ID
   appId: "1:581752624409:web:e30cd8231db418dc2a6188" // Updated App ID
 };
@@ -98,14 +97,19 @@ try {
 
     // Initialize Auth only if app was successfully initialized and there's no prior error
     if (app && !firebaseInitializationError) {
-        console.log("Attempting to initialize Firebase Auth with Auth Domain:", app.options.authDomain); // Log intended auth domain
+        console.log("[DEBUG] Attempting to initialize Firebase Auth. Expected Auth Domain:", firebaseConfig.authDomain); // Log intended auth domain
         // Use initializeAuth for better compatibility with different environments
         auth = initializeAuth(app, {
             persistence: browserLocalPersistence, // Use local persistence
             // errorMap: customErrorMap, // Optional: Add custom error mapping if needed
         });
         // Log the Auth Domain actually being used by the auth instance
-        console.log('Firebase Auth initialized successfully. Actual Auth instance config:', auth.config);
+        console.log('[DEBUG] Firebase Auth initialized. Actual Auth instance config:', auth.config);
+         if (auth.config.authDomain !== firebaseConfig.authDomain) {
+            console.warn(`[DEBUG] Mismatch detected! Initial config authDomain: "${firebaseConfig.authDomain}", Auth instance authDomain: "${auth.config.authDomain}"`);
+         } else {
+             console.log("[DEBUG] Auth instance authDomain matches initial config.");
+         }
 
         // Connect to Auth Emulator if running locally (using the same host as Firestore)
         if (EMULATOR_HOST && auth) { // Check if auth is not null before connecting emulator
