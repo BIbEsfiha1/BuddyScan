@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -193,12 +194,16 @@ export default function LoginPage() {
         setLoginError(null);
 
         try {
-            console.log(`Attempting signInWithPopup for ${providerName}. Auth instance:`, auth ? 'OK' : 'NULL', 'Provider instance:', provider ? 'OK' : 'NULL');
+            console.log(`Attempting signInWithPopup for ${providerName}. Auth instance available: ${!!auth}. Auth Domain: ${auth?.config?.authDomain}`);
              if (!auth) { // Double check auth right before the call
                 throw new Error("Auth instance became null before signInWithPopup call.");
              }
              if (!provider) { // Should not happen based on switch logic, but check anyway
                 throw new Error("Provider instance is null or undefined.");
+             }
+             if (!auth.config.authDomain) {
+                 console.warn("authDomain is missing or invalid in Firebase Auth config. This is likely the cause of auth/argument-error for popup logins.");
+                 throw new Error("authDomain inválido ou ausente na configuração do Firebase.");
              }
             // Use signInWithPopup for social logins
             const result = await signInWithPopup(auth, provider); // This is the line that often throws auth/argument-error
@@ -237,19 +242,15 @@ export default function LoginPage() {
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
       <Card className="w-full max-w-md shadow-xl border-primary/20 card">
         <CardHeader className="text-center">
-            {/* Use Next Image component */}
-             <Image
-                src="/buddyscan-logo.png" // Path relative to the public folder
-                alt="BuddyScan Logo"
-                width={180} // Adjust width as needed
-                height={66} // Adjust height based on aspect ratio (742 / 2048 * 180 ≈ 66)
-                className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
-                priority // Prioritize loading the logo
-                 onError={(e) => {
-                    console.error('Standard <img> load error (Login):', (e.target as HTMLImageElement).src);
-                    // Optionally set a fallback or hide the image on error
-                    // (e.target as HTMLImageElement).style.display = 'none';
-                }}
+            {/* Use standard img tag */}
+             <img
+                 src="/buddyscan-logo.png" // Path relative to the public folder
+                 alt="BuddyScan Logo"
+                 width={180} // Adjust width as needed
+                 height={66} // Adjust height based on aspect ratio (742 / 2048 * 180 ≈ 66)
+                 className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
+                 // Note: onError won't trigger for 404s with standard img tags in the same way as Next/Image
+                 // Check network tab for 404s if the image doesn't load.
              />
           <CardTitle className="text-2xl font-bold text-primary">Bem-vindo de volta!</CardTitle>
           <CardDescription>Faça login para acessar seu painel BuddyScan.</CardDescription>
@@ -330,7 +331,7 @@ export default function LoginPage() {
                        <Button
                          variant="outline"
                          onClick={() => handleSocialLogin('google')}
-                         disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth is disabled
+                         disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
                          className="button justify-center gap-2 w-full"
                        >
                           {socialLoginLoading === 'Google' ? <Loader2 className="h-5 w-5 animate-spin"/> : <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.36 1.67-4.06 1.67-3.4 0-6.33-2.83-6.33-6.33s2.93-6.33 6.33-6.33c1.9 0 3.21.73 4.18 1.69l2.6-2.6C16.84 3.18 14.91 2 12.48 2 7.48 2 3.11 6.33 3.11 11.33s4.37 9.33 9.37 9.33c3.19 0 5.64-1.18 7.57-3.01 2-1.9 2.6-4.5 2.6-6.66 0-.58-.05-1.14-.13-1.67z"></path></svg>}

@@ -195,12 +195,16 @@ export default function SignupPage() {
        setSignupError(null);
 
         try {
-            console.log(`Attempting signInWithPopup for ${providerName}. Auth instance:`, auth ? 'OK' : 'NULL', 'Provider instance:', provider ? 'OK' : 'NULL');
+            console.log(`Attempting signInWithPopup for ${providerName}. Auth instance available: ${!!auth}. Auth Domain: ${auth?.config?.authDomain}`);
              if (!auth) { // Double check auth right before the call
                 throw new Error("Auth instance became null before signInWithPopup call.");
              }
              if (!provider) { // Should not happen based on switch logic, but check anyway
                 throw new Error("Provider instance is null or undefined.");
+             }
+             if (!auth.config.authDomain) {
+                 console.warn("authDomain is missing or invalid in Firebase Auth config. This is likely the cause of auth/argument-error for popup logins.");
+                 throw new Error("authDomain inválido ou ausente na configuração do Firebase.");
              }
             const result = await signInWithPopup(auth, provider);
             const user = result.user;
@@ -244,9 +248,7 @@ export default function SignupPage() {
                  width={180} // Adjust width as needed
                  height={66} // Adjust height based on aspect ratio
                  className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
-                 onError={(e) => {
-                     console.error('Standard <img> load error (Signup):', (e.target as HTMLImageElement).src);
-                 }}
+                 // No onError needed for standard img if we check network tab for 404
              />
           <CardTitle className="text-2xl font-bold text-primary">Crie sua Conta BuddyScan</CardTitle>
           <CardDescription>Cadastre-se para começar a monitorar suas plantas.</CardDescription>

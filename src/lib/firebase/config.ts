@@ -82,12 +82,12 @@ try {
     // Prevent initialization if an error was already detected (e.g., missing required config)
     if (!firebaseInitializationError && hasFirebaseConfig()) {
         if (!getApps().length) {
-            console.log("Tentando inicializar Firebase App com a config:", firebaseConfig);
+            console.log("Attempting to initialize Firebase App with config:", firebaseConfig);
             app = initializeApp(firebaseConfig);
-            console.log('App Firebase inicializado com sucesso.');
+            console.log('Firebase App initialized successfully.');
         } else {
           app = getApp();
-          console.log('App Firebase já existe, usando instância existente.');
+          console.log('Firebase App already exists, using existing instance.');
         }
     } else {
         const errorMsg = `Erro Crítico: Inicialização do Firebase App ignorada devido a ${firebaseInitializationError ? 'erro prévio' : 'configuração ausente (apiKey, projectId, ou authDomain)'}. Verifique as variáveis de ambiente.`;
@@ -99,33 +99,34 @@ try {
 
     // Initialize Auth only if app was successfully initialized and there's no prior error
     if (app && !firebaseInitializationError) {
-        console.log("Tentando inicializar Firebase Auth...");
+        console.log("Attempting to initialize Firebase Auth...");
         // Use initializeAuth for better compatibility with different environments
         auth = initializeAuth(app, {
             persistence: browserLocalPersistence, // Use local persistence
             // errorMap: customErrorMap, // Optional: Add custom error mapping if needed
         });
-        console.log('Firebase Auth inicializado com sucesso.');
+        // Log the Auth Domain actually being used by the auth instance
+        console.log('Firebase Auth initialized successfully. Using authDomain:', auth.config.authDomain);
 
         // Connect to Auth Emulator if running locally (using the same host as Firestore)
         if (EMULATOR_HOST && auth) { // Check if auth is not null before connecting emulator
             // Use the same host as Firestore, but specify the Auth port
             const authEmulatorUrl = `http://${EMULATOR_HOST}:${AUTH_EMULATOR_PORT}`;
-            console.log(`Tentando conectar ao Emulador de Autenticação: ${authEmulatorUrl}`);
+            console.log(`Attempting to connect to Auth Emulator: ${authEmulatorUrl}`);
             try {
                 // Ensure connectAuthEmulator is called only once
                 if (!(auth as any).__authEmulatorConnected) {
                     connectAuthEmulator(auth, authEmulatorUrl);
                     (auth as any).__authEmulatorConnected = true; // Mark as connected
-                    console.log('Conectado ao Emulador de Autenticação.');
+                    console.log('Connected to Auth Emulator.');
                 } else {
-                    console.log('Já conectado ao Emulador de Autenticação.');
+                    console.log('Already connected to Auth Emulator.');
                 }
             } catch (emulatorError: any) {
-                 console.error(`Erro ao conectar ao Emulador de Autenticação em ${authEmulatorUrl}:`, emulatorError);
+                 console.error(`Error connecting to Auth Emulator at ${authEmulatorUrl}:`, emulatorError);
                  // Optionally set firebaseInitializationError here if emulator connection is critical for dev
                  if (!firebaseInitializationError) { // Avoid overwriting specific errors
-                    firebaseInitializationError = new Error(`Falha ao conectar ao emulador de Auth: ${emulatorError.message}`);
+                    firebaseInitializationError = new Error(`Failed to connect to Auth emulator: ${emulatorError.message}`);
                  }
             }
         }
@@ -138,26 +139,26 @@ try {
 
      // Initialize Firestore only if app was successfully initialized and there's no prior error
      if (app && !firebaseInitializationError) {
-        console.log("Tentando inicializar Firebase Firestore...");
+        console.log("Attempting to initialize Firebase Firestore...");
         db = getFirestore(app);
-        console.log('Firebase Firestore inicializado com sucesso.');
+        console.log('Firebase Firestore initialized successfully.');
 
          // Connect to Firestore Emulator if running locally
         if (EMULATOR_HOST && db) { // Check if db is not null
-             console.log(`Tentando conectar ao Emulador do Firestore: host=${EMULATOR_HOST} port=${FIRESTORE_EMULATOR_PORT}`);
+             console.log(`Attempting to connect to Firestore Emulator: host=${EMULATOR_HOST} port=${FIRESTORE_EMULATOR_PORT}`);
             try {
                 // Ensure connectFirestoreEmulator is called only once
                  if (!(db as any).__firestoreEmulatorConnected) {
                     connectFirestoreEmulator(db, EMULATOR_HOST, FIRESTORE_EMULATOR_PORT);
                     (db as any).__firestoreEmulatorConnected = true; // Mark as connected
-                    console.log('Conectado ao Emulador do Firestore.');
+                    console.log('Connected to Firestore Emulator.');
                  } else {
-                    console.log('Já conectado ao Emulador do Firestore.');
+                    console.log('Already connected to Firestore Emulator.');
                  }
              } catch (emulatorError: any) {
-                 console.error(`Erro ao conectar ao Emulador do Firestore em ${EMULATOR_HOST}:${FIRESTORE_EMULATOR_PORT}:`, emulatorError);
+                 console.error(`Error connecting to Firestore Emulator at ${EMULATOR_HOST}:${FIRESTORE_EMULATOR_PORT}:`, emulatorError);
                  if (!firebaseInitializationError) {
-                    firebaseInitializationError = new Error(`Falha ao conectar ao emulador do Firestore: ${emulatorError.message}`);
+                    firebaseInitializationError = new Error(`Failed to connect to Firestore emulator: ${emulatorError.message}`);
                  }
              }
          }
@@ -170,7 +171,7 @@ try {
 
 } catch (error: any) {
     // This catch block handles errors during initializeApp, initializeAuth or getFirestore
-    console.error("Erro CRÍTICO inicializando Firebase ou serviços:", error);
+    console.error("CRITICAL Firebase initialization error:", error);
 
     // Provide a more specific message based on common error codes
     if (error.code === 'auth/invalid-api-key' || error.message?.includes('invalid-api-key') || error.code === 'invalid-api-key') {
@@ -182,7 +183,8 @@ try {
          console.error(authDomainErrorMsg);
          firebaseInitializationError = new Error(authDomainErrorMsg);
     } else if (error.code === 'auth/argument-error' || error.message?.includes('argument-error')) {
-         const argErrorMsg = "Erro Crítico: Argumento inválido durante a inicialização do Firebase (possivelmente authDomain ou config inválida). Verifique a configuração no console e .env.";
+         // This might be the case if the entire config object is malformed, but more often related to authDomain for signInWithPopup
+         const argErrorMsg = "Erro Crítico: Argumento inválido durante a inicialização do Firebase (possivelmente authDomain ou config inválida). Verifique a configuração no console Firebase e .env.";
          console.error(argErrorMsg);
          firebaseInitializationError = new Error(argErrorMsg);
     } else {
@@ -196,5 +198,3 @@ try {
 
 // Export the initialized instances and the potential error
 export { app, auth, db, firebaseInitializationError };
-
-    
