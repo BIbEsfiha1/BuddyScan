@@ -269,6 +269,11 @@ export default function LoginPage() {
                  className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
                  // Note: onError won't trigger for 404s with standard img tags in the same way as Next/Image
                  // Check network tab for 404s if the image doesn't load.
+                 onError={(e) => {
+                    console.error('Standard <img> load error (Login):', (e.target as HTMLImageElement).src);
+                    // Optionally set a fallback or hide the image on error
+                    // (e.target as HTMLImageElement).style.display = 'none';
+                }}
              />
           <CardTitle className="text-2xl font-bold text-primary">Bem-vindo de volta!</CardTitle>
           <CardDescription>Faça login para acessar seu painel BuddyScan.</CardDescription>

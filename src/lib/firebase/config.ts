@@ -3,6 +3,7 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth, browserLocalPersistence, initializeAuth, connectAuthEmulator } from 'firebase/auth'; // Added connectAuthEmulator
 import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/firestore'; // Import Firestore
 
+// --- Emulator Configuration ---
 // Your web app's Firebase configuration
 // Using the latest config provided by the user.
 // Ensure these environment variables are set in your .env.local file
@@ -13,11 +14,9 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
-};
+}; // Add measurementId if using Analytics: measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 
 
-// --- Emulator Configuration ---
-// Use Firestore emulator host var, default ports if not specified
 const EMULATOR_HOST = process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST;
 const AUTH_EMULATOR_PORT = 9099; // Default Auth port
 const FIRESTORE_EMULATOR_PORT = 8080; // Default Firestore port
@@ -33,6 +32,7 @@ if (typeof window !== 'undefined' && !(window as any).__firebaseConfigLogged) {
   console.log("Storage Bucket:", firebaseConfig.storageBucket || 'Optional - Missing');
   console.log("Messaging Sender ID:", firebaseConfig.messagingSenderId || 'Optional - Missing');
   console.log("App ID:", firebaseConfig.appId || 'Optional - Missing');
+  // console.log("Measurement ID:", firebaseConfig.measurementId || 'Optional (Analytics) - Missing');
   console.log("Emulator Host (NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST):", EMULATOR_HOST || 'Not Set (Using Production)');
   console.log("------------------------------------");
   (window as any).__firebaseConfigLogged = true; // Prevent repeated logging
@@ -107,7 +107,7 @@ try {
         // Log the Auth Domain actually being used by the auth instance
         console.log('[DEBUG] Firebase Auth initialized. Actual Auth instance config:', auth.config);
          if (auth.config.authDomain !== firebaseConfig.authDomain) {
-            console.warn(`[DEBUG] Mismatch detected! Initial config authDomain: "${firebaseConfig.authDomain}", Auth instance authDomain: "${auth.config.authDomain}"`);
+            console.error(`[CRITICAL DEBUG] Mismatch detected! Initial config authDomain: "${firebaseConfig.authDomain}", Auth instance authDomain: "${auth.config.authDomain}". THIS IS LIKELY THE CAUSE OF auth/argument-error.`);
          } else {
              console.log("[DEBUG] Auth instance authDomain matches initial config.");
          }

@@ -213,11 +213,12 @@ export default function SignupPage() {
              console.log("  authDomain:", auth.config.authDomain || 'MISSING! (Likely cause of auth/argument-error)');
              console.log("  projectId:", auth.config.projectId || 'MISSING!');
 
+
              if (!provider) { // Should not happen based on switch logic, but check anyway
                 throw new Error("Provider instance is null or undefined.");
              }
              if (!auth.config.authDomain) {
-                 console.warn("authDomain is missing or invalid in Firebase Auth config. This is likely the cause of auth/argument-error for popup logins.");
+                 console.error("FATAL: authDomain is missing or invalid in Firebase Auth config. This is the likely cause of auth/argument-error for popup logins.");
                  throw new Error("authDomain inválido ou ausente na configuração do Firebase.");
              }
             const result = await signInWithPopup(auth, provider);
@@ -264,6 +265,10 @@ export default function SignupPage() {
                  height={66} // Adjust height based on aspect ratio
                  className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
                  // No onError needed for standard img if we check network tab for 404
+                 onError={(e) => {
+                     console.error('Standard <img> load error (Signup):', (e.target as HTMLImageElement).src);
+                     // Optionally set a fallback or hide the image on error
+                 }}
              />
           <CardTitle className="text-2xl font-bold text-primary">Crie sua Conta BuddyScan</CardTitle>
           <CardDescription>Cadastre-se para começar a monitorar suas plantas.</CardDescription>
