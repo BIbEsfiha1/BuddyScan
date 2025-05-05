@@ -16,7 +16,7 @@ import { LogIn, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider, getRedirectResult } from 'firebase/auth';
 import { auth, firebaseInitializationError } from '@/lib/firebase/config';
 // Using standard img tag now
-import Image from 'next/image';
+// import Image from 'next/image';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; // Import Tooltip
@@ -238,19 +238,17 @@ export default function LoginPage() {
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
       <Card className="w-full max-w-md shadow-xl border-primary/20 card">
         <CardHeader className="text-center">
-            <Image
-                src="/buddyscan-logo.png" // Direct path to the public folder
-                alt="BuddyScan Logo"
-                width={180} // Adjust width as needed
-                height={66} // Adjust height based on aspect ratio (742 / 2048 * 180 ≈ 66)
-                className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
-                priority // Prioritize loading the logo
-                 onError={(e) => {
-                    console.error('Standard <img> load error (Login):', (e.target as HTMLImageElement).src);
-                    // Optionally set a fallback or hide the image on error
-                    // (e.target as HTMLImageElement).style.display = 'none';
-                }}
-             />
+           {/* Standard img tag */}
+            <img
+              src="/buddyscan-logo.png" // Direct path to public folder
+              alt="BuddyScan Logo"
+              width={180} // Adjust width as needed
+              height={66} // Adjust height based on aspect ratio
+              className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
+              onError={(e) => {
+                  console.error('Standard <img> load error (Login):', (e.target as HTMLImageElement).src);
+              }}
+            />
           <CardTitle className="text-2xl font-bold text-primary">Bem-vindo de volta!</CardTitle>
           <CardDescription>Faça login para acessar seu painel BuddyScan.</CardDescription>
         </CardHeader>

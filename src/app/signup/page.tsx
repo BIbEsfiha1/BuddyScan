@@ -232,7 +232,7 @@ export default function SignupPage() {
                 src="/buddyscan-logo.png" // Direct path to the public folder
                 alt="BuddyScan Logo"
                 width="180" // Adjust width as needed
-                height="66" // Adjust height based on aspect ratio (742 / 2048 * 180 ≈ 66)
+                height="66" // Adjust height based on aspect ratio
                 className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
                 // Removed onError for simplicity
             />
