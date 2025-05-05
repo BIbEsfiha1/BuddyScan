@@ -1,4 +1,4 @@
-// src/components/app-header.tsx
+{// src/components/app-header.tsx
  'use client';
 
  import React, { useState } from 'react';
@@ -33,11 +33,9 @@
    const { user, loading, logout } = useAuth(); // Use auth context
    const router = useRouter();
    const { toast } = useToast();
-   const isAuthEnabled = false; // Set to false to disable auth features temporarily
+   const isAuthEnabled = true; // Re-enable auth features
 
    const handleLogout = async () => {
-       // Logout is currently disabled, so this function does nothing.
-       // Re-enable when auth flow is fully functional
         if (isAuthEnabled && logout) {
             try {
                 await logout();
@@ -50,8 +48,6 @@
         } else if (isAuthEnabled) {
            console.warn("Logout function not available in auth context.");
            toast({ title: "Logout Indisponível", description: "A funcionalidade de logout não está pronta." });
-        } else {
-           toast({ title: "Login Desabilitado", description: "O sistema de login está temporariamente desativado." });
         }
    };
 
@@ -59,16 +55,18 @@
      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
        <div className="container flex h-16 items-center justify-between"> {/* Increased height */}
          {/* Logo/Brand */}
-          <Link href="/dashboard" className="flex items-center gap-2 mr-6">
+          <Link href={isAuthEnabled && user ? "/dashboard" : "/"} className="flex items-center gap-2 mr-6"> {/* Link to dashboard if logged in, else landing */}
              {/* Verify path: '/buddyscan-logo.png' assumes the file is directly in /public */}
-             <Image
-                 src="/buddyscan-logo.png" // Path relative to public folder
+             {/* Use standard img tag for easier debugging */}
+              <img
+                 src="/buddyscan-logo.png" // Path relative to the public folder
                  alt="BuddyScan Logo"
-                 width={140} // Adjusted width
-                 height={51} // Adjusted height based on aspect ratio (742/2048 * 140 ≈ 51)
-                 priority // Prioritize loading the logo
-                 className="object-contain h-[51px]" // Use explicit height class
-             />
+                 width="140" // Set width directly
+                 height="51" // Set height based on aspect ratio (2048/742 * 140 ≈ 51)
+                 className="object-contain h-[51px]" // Use explicit height class if needed
+                 // Add error logging for the standard img tag
+                 onError={(e) => console.error('Standard <img> load error (Header):', (e.target as HTMLImageElement).src, e)}
+              />
           </Link>
 
          {/* Right side actions */}
@@ -120,13 +118,13 @@
              </Dialog>
 
              {/* User Avatar / Login Button - Conditionally render based on isAuthEnabled */}
-             {isAuthEnabled && (
+             {isAuthEnabled ? (
                  <>
                  {loading ? (
                      // Skeleton loader while auth state is loading
                       <div className="flex items-center gap-2">
                          <Skeleton className="h-9 w-9 rounded-full" />
-                         <Skeleton className="h-4 w-20 rounded-md" />
+                         {/* <Skeleton className="h-4 w-20 rounded-md" /> */}
                       </div>
                  ) : user ? (
                       // User is logged in - Show dropdown
@@ -168,14 +166,13 @@
                  ) : (
                     // User is not logged in - Show Login Button
                      <Button asChild className="button">
-                         <Link href="/">Login</Link> {/* Point to landing page if not logged in */}
+                         <Link href="/login">Login</Link> {/* Point to login page if not logged in */}
                      </Button>
                  )}
                 </>
-             )}
-             {/* If auth is disabled, maybe show nothing or a placeholder */}
-              {!isAuthEnabled && (
-                 <TooltipProvider>
+             ) : (
+              // Auth is disabled - Show placeholder
+               <TooltipProvider>
                       <Tooltip>
                            <TooltipTrigger asChild>
                               {/* Wrap disabled button in span for tooltip */}
@@ -194,10 +191,11 @@
                            </TooltipContent>
                       </Tooltip>
                  </TooltipProvider>
-              )}
+             )}
 
          </div>
        </div>
      </header>
    );
  }
+}

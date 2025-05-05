@@ -90,9 +90,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null); // Ref for file input
 
   // Determine if the form should be globally disabled
-  // const isDisabled = isSubmitting || isAnalyzing || showCameraView || !!firebaseInitializationError || authLoading || !user;
-  // Let's simplify this for now as auth is disabled
-  const isDisabled = isSubmitting || isAnalyzing || showCameraView || !!firebaseInitializationError;
+  const isDisabled = isSubmitting || isAnalyzing || showCameraView || !!firebaseInitializationError || authLoading || !user; // Disable if no user or loading auth
 
 
   const form = useForm<DiaryEntryFormData>({
@@ -153,18 +151,14 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     }
 
     try {
-      // Try to get the environment-facing camera first.
-      // Note: The browser determines which camera fulfills 'environment'. On some devices,
-      // this might be the ultra-wide camera instead of the main wide-angle camera.
-      // Controlling the specific camera beyond 'facingMode' is complex and unreliable across devices.
-      console.log("Requesting environment camera...");
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      console.log("Camera permission granted (environment facing). Stream tracks:", stream.getTracks());
-      streamRef.current = stream;
+        // Prioritize environment camera
+        console.log("Requesting environment camera...");
+        let stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        console.log("Camera permission granted (environment facing). Stream tracks:", stream.getTracks());
+        streamRef.current = stream;
 
        if (videoRef.current) {
            videoRef.current.srcObject = stream;
-           // Apply mirror transform logic if needed (usually for front camera)
            const isFrontFacing = stream.getVideoTracks()[0]?.getSettings()?.facingMode === 'user';
            videoRef.current.style.transform = isFrontFacing ? 'scaleX(-1)' : 'scaleX(1)';
            console.log("Video stream attached.");
@@ -177,29 +171,29 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                setCameraError("Falha ao iniciar o vídeo da câmera.");
                setCameraStatus('error');
                stopMediaStream();
-               setShowCameraView(false); // Hide camera view on error
+               setShowCameraView(false);
            }
        } else {
            console.warn("Video ref not available when stream was ready.");
            setCameraStatus('error');
            setCameraError('Falha ao configurar a visualização da câmera.');
            stopMediaStream();
-           setShowCameraView(false); // Hide camera view on error
+           setShowCameraView(false);
        }
 
-    } catch (error) {
-       console.warn('Error accessing environment camera, trying default:', error);
+    } catch (error: any) {
+       console.warn(`Error accessing environment camera (${error.name}), trying default:`, error);
+        // Fallback to default camera
         try {
-             console.log("Requesting default camera...");
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            console.log("Requesting default camera...");
+            let stream = await navigator.mediaDevices.getUserMedia({ video: true });
             console.log("Camera permission granted (default). Stream tracks:", stream.getTracks());
             streamRef.current = stream;
 
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
-                 // Apply mirror transform logic for default camera
-                 const isFrontFacing = stream.getVideoTracks()[0]?.getSettings()?.facingMode === 'user';
-                 videoRef.current.style.transform = isFrontFacing ? 'scaleX(-1)' : 'scaleX(1)';
+                const isFrontFacing = stream.getVideoTracks()[0]?.getSettings()?.facingMode === 'user';
+                videoRef.current.style.transform = isFrontFacing ? 'scaleX(-1)' : 'scaleX(1)';
                 console.log("Video stream attached (default).");
                  try {
                     await videoRef.current.play();
@@ -219,7 +213,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                stopMediaStream();
                setShowCameraView(false);
            }
-        } catch (finalError) {
+        } catch (finalError: any) {
             console.error('Error accessing any camera:', finalError);
             let errorMsg = 'Permissão da câmera negada. Habilite nas configurações do navegador.';
             if (finalError instanceof Error) {
@@ -235,7 +229,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
             }
             setCameraError(errorMsg);
             setCameraStatus('permission-denied');
-            setShowCameraView(false); // Hide camera view on final error
+            setShowCameraView(false);
             toast({
                 variant: 'destructive',
                 title: 'Erro de Câmera',
@@ -267,6 +261,13 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
 
     canvasElement.width = videoElement.videoWidth;
     canvasElement.height = videoElement.videoHeight;
+
+    // Apply mirroring if the video element is mirrored
+    if (videoElement.style.transform === 'scaleX(-1)') {
+        context.translate(canvasElement.width, 0);
+        context.scale(-1, 1);
+    }
+
     context.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
     // Use JPEG for potentially smaller size, adjust quality (0.9 = 90%)
     const dataUrl = canvasElement.toDataURL('image/jpeg', 0.9);
@@ -378,17 +379,16 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
          setIsSubmitting(false);
          return;
      }
-     // Temporarily disable auth check
      // Check if user is logged in
-    //   if (!user) {
-    //       setSubmitError('Usuário não autenticado. Faça login para salvar.');
-    //       toast({ variant: 'destructive', title: 'Não Autenticado', description: 'Faça login para registrar entradas no diário.' });
-    //       setIsSubmitting(false);
-    //       return;
-    //   }
+      if (!user) {
+          setSubmitError('Usuário não autenticado. Faça login para salvar.');
+          toast({ variant: 'destructive', title: 'Não Autenticado', description: 'Faça login para registrar entradas no diário.' });
+          setIsSubmitting(false);
+          return;
+      }
 
-    // Use a placeholder author ID since login is disabled
-    const currentAuthorId = "system-placeholder-user";
+    // Use the actual logged-in user's ID
+    const currentAuthorId = user.uid;
     console.log('Iniciando envio para Firestore:', data, 'by User:', currentAuthorId);
 
     try {
@@ -406,8 +406,6 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
             ph: data.ph ?? null,
             temp: data.temp ?? null,
             humidity: data.humidity ?? null,
-            // CONSIDERATION: Store large data URIs? Better to upload to Firebase Storage
-            // and store the URL. For now, storing the data URI directly.
             photoUrl: photoUrlForStorage,
             aiSummary: analysisResult?.analysisResult || null,
         };
@@ -469,8 +467,8 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                  </Alert>
               )}
 
-             {/* Auth Loading/Not Logged In Message - Temporarily Disabled */}
-             {/* {authLoading && !isDisabled && ( // Show loading only if form isn't disabled for other reasons
+             {/* Auth Loading/Not Logged In Message */}
+             {authLoading && !isDisabled && (
                   <Alert variant="default" className="p-3 border-blue-500/50 bg-blue-500/10">
                       <Loader2 className="h-4 w-4 animate-spin text-blue-600"/>
                       <AlertTitle>Verificando Autenticação...</AlertTitle>
@@ -483,7 +481,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                       <AlertTitle>Login Necessário</AlertTitle>
                       <AlertDescription className="text-sm">Você precisa estar logado para adicionar entradas no diário.</AlertDescription>
                   </Alert>
-             )} */}
+             )}
 
 
             {/* Note Section First */}
@@ -610,6 +608,8 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                         playsInline
                         muted
                         autoPlay
+                        // Ensure transform style is applied if needed for mirroring
+                        style={{ transform: videoRef.current?.style.transform || 'scaleX(1)' }}
                     />
 
                     {/* Overlays for Camera Status */}

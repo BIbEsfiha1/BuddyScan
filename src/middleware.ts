@@ -16,18 +16,18 @@ function isAppRoute(pathname: string): boolean {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // Consider using a more secure method like checking a server-validated session
+  // For now, relying on a simple cookie check as an example
   const authTokenCookie = request.cookies.get('firebaseAuthToken'); // Example cookie name
 
   console.log(`Middleware: Pathname: ${pathname}, Auth Token Present: ${!!authTokenCookie}`);
 
-  // ** Temporary Change: Allow access even if auth token is missing, since login is disabled **
-  const isLoginEnabled = false; // Set this to true when login is re-enabled
+  const isLoginEnabled = true; // Re-enable login checks
 
    // Block access if Firebase itself failed critically
    if (firebaseInitializationError) {
        console.error("Middleware: Blocking access due to Firebase initialization error.");
-       // Optional: Redirect to an error page or show a simple message
-       // For now, let's just prevent further processing by returning early or redirecting to landing
+       // Redirect to landing page if Firebase init failed
        if (pathname !== '/') {
             const url = request.nextUrl.clone();
             url.pathname = '/'; // Redirect to landing page
@@ -45,20 +45,21 @@ export function middleware(request: NextRequest) {
   // Check if the requested path is an application route
   if (isAppRoute(pathname)) {
     // If trying to access an app route without an auth token AND login is enabled, redirect.
-    if (!authTokenCookie && isLoginEnabled) { // Check if login is enabled
-      console.log(`Middleware: No auth token found for app route ${pathname} and login is enabled. Redirecting to landing page.`);
+    if (!authTokenCookie && isLoginEnabled) {
+      console.log(`Middleware: No auth token found for app route ${pathname} and login is enabled. Redirecting to login page.`);
       const url = request.nextUrl.clone();
-      url.pathname = '/'; // Redirect to landing page
-      url.search = ''; // Clear query params if any
+      url.pathname = '/login'; // Redirect to login page
+      url.searchParams.set('redirectedFrom', pathname); // Optionally pass original path
       return NextResponse.redirect(url);
     }
 
-    // If auth token exists OR login is disabled, allow access
-    console.log(`Middleware: Auth token found or login disabled for app route ${pathname}. Allowing access.`);
+    // If auth token exists OR login is disabled (which it isn't anymore), allow access
+    console.log(`Middleware: Auth token found for app route ${pathname}. Allowing access.`);
     return NextResponse.next();
   }
 
   // For any other paths not explicitly handled, allow access
+  // Consider if other paths should also be protected
   console.log(`Middleware: Path ${pathname} is not an app route. Allowing access.`);
   return NextResponse.next();
 }

@@ -22,7 +22,7 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Start loading until auth state is confirmed
 
   useEffect(() => {
      // If Firebase itself failed to initialize, don't attempt to set up listener
@@ -32,7 +32,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
          setUser(null); // Ensure user is null
          return;
      }
-     // If auth object is null (e.g., initialization skipped), also don't set up listener
+     // If auth object is null (e.g., initialization skipped or failed), also don't set up listener
      if (!auth) {
           console.warn("Auth Provider: Firebase Auth instance is null. Cannot monitor auth state.");
           setLoading(false);
@@ -47,16 +47,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log("Auth Provider: User is signed in:", currentUser.uid, currentUser.email);
         setUser(currentUser);
         // Store token in cookie (example - consider security implications)
-        currentUser.getIdToken().then(token => {
-           document.cookie = `firebaseAuthToken=${token}; path=/; max-age=3600`; // 1 hour expiry
-        });
+        // This should ideally be handled server-side or with HttpOnly cookies for better security
+        // currentUser.getIdToken().then(token => {
+        //    document.cookie = `firebaseAuthToken=${token}; path=/; max-age=3600; SameSite=Lax; Secure`; // 1 hour expiry, secure flags
+        // });
       } else {
         console.log("Auth Provider: User is signed out.");
         setUser(null);
          // Clear the auth token cookie on sign out
-         document.cookie = 'firebaseAuthToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+         // document.cookie = 'firebaseAuthToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure';
       }
-      setLoading(false);
+      setLoading(false); // Set loading to false once auth state is determined
     }, (error) => {
         // Handle errors during listener setup or state changes
         console.error("Auth Provider: Error in onAuthStateChanged listener:", error);
@@ -80,6 +81,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
        try {
            await signOut(auth);
            // User state will be updated by the onAuthStateChanged listener
+           console.log("User signed out successfully via context logout function.");
        } catch (error) {
            console.error("Error signing out: ", error);
            throw error; // Re-throw error to be handled by caller

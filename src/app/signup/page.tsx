@@ -20,6 +20,7 @@ import { useAuth } from '@/context/auth-context'; // Re-enabled auth
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; // Import Tooltip
 import { cn } from '@/lib/utils'; // Import cn
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert components
 
 // Schema for signup form
 const signupSchema = z.object({
@@ -40,7 +41,7 @@ export default function SignupPage() {
   const [socialLoginLoading, setSocialLoginLoading] = useState<string | null>(null); // Added social loading state
   const [signupError, setSignupError] = useState<string | null>(null);
   const { user, loading: authLoading } = useAuth(); // Use auth context
-  const isAuthEnabled = false; // Set to false to disable auth features temporarily
+  const isAuthEnabled = true; // Re-enable auth features
 
   const { register, handleSubmit, formState: { errors } } = useForm<SignupFormInputs>({
     resolver: zodResolver(signupSchema),
@@ -118,15 +119,16 @@ export default function SignupPage() {
 
   // --- Email/Password Signup Handler ---
   const onEmailSubmit = async (data: SignupFormInputs) => {
-      if (!isAuthEnabled) {
-           setSignupError("Cadastro está temporariamente desabilitado.");
-           toast({ variant: "destructive", title: "Cadastro Desabilitado", description: "O cadastro com email/senha está desativado no momento." });
+       // Check if auth is enabled first
+       if (!isAuthEnabled) {
+           console.warn("Email signup attempted while auth is disabled.");
            return;
        }
-      if (!auth) {
+       // Check if auth instance is available
+       if (!auth) {
            console.error("Email signup failed: Auth instance not available.");
            setSignupError("Serviço de autenticação indisponível.");
-           toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível."});
+           toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível." });
            return;
        }
      setIsLoading(true);
@@ -147,21 +149,21 @@ export default function SignupPage() {
 
    // --- Social Login/Signup Handler ---
    const handleSocialLogin = async (providerType: 'google' | 'facebook' | 'twitter') => {
-       if (!isAuthEnabled) {
-           setSignupError("Cadastro está temporariamente desabilitado.");
-           toast({ variant: "destructive", title: "Cadastro Desabilitado", description: `Cadastro com ${providerType} está desativado no momento.` });
-           return;
-       }
+        // Check if auth is enabled first
+        if (!isAuthEnabled) {
+            console.warn(`${providerType} signup attempted while auth is disabled.`);
+            return;
+        }
+        // Check if auth instance is available
+        if (!auth) {
+            console.error(`${providerType} login/signup failed: Auth instance not available.`);
+            setSignupError("Serviço de autenticação indisponível.");
+            toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível." });
+            return;
+        }
 
         let provider: GoogleAuthProvider | OAuthProvider; // Define type explicitly
         let providerName = '';
-
-       if (!auth) {
-           console.error(`${providerName} login/signup failed: Auth instance not available.`);
-           setSignupError("Serviço de autenticação indisponível.");
-           toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível."});
-           return;
-       }
 
         switch (providerType) {
             case 'google':
@@ -185,9 +187,6 @@ export default function SignupPage() {
 
         try {
             console.log(`Attempting signInWithPopup for ${providerName}...`);
-            if (!auth) { // Double-check auth before the call
-                throw new Error("Auth instance became null before signInWithPopup call.");
-            }
             const result = await signInWithPopup(auth, provider);
             const user = result.user;
             console.log(`${providerName} login/signup successful. User:`, user.email, user.uid);
@@ -224,13 +223,14 @@ export default function SignupPage() {
       <Card className="w-full max-w-md shadow-xl border-primary/20 card">
         <CardHeader className="text-center">
            {/* Use standard img tag for the logo */}
-            <img
+            <Image
                 src="/buddyscan-logo.png" // Path relative to public folder
                 alt="BuddyScan Logo"
-                width="180" // Adjust width as needed
-                height="66" // Adjust height based on aspect ratio (2048/742 * 180 ≈ 66)
+                width={180} // Adjust width as needed
+                height={66} // Adjust height based on aspect ratio (742 / 2048 * 180 ≈ 66)
                 className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
-                onError={(e) => console.error('Standard <img> load error (Signup):', e.target.src, e)}
+                priority // Prioritize loading
+                onError={(e) => console.error('Standard <img> load error (Signup):', (e.target as HTMLImageElement).src)}
             />
           <CardTitle className="text-2xl font-bold text-primary">Crie sua Conta BuddyScan</CardTitle>
           <CardDescription>Cadastre-se para começar a monitorar suas plantas.</CardDescription>
@@ -255,7 +255,7 @@ export default function SignupPage() {
                   type="email"
                   placeholder="seuemail@exemplo.com"
                   {...register('email')}
-                  disabled={!isAuthEnabled || isLoading || !!firebaseInitializationError || !!socialLoginLoading}
+                  disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
                   className={`input ${errors.email ? 'border-destructive focus:ring-destructive' : ''}`}
                   aria-invalid={errors.email ? "true" : "false"}
                 />
@@ -268,7 +268,7 @@ export default function SignupPage() {
                   type="password"
                   placeholder="Mínimo 6 caracteres"
                   {...register('password')}
-                   disabled={!isAuthEnabled || isLoading || !!firebaseInitializationError || !!socialLoginLoading}
+                   disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
                   className={`input ${errors.password ? 'border-destructive focus:ring-destructive' : ''}`}
                   aria-invalid={errors.password ? "true" : "false"}
                 />
@@ -281,7 +281,7 @@ export default function SignupPage() {
                   type="password"
                   placeholder="Repita a senha"
                   {...register('confirmPassword')}
-                   disabled={!isAuthEnabled || isLoading || !!firebaseInitializationError || !!socialLoginLoading}
+                   disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
                   className={`input ${errors.confirmPassword ? 'border-destructive focus:ring-destructive' : ''}`}
                   aria-invalid={errors.confirmPassword ? "true" : "false"}
                 />
@@ -296,10 +296,14 @@ export default function SignupPage() {
                   </Alert>
                )}
 
-              <Button type="submit" className="w-full font-semibold button" disabled={!isAuthEnabled || isLoading || !!firebaseInitializationError || !!socialLoginLoading}>
+              <Button type="submit" className="w-full font-semibold button" disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading || !isAuthEnabled}>
                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                 {isLoading ? 'Cadastrando...' : (isAuthEnabled ? 'Cadastrar com Email' : 'Cadastro Desabilitado')}
+                 {isLoading ? 'Cadastrando...' : ('Cadastrar com Email')}
               </Button>
+              {/* Add message if auth is disabled */}
+               {!isAuthEnabled && (
+                   <p className="text-xs text-center text-muted-foreground mt-2">O cadastro está temporariamente desativado.</p>
+               )}
            </form>
 
           <div className="relative my-4">
@@ -320,11 +324,11 @@ export default function SignupPage() {
                         <Button
                          variant="outline"
                          onClick={() => handleSocialLogin('google')}
-                         disabled={!isAuthEnabled || isLoading || !!firebaseInitializationError || !!socialLoginLoading}
+                         disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
                          className="button justify-center gap-2 w-full"
                        >
                           {socialLoginLoading === 'Google' ? <Loader2 className="h-5 w-5 animate-spin"/> : <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.36 1.67-4.06 1.67-3.4 0-6.33-2.83-6.33-6.33s2.93-6.33 6.33-6.33c1.9 0 3.21.73 4.18 1.69l2.6-2.6C16.84 3.18 14.91 2 12.48 2 7.48 2 3.11 6.33 3.11 11.33s4.37 9.33 9.37 9.33c3.19 0 5.64-1.18 7.57-3.01 2-1.9 2.6-4.5 2.6-6.66 0-.58-.05-1.14-.13-1.67z"></path></svg>}
-                          {socialLoginLoading === 'Google' ? 'Conectando...' : (isAuthEnabled ? 'Cadastrar com Google' : 'Cadastro Desabilitado')}
+                          {socialLoginLoading === 'Google' ? 'Conectando...' : ('Cadastrar com Google')}
                        </Button>
                     </span>
                 </TooltipTrigger>

@@ -19,6 +19,7 @@ import Image from 'next/image';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; // Import Tooltip
+import { cn } from '@/lib/utils'; // Import cn
 
 // Schema for email/password login
 const loginSchema = z.object({
@@ -35,7 +36,7 @@ export default function LoginPage() {
   const [socialLoginLoading, setSocialLoginLoading] = useState<string | null>(null); // Loading state for specific provider
   const [loginError, setLoginError] = useState<string | null>(null);
   const { user, loading: authLoading } = useAuth(); // Use auth context
-  const isAuthEnabled = false; // Set to false to disable auth features temporarily
+  const isAuthEnabled = true; // Re-enable auth features
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
@@ -114,17 +115,20 @@ export default function LoginPage() {
 
   // --- Email/Password Login Handler ---
   const onEmailSubmit = async (data: LoginFormInputs) => {
+      // Check if auth is enabled first (redundant if UI is disabled, but good practice)
       if (!isAuthEnabled) {
-           setLoginError("Login está temporariamente desabilitado.");
-           toast({ variant: "destructive", title: "Login Desabilitado", description: "O login com email/senha está desativado no momento." });
-           return;
+        // This case should ideally not be reachable if the button is disabled
+        console.warn("Email login attempted while auth is disabled.");
+        return;
       }
+      // Check if auth instance is available
       if (!auth) {
-           console.error("Email login failed: Auth instance not available.");
-           setLoginError("Serviço de autenticação indisponível.");
-           toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível."});
-           return;
-       }
+        console.error("Email login failed: Auth instance not available.");
+        setLoginError("Serviço de autenticação indisponível.");
+        toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível." });
+        return;
+      }
+
      setIsLoading(true);
      setLoginError(null);
      try {
@@ -142,21 +146,21 @@ export default function LoginPage() {
 
   // --- Social Login Handler ---
    const handleSocialLogin = async (providerType: 'google' | 'facebook' | 'twitter') => {
+       // Check if auth is enabled first
        if (!isAuthEnabled) {
-           setLoginError("Login está temporariamente desabilitado.");
-           toast({ variant: "destructive", title: "Login Desabilitado", description: `Login com ${providerType} está desativado no momento.` });
+           console.warn(`${providerType} login attempted while auth is disabled.`);
+           return;
+       }
+       // Check if auth instance is available
+       if (!auth) {
+           console.error(`${providerType} login failed: Auth instance not available.`);
+           setLoginError("Serviço de autenticação indisponível.");
+           toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível." });
            return;
        }
 
         let provider: GoogleAuthProvider | OAuthProvider; // Define type explicitly
         let providerName = '';
-
-       if (!auth) {
-           console.error(`${providerName} login failed: Auth instance not available.`);
-           setLoginError("Serviço de autenticação indisponível.");
-           toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível."});
-           return;
-       }
 
         switch (providerType) {
             case 'google':
@@ -164,13 +168,9 @@ export default function LoginPage() {
                 providerName = 'Google';
                 break;
             case 'facebook':
-                // provider = new OAuthProvider('facebook.com'); // Example for Facebook
-                // providerName = 'Facebook';
                 toast({ variant: "destructive", title: "Indisponível", description: "Login com Facebook ainda não implementado." });
                 return;
             case 'twitter':
-                 // provider = new OAuthProvider('twitter.com'); // Example for Twitter (X)
-                // providerName = 'Twitter';
                 toast({ variant: "destructive", title: "Indisponível", description: "Login com Twitter (X) ainda não implementado." });
                 return;
             default:
@@ -184,10 +184,6 @@ export default function LoginPage() {
 
         try {
             console.log(`Attempting signInWithPopup for ${providerName}...`);
-            if (!auth) { // Double-check auth before the call
-                throw new Error("Auth instance became null before signInWithPopup call.");
-            }
-            // Use signInWithPopup for social logins
             const result = await signInWithPopup(auth, provider); // This is the line that often throws auth/argument-error
             const user = result.user;
             console.log(`${providerName} login successful. User:`, user.email, user.uid);
@@ -225,13 +221,18 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-xl border-primary/20 card">
         <CardHeader className="text-center">
            {/* Use standard img tag for logo */}
-           <img
-              src="/buddyscan-logo.png"
+           <Image
+              src="/buddyscan-logo.png" // Correct path
               alt="BuddyScan Logo"
-              width="180" // Adjust width as needed
-              height="66" // Adjust height based on aspect ratio (2048/742 * 180 ≈ 66)
+              width={180} // Adjust width as needed
+              height={66} // Adjust height based on aspect ratio (742 / 2048 * 180 ≈ 66)
               className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
-              onError={(e) => console.error('Standard <img> load error (Login):', e.target.src, e)}
+              priority // Prioritize loading the logo
+              onError={(e) => {
+                  console.error('Standard <img> load error (Login):', (e.target as HTMLImageElement).src);
+                  // Optionally set a fallback or hide the image on error
+                  // (e.target as HTMLImageElement).style.display = 'none';
+              }}
             />
           <CardTitle className="text-2xl font-bold text-primary">Bem-vindo de volta!</CardTitle>
           <CardDescription>Faça login para acessar seu painel BuddyScan.</CardDescription>
@@ -256,7 +257,7 @@ export default function LoginPage() {
                     type="email"
                     placeholder="seuemail@exemplo.com"
                     {...register('email')}
-                    disabled={!isAuthEnabled || isLoading || !!firebaseInitializationError || !!socialLoginLoading}
+                    disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth is disabled
                     className={`input ${errors.email ? 'border-destructive focus:ring-destructive' : ''}`}
                     aria-invalid={errors.email ? "true" : "false"}
                   />
@@ -269,7 +270,7 @@ export default function LoginPage() {
                     type="password"
                     placeholder="Sua senha"
                     {...register('password')}
-                    disabled={!isAuthEnabled || isLoading || !!firebaseInitializationError || !!socialLoginLoading}
+                    disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth is disabled
                     className={`input ${errors.password ? 'border-destructive focus:ring-destructive' : ''}`}
                      aria-invalid={errors.password ? "true" : "false"}
                   />
@@ -284,10 +285,14 @@ export default function LoginPage() {
                    </Alert>
                 )}
 
-                <Button type="submit" className="w-full font-semibold button" disabled={!isAuthEnabled || isLoading || !!firebaseInitializationError || !!socialLoginLoading}>
+                <Button type="submit" className="w-full font-semibold button" disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading || !isAuthEnabled}>
                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
-                   {isLoading ? 'Entrando...' : (isAuthEnabled ? 'Entrar' : 'Login Desabilitado')}
+                   {isLoading ? 'Entrando...' : 'Entrar'}
                 </Button>
+                 {/* Add message if auth is disabled */}
+                 {!isAuthEnabled && (
+                     <p className="text-xs text-center text-muted-foreground mt-2">O login está temporariamente desativado.</p>
+                 )}
             </form>
 
           <div className="relative my-4">
@@ -308,11 +313,11 @@ export default function LoginPage() {
                        <Button
                          variant="outline"
                          onClick={() => handleSocialLogin('google')}
-                         disabled={!isAuthEnabled || isLoading || !!firebaseInitializationError || !!socialLoginLoading}
+                         disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth is disabled
                          className="button justify-center gap-2 w-full"
                        >
                           {socialLoginLoading === 'Google' ? <Loader2 className="h-5 w-5 animate-spin"/> : <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.36 1.67-4.06 1.67-3.4 0-6.33-2.83-6.33-6.33s2.93-6.33 6.33-6.33c1.9 0 3.21.73 4.18 1.69l2.6-2.6C16.84 3.18 14.91 2 12.48 2 7.48 2 3.11 6.33 3.11 11.33s4.37 9.33 9.37 9.33c3.19 0 5.64-1.18 7.57-3.01 2-1.9 2.6-4.5 2.6-6.66 0-.58-.05-1.14-.13-1.67z"></path></svg>}
-                          {socialLoginLoading === 'Google' ? 'Conectando...' : (isAuthEnabled ? 'Continuar com Google' : 'Login Desabilitado')}
+                          {socialLoginLoading === 'Google' ? 'Conectando...' : ('Continuar com Google')}
                        </Button>
                     </span>
                 </TooltipTrigger>
