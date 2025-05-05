@@ -1,4 +1,3 @@
-
 // src/lib/firebase/config.ts
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth, browserLocalPersistence, initializeAuth, connectAuthEmulator } from 'firebase/auth'; // Added connectAuthEmulator
@@ -6,7 +5,7 @@ import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/fire
 
 // Your web app's Firebase configuration
 // Ensure these environment variables are set in your .env.local file
-const EMULATOR_HOST = process.env.NEXT_PUBLIC_FIREBASE_EMULATOR_HOST; // Use a generic host var
+const EMULATOR_HOST = process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST; // Use Firestore emulator host var
 const AUTH_EMULATOR_PORT = 9099; // Default Auth port
 const FIRESTORE_EMULATOR_PORT = 8080; // Default Firestore port
 
@@ -29,7 +28,7 @@ if (typeof window !== 'undefined' && !(window as any).__firebaseConfigLogged) {
   console.log("Storage Bucket:", firebaseConfig.storageBucket || 'Optional - Missing');
   console.log("Messaging Sender ID:", firebaseConfig.messagingSenderId || 'Optional - Missing');
   console.log("App ID:", firebaseConfig.appId || 'Optional - Missing');
-  console.log("Emulator Host:", EMULATOR_HOST || 'Not Set (Using Production)');
+  console.log("Firestore Emulator Host:", EMULATOR_HOST || 'Not Set (Using Production Firestore)');
   console.log("-----------------------------");
   (window as any).__firebaseConfigLogged = true; // Prevent repeated logging
 }
@@ -57,7 +56,7 @@ if (typeof window !== 'undefined') {
         .map(([key]) => `NEXT_PUBLIC_FIREBASE_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`);
 
     if (missingEnvVars.length > 0) {
-         const message = `AVISO: Variáveis de ambiente CRÍTICAS da configuração do Firebase ausentes ou inválidas: ${missingEnvVars.join(', ')}. Verifique seu arquivo .env.local ou as configurações do ambiente. Login social e outras funcionalidades podem FALHAR.`;
+         const message = `AVISO: Variáveis de ambiente CRÍTICAS da configuração do Firebase ausentes ou inválidas: ${missingEnvVars.join(', ')}. Verifique seu arquivo .env ou as configurações do ambiente. Login social e outras funcionalidades podem FALHAR.`;
          console.warn(message); // Use warn for missing config
          // Set initialization error only if it hasn't been set by a catch block later
          if (!firebaseInitializationError) {
@@ -101,15 +100,16 @@ try {
         });
         console.log('Firebase Auth inicializado com sucesso.');
 
-        // Connect to Auth Emulator if running locally
+        // Connect to Auth Emulator if running locally (using the same host as Firestore)
         if (EMULATOR_HOST && auth) { // Check if auth is not null before connecting emulator
+            // Use the same host as Firestore, but specify the Auth port
             const authEmulatorUrl = `http://${EMULATOR_HOST}:${AUTH_EMULATOR_PORT}`;
             console.log(`Tentando conectar ao Emulador de Autenticação: ${authEmulatorUrl}`);
             try {
                 // Ensure connectAuthEmulator is called only once
-                if (!(auth as any).__emulatorConnected) {
+                if (!(auth as any).__authEmulatorConnected) {
                     connectAuthEmulator(auth, authEmulatorUrl);
-                    (auth as any).__emulatorConnected = true; // Mark as connected
+                    (auth as any).__authEmulatorConnected = true; // Mark as connected
                     console.log('Conectado ao Emulador de Autenticação.');
                 } else {
                     console.log('Já conectado ao Emulador de Autenticação.');
@@ -140,9 +140,9 @@ try {
              console.log(`Tentando conectar ao Emulador do Firestore: host=${EMULATOR_HOST} port=${FIRESTORE_EMULATOR_PORT}`);
             try {
                 // Ensure connectFirestoreEmulator is called only once
-                 if (!(db as any).__emulatorConnected) {
+                 if (!(db as any).__firestoreEmulatorConnected) {
                     connectFirestoreEmulator(db, EMULATOR_HOST, FIRESTORE_EMULATOR_PORT);
-                    (db as any).__emulatorConnected = true; // Mark as connected
+                    (db as any).__firestoreEmulatorConnected = true; // Mark as connected
                     console.log('Conectado ao Emulador do Firestore.');
                  } else {
                     console.log('Já conectado ao Emulador do Firestore.');
@@ -175,7 +175,7 @@ try {
          console.error(authDomainErrorMsg);
          firebaseInitializationError = new Error(authDomainErrorMsg);
     } else if (error.code === 'auth/argument-error' || error.message?.includes('argument-error')) {
-         const argErrorMsg = "Erro Crítico: Argumento inválido durante a inicialização do Firebase (possivelmente authDomain ou config inválida). Verifique a configuração no console e .env.local.";
+         const argErrorMsg = "Erro Crítico: Argumento inválido durante a inicialização do Firebase (possivelmente authDomain ou config inválida). Verifique a configuração no console e .env.";
          console.error(argErrorMsg);
          firebaseInitializationError = new Error(argErrorMsg);
     } else {
@@ -189,4 +189,5 @@ try {
 
 // Export the initialized instances and the potential error
 export { app, auth, db, firebaseInitializationError };
+
 
