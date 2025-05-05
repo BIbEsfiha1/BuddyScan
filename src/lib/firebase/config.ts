@@ -1,4 +1,3 @@
-
 // src/lib/firebase/config.ts
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth, browserLocalPersistence, initializeAuth, connectAuthEmulator } from 'firebase/auth'; // Added connectAuthEmulator
@@ -12,7 +11,7 @@ const FIRESTORE_EMULATOR_PORT = 8080; // Default Firestore port
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, // Make sure this is correct
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
@@ -24,7 +23,7 @@ const firebaseConfig = {
 if (typeof window !== 'undefined' && !(window as any).__firebaseConfigLogged) {
   console.log("--- Firebase Configuration ---");
   console.log("API Key:", firebaseConfig.apiKey ? 'Present' : 'MISSING!');
-  console.log("Auth Domain:", firebaseConfig.authDomain || 'MISSING!');
+  console.log("Auth Domain:", firebaseConfig.authDomain || 'MISSING!'); // Log Auth Domain
   console.log("Project ID:", firebaseConfig.projectId || 'MISSING!');
   console.log("Storage Bucket:", firebaseConfig.storageBucket || 'Optional - Missing');
   console.log("Messaging Sender ID:", firebaseConfig.messagingSenderId || 'Optional - Missing');
@@ -49,7 +48,7 @@ let firebaseInitializationError: Error | null = null;
 if (typeof window !== 'undefined') {
     const requiredVars = {
       apiKey: firebaseConfig.apiKey, // Use the already defined object
-      authDomain: firebaseConfig.authDomain,
+      authDomain: firebaseConfig.authDomain, // Include authDomain here
       projectId: firebaseConfig.projectId,
     };
 
