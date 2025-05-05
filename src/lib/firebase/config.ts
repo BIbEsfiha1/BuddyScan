@@ -1,3 +1,4 @@
+
 // src/lib/firebase/config.ts
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth, browserLocalPersistence, initializeAuth, connectAuthEmulator } from 'firebase/auth'; // Added connectAuthEmulator
@@ -7,12 +8,12 @@ import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/fire
 // These values should match your Firebase project settings EXACTLY.
 // Using the corrected config provided by the user.
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCI3PcqYwR3v4EZVD2EY6tnbqQK94olEOg", // Corrected API Key
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "cannalog-c34fx.firebaseapp.com", // Corrected Auth Domain
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "cannalog-c34fx", // Corrected Project ID
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "cannalog-c34fx.appspot.com", // Corrected Storage Bucket (was firebasestorage.app)
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "581752624409", // Corrected Sender ID
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:581752624409:web:3a31528ac166d79f2a6188" // Corrected App ID (was ...2a6188)
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCI3PcqYwR3v4EZVD2EY6tnbqQK94olEOg", // Using provided API Key
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "cannalog-c34fx.firebaseapp.com", // Using provided Auth Domain
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "cannalog-c34fx", // Using provided Project ID
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "cannalog-c34fx.firebasestorage.app", // Using provided Storage Bucket
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "581752624409", // Using provided Sender ID
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:581752624409:web:e30cd8231db418dc2a6188" // Updated App ID
 };
 
 
@@ -195,3 +196,5 @@ try {
 
 // Export the initialized instances and the potential error
 export { app, auth, db, firebaseInitializationError };
+
+    
