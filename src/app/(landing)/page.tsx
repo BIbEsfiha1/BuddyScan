@@ -1,4 +1,6 @@
 // src/app/(landing)/page.tsx
+'use client'; // Add this directive
+
 import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -19,10 +21,10 @@ export default function LandingPage() {
               <Image
                  src="/buddyscan-logo.png" // Ensure this path is correct and file exists in /public
                  alt="BuddyScan Logo"
-                 width={140} // Set desired width
-                 height={40} // Set desired height (adjust to actual aspect ratio)
+                 width={140} // Adjusted width
+                 height={51} // Adjusted height based on 2048x742 aspect ratio
                  priority // Load the logo quickly
-                 className="object-contain" // Ensure image scales nicely if needed
+                 className="object-contain" // Ensure image scales nicely
                  // Log potential errors
                  onError={(e) => console.error('Logo load error (Landing):', e)}
               />
