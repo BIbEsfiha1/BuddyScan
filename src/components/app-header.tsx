@@ -5,7 +5,7 @@
  import Link from 'next/link';
  import Image from 'next/image'; // Import Image component
  import ThemeToggle from '@/components/theme-toggle';
- import { Settings, Palette, LogOut, UserCircle, Loader2 } from '@/components/ui/lucide-icons'; // Added icons
+ import { Settings, Palette, LogOut, UserCircle, Loader2, Home as HomeIcon } from '@/components/ui/lucide-icons'; // Added icons, including HomeIcon
  import { Button } from '@/components/ui/button';
  import {
     Dialog,
@@ -13,48 +13,61 @@
     DialogHeader,
     DialogTitle,
     DialogDescription,
-    DialogTrigger, // Import DialogTrigger
+    DialogTrigger,
     DialogFooter,
  } from '@/components/ui/dialog';
- import { Label } from '@/components/ui/label'; // Import Label
- import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // Import Avatar
- import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'; // Import Dropdown
- // import { useAuth } from '@/context/auth-context'; // Authentication disabled
+ import { Label } from '@/components/ui/label';
+ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+ import { useAuth } from '@/context/auth-context'; // Re-enabled auth context
  import { useRouter } from 'next/navigation';
  import { useToast } from '@/hooks/use-toast';
-
+ import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 
  export default function AppHeader() {
    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-   // const { user, loading, logout } = useAuth(); // Authentication disabled
-   const user = null; // Placeholder as auth is disabled
-   const loading = false; // Placeholder as auth is disabled
+   const { user, loading, logout } = useAuth(); // Use auth context
    const router = useRouter();
    const { toast } = useToast();
 
    const handleLogout = async () => {
        // Logout is currently disabled, so this function does nothing.
-       toast({ title: "Logout Desabilitado", description: "A funcionalidade de logout está temporariamente desabilitada." });
+       // Re-enable when auth flow is fully functional
+        if (logout) {
+            try {
+                await logout();
+                toast({ title: "Logout realizado", description: "Você saiu da sua conta." });
+                router.push('/login'); // Redirect to login after logout
+            } catch (error) {
+                console.error("Logout error:", error);
+                toast({ variant: "destructive", title: "Erro no Logout", description: "Não foi possível sair. Tente novamente." });
+            }
+        } else {
+          toast({ title: "Logout Indisponível", description: "A funcionalidade de logout não está pronta." });
+        }
    };
 
    return (
      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
        <div className="container flex h-16 items-center justify-between"> {/* Increased height */}
          {/* Logo/Brand - Use Image component */}
-          <Link href="/dashboard" className="flex items-center gap-2 mr-6"> {/* Changed href to dashboard */}
-             {/* Ensure buddyscan-logo.png exists in the /public folder */}
+          <Link href="/dashboard" className="flex items-center gap-2 mr-6">
+             {/* Verify path: '/buddyscan-logo.png' assumes the file is directly in /public */}
              <Image
-                src="/buddyscan-logo.png" // Path starts with / referencing the public folder
+                src="/buddyscan-logo.png" // Ensure this path is correct and file exists in /public
                 alt="BuddyScan Logo"
                 width={140} // Set desired width
-                height={40} // Set desired height
+                height={40} // Set desired height (adjust to actual aspect ratio)
                 priority // Load the logo quickly
                 className="object-contain" // Ensure image scales nicely if needed
+                // Add unoptimized prop temporarily for debugging if needed: unoptimized
+                // Log potential errors
+                onError={(e) => console.error('Logo load error:', e)}
              />
           </Link>
 
          {/* Right side actions */}
-         <div className="flex items-center gap-2"> {/* Reduced gap slightly */}
+         <div className="flex items-center gap-2">
              {/* Settings Dialog */}
              <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
                <DialogTrigger asChild>
@@ -62,7 +75,7 @@
                    <Settings className="h-5 w-5" />
                  </Button>
                </DialogTrigger>
-               <DialogContent className="sm:max-w-[425px] dialog-content border-primary/20">
+               <DialogContent className="sm:max-w-[425px] dialog-content border-primary/20 bg-background/95 backdrop-blur-sm">
                  <DialogHeader>
                    <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
                       <Settings className="h-6 w-6"/> Configurações
@@ -71,24 +84,27 @@
                      Ajuste as preferências do aplicativo aqui.
                    </DialogDescription>
                  </DialogHeader>
-                 <div className="grid gap-6 py-4"> {/* Increased gap */}
+                 <div className="grid gap-6 py-4">
                    {/* Theme Settings */}
-                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border p-4 rounded-lg bg-muted/30"> {/* Added padding, background, border */}
+                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border p-4 rounded-lg bg-muted/30">
                        <div className="flex items-center gap-2">
                          <Palette className="h-5 w-5 text-secondary"/>
-                         <Label htmlFor="theme-toggle" className="text-base font-medium text-foreground"> {/* Larger font */}
+                         <Label htmlFor="theme-toggle" className="text-base font-medium text-foreground">
                            Tema da Interface
                          </Label>
                        </div>
-                       <ThemeToggle /> {/* Moved ThemeToggle here */}
+                       <ThemeToggle />
                    </div>
-                   {/* Add more settings sections here as needed */}
-                   {/* Example:
-                   <div className="flex items-center justify-between gap-4 border p-4 rounded-lg bg-muted/30">
-                      <Label htmlFor="setting-2" className="text-base font-medium">Outra Configuração</Label>
-                      <Switch id="setting-2" />
-                   </div>
-                   */}
+                   {/* Example Placeholder Setting */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border p-4 rounded-lg bg-muted/30 opacity-50 cursor-not-allowed">
+                        <div className="flex items-center gap-2">
+                            <HomeIcon className="h-5 w-5 text-secondary"/> {/* Example icon */}
+                            <Label htmlFor="placeholder-setting" className="text-base font-medium text-foreground">
+                                Outra Configuração (Exemplo)
+                            </Label>
+                        </div>
+                         <span className="text-sm text-muted-foreground">Em breve</span>
+                    </div>
                  </div>
                  <DialogFooter>
                    <Button type="button" variant="secondary" onClick={() => setIsSettingsOpen(false)} className="button">
@@ -100,17 +116,19 @@
 
              {/* User Avatar / Login Button */}
              {loading ? (
-                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                 // Skeleton loader while auth state is loading
+                  <div className="flex items-center gap-2">
+                     <Skeleton className="h-9 w-9 rounded-full" />
+                     <Skeleton className="h-4 w-20 rounded-md" />
+                  </div>
              ) : user ? (
+                  // User is logged in - Show dropdown
                   <DropdownMenu>
                      <DropdownMenuTrigger asChild>
-                         {/* Ensure Button wraps a single element */}
-                         <Button variant="ghost" className="relative h-9 w-9 rounded-full button p-0">
+                         <Button variant="ghost" className="relative h-9 w-9 rounded-full button p-0 focus-visible:ring-0 focus-visible:ring-offset-0">
                              <Avatar className="h-9 w-9 border-2 border-primary/30">
-                                 {/* Use a dynamic src or fallback */}
                                  <AvatarImage src={user.photoURL || undefined} alt={user.displayName || user.email || 'Usuário'} />
                                  <AvatarFallback>
-                                    {/* Display initial or icon */}
                                     {user.email ? user.email[0].toUpperCase() : <UserCircle className="h-5 w-5"/>}
                                  </AvatarFallback>
                               </Avatar>
@@ -126,19 +144,24 @@
                              </div>
                          </DropdownMenuLabel>
                          <DropdownMenuSeparator />
-                         {/* <DropdownMenuItem>Perfil</DropdownMenuItem> */}
-                         {/* <DropdownMenuItem>Configurações</DropdownMenuItem> */}
+                         {/* Add links to profile/settings pages here if needed */}
+                         {/* <DropdownMenuItem onClick={() => router.push('/profile')}>
+                             <UserCircle className="mr-2 h-4 w-4" /> Perfil
+                         </DropdownMenuItem> */}
+                         <DropdownMenuItem onClick={() => setIsSettingsOpen(true)} className="cursor-pointer">
+                             <Settings className="mr-2 h-4 w-4" /> Configurações
+                         </DropdownMenuItem>
                          <DropdownMenuSeparator />
                          <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive">
                             <LogOut className="mr-2 h-4 w-4" />
-                            Sair (Desabilitado) {/* Indicate disabled state */}
+                            Sair
                          </DropdownMenuItem>
                      </DropdownMenuContent>
                   </DropdownMenu>
              ) : (
-                // Show placeholder since login is disabled
-                 <Button className="button" disabled>
-                     Login Desabilitado
+                // User is not logged in - Show Login Button
+                 <Button asChild className="button">
+                     <Link href="/login">Login</Link>
                  </Button>
              )}
          </div>

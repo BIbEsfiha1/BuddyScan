@@ -12,10 +12,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { LogIn, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider, getRedirectResult } from 'firebase/auth'; // Added getRedirectResult
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider, getRedirectResult } from 'firebase/auth';
 import { auth, firebaseInitializationError } from '@/lib/firebase/config';
 import Image from 'next/image';
-import { useAuth } from '@/context/auth-context'; // Authentication disabled
+import { useAuth } from '@/context/auth-context';
+import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 
 // Schema for email/password login
 const loginSchema = z.object({
@@ -31,22 +32,19 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoginLoading, setSocialLoginLoading] = useState<string | null>(null); // Loading state for specific provider
   const [loginError, setLoginError] = useState<string | null>(null);
-  const user = null; // Placeholder
-  const authLoading = false; // Placeholder
-
+  const { user, loading: authLoading } = useAuth(); // Use auth context
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
   });
 
-   // Redirect if user is already logged in - Kept for when auth is re-enabled
+   // Redirect if user is already logged in
    useEffect(() => {
        if (!authLoading && user) {
            console.log("User already logged in, redirecting to dashboard...");
            router.replace('/dashboard'); // Use replace to avoid login in history
        }
    }, [user, authLoading, router]);
-
 
    // --- Handle Firebase Errors ---
    const handleAuthError = (error: any, providerName: string) => {
@@ -57,9 +55,10 @@ export default function LoginPage() {
         if (error.code) {
             switch (error.code) {
                 case 'auth/user-not-found':
-                    userMessage = 'Usuário não encontrado. Verifique o email ou cadastre-se.';
+                case 'auth/invalid-credential': // Often means wrong email or password
+                    userMessage = 'Email ou senha inválidos. Verifique seus dados ou cadastre-se.';
                     break;
-                case 'auth/wrong-password':
+                case 'auth/wrong-password': // Less common, but keep for specificity
                     userMessage = 'Senha incorreta. Tente novamente.';
                     break;
                 case 'auth/invalid-email':
@@ -81,9 +80,6 @@ export default function LoginPage() {
                 case 'auth/network-request-failed':
                      userMessage = 'Erro de rede. Verifique sua conexão e tente novamente.';
                      break;
-                case 'auth/invalid-credential':
-                     userMessage = 'Credenciais inválidas. Verifique seus dados.';
-                     break;
                 case 'auth/internal-error':
                      userMessage = 'Ocorreu um erro interno no servidor de autenticação. Tente novamente mais tarde.';
                      break;
@@ -91,10 +87,13 @@ export default function LoginPage() {
                      userMessage = "Erro de configuração: Chave de API inválida. Contate o suporte.";
                      console.error("CRITICAL: Invalid Firebase API Key detected during login.");
                      break;
-                 case 'auth/argument-error':
-                     userMessage = "Erro de configuração interna. Contate o suporte.";
-                     console.error("CRITICAL: Auth Argument Error - Likely Firebase config issue (check authDomain, projectId).");
+                 case 'auth/argument-error': // Often related to invalid authDomain
+                     userMessage = "Erro de configuração interna (authDomain inválido?). Contate o suporte.";
+                     console.error("CRITICAL: Auth Argument Error - Likely Firebase config issue (check authDomain, projectId).", error);
                      break;
+                 case 'auth/operation-not-allowed':
+                      userMessage = "Login com este método está desabilitado no momento.";
+                      break;
                 default:
                     userMessage = `Erro de login (${error.code}). Tente novamente.`;
             }
@@ -135,7 +134,7 @@ export default function LoginPage() {
 
   // --- Social Login Handler ---
    const handleSocialLogin = async (providerType: 'google' | 'facebook' | 'twitter') => {
-        let provider;
+        let provider: GoogleAuthProvider | OAuthProvider; // Define type explicitly
         let providerName = '';
 
        if (!auth) {
@@ -174,7 +173,7 @@ export default function LoginPage() {
             if (!auth) { // Double-check auth before the call
                 throw new Error("Auth instance became null before signInWithPopup call.");
             }
-            const result = await signInWithPopup(auth, provider); // This is the line that often throws auth/argument-error
+            const result = await signInWithPopup(auth, provider);
             const user = result.user;
             console.log(`${providerName} login successful. User:`, user.email, user.uid);
             toast({ title: "Login bem-sucedido!", description: `Conectado com ${providerName}.` });
@@ -187,22 +186,21 @@ export default function LoginPage() {
    };
 
    // Show loading state while checking auth status or if user is already defined
-   // Disabled as auth is disabled
-   /*
-   if (authLoading || user) {
+   if (authLoading || (!authLoading && user)) {
       return (
           <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
              <Card className="w-full max-w-md text-center shadow-lg card p-6">
                  <CardHeader>
                      <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-4" />
                      <CardTitle>Carregando...</CardTitle>
-                     <CardDescription>Verificando sessão...</CardDescription>
+                     <CardDescription>
+                        {user ? 'Redirecionando para o painel...' : 'Verificando sessão...'}
+                     </CardDescription>
                  </CardHeader>
              </Card>
           </div>
       );
    }
-   */
 
 
   return (
@@ -211,12 +209,13 @@ export default function LoginPage() {
         <CardHeader className="text-center">
            {/* Use Next.js Image component for the logo */}
            <Image
-                src="/buddyscan-logo.png" // Ensure this path is correct (relative to public folder)
+                src="/buddyscan-logo.png" // Ensure this path is correct and file exists in /public
                 alt="BuddyScan Logo"
-                width={180} // Set appropriate width
-                height={51} // Set appropriate height based on aspect ratio
+                width={180} // Adjust width as needed
+                height={51} // Adjust height based on aspect ratio
                 priority // Load logo quickly
-                className="mx-auto mb-4 object-contain" // Added object-contain
+                className="mx-auto mb-4 object-contain" // Ensure proper scaling
+                onError={(e) => console.error('Logo load error (Login):', e)}
            />
           <CardTitle className="text-2xl font-bold text-primary">Bem-vindo de volta!</CardTitle>
           <CardDescription>Faça login para acessar seu painel BuddyScan.</CardDescription>
@@ -232,7 +231,7 @@ export default function LoginPage() {
                  </Alert>
              )}
 
-           {/* Login Form - Enabled */}
+           {/* Login Form */}
             <form onSubmit={handleSubmit(onEmailSubmit)} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email" className="flex items-center gap-1.5"><Mail className="h-4 w-4 text-secondary" />Email</Label>
@@ -285,7 +284,7 @@ export default function LoginPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-3">
-            {/* Social Login Buttons - Enabled */}
+            {/* Social Login Buttons */}
             <Button
               variant="outline"
               onClick={() => handleSocialLogin('google')}
@@ -302,7 +301,6 @@ export default function LoginPage() {
                disabled={true} // Keep disabled until implemented
                className="button justify-center gap-2 opacity-50 cursor-not-allowed"
              >
-               {/* Placeholder Facebook Icon */}
                <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M18.77 7.46H14.5v-1.9c0-.9.6-1.1 1-1.1h3V.5h-4.33C10.24.5 9.5 3.14 9.5 5.35V7.46H6.11v4.05H9.5v10h5V11.51h3.27l.59-4.05z"></path></svg>
                Facebook (Em Breve)
              </Button>
@@ -312,7 +310,6 @@ export default function LoginPage() {
                disabled={true} // Keep disabled until implemented
                className="button justify-center gap-2 opacity-50 cursor-not-allowed"
              >
-               {/* Placeholder Twitter (X) Icon */}
                <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>
                Twitter/X (Em Breve)
              </Button>
@@ -328,4 +325,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

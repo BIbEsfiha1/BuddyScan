@@ -15,14 +15,16 @@ export default function LandingPage() {
          <div className="container flex h-16 items-center justify-between">
            {/* Logo */}
            <Link href="/" className="flex items-center gap-2 mr-6">
-               {/* Ensure buddyscan-logo.png exists in the /public folder */}
+               {/* Verify path: '/buddyscan-logo.png' assumes the file is directly in /public */}
               <Image
-                 src="/buddyscan-logo.png" // Path starts with / referencing the public folder
+                 src="/buddyscan-logo.png" // Ensure this path is correct and file exists in /public
                  alt="BuddyScan Logo"
                  width={140} // Set desired width
-                 height={40} // Set desired height
+                 height={40} // Set desired height (adjust to actual aspect ratio)
                  priority // Load the logo quickly
                  className="object-contain" // Ensure image scales nicely if needed
+                 // Log potential errors
+                 onError={(e) => console.error('Logo load error (Landing):', e)}
               />
            </Link>
             {/* Navigation/Actions */}
@@ -34,7 +36,7 @@ export default function LandingPage() {
                  <Link href="#how-it-works">Como Funciona</Link>
                </Button>
                <Button asChild className="button">
-                 {/* This should ideally point to /login or /dashboard depending on auth state */}
+                 {/* Points to dashboard - middleware will handle redirect to login if needed */}
                  <Link href="/dashboard">Acessar o App</Link>
               </Button>
            </nav>
@@ -57,12 +59,9 @@ export default function LandingPage() {
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 min-[400px]:flex-row">
-                  {/* Ensure this button navigates correctly based on routing setup */}
                    <Button size="lg" asChild className="button">
-                     {/* This should ideally point to /login or /dashboard depending on auth state */}
                      <Link href="/dashboard">Acessar o App</Link>
                    </Button>
-                  {/* Optional: Add a secondary button like "Learn More" */}
                   {/*
                   <Button size="lg" variant="outline" asChild className="button">
                     <Link href="#features">Saiba Mais</Link>
@@ -72,10 +71,10 @@ export default function LandingPage() {
               </div>
               <Image
                 data-ai-hint="modern cannabis cultivation technology app interface"
-                src="https://picsum.photos/seed/buddyscan-hero/600/400" // Updated seed
+                src="https://picsum.photos/seed/buddyscan-hero/600/400"
                 width={600}
                 height={400}
-                alt="BuddyScan Hero Image" // Updated alt text
+                alt="BuddyScan Hero Image"
                 className="mx-auto aspect-video overflow-hidden rounded-xl object-cover sm:w-full lg:order-last lg:aspect-square shadow-lg border border-primary/20"
               />
             </div>
@@ -173,9 +172,7 @@ export default function LandingPage() {
               </div>
             </div>
              <div className="mt-10">
-                 {/* Ensure this button navigates correctly based on routing setup */}
                   <Button size="lg" asChild className="button">
-                     {/* This should ideally point to /login or /dashboard depending on auth state */}
                      <Link href="/dashboard">Começar Agora</Link>
                   </Button>
              </div>
@@ -186,7 +183,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t bg-background">
-        <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} BuddyScan. Todos os direitos reservados.</p> {/* Updated name */}
+        <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} BuddyScan. Todos os direitos reservados.</p>
         <nav className="sm:ml-auto flex gap-4 sm:gap-6">
           <Link href="#" className="text-xs hover:underline underline-offset-4 text-muted-foreground" prefetch={false}>
             Termos de Serviço

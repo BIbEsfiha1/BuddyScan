@@ -15,7 +15,8 @@ import { UserPlus, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
 import { auth, firebaseInitializationError } from '@/lib/firebase/config';
 import Image from 'next/image';
-import { useAuth } from '@/context/auth-context'; // Authentication disabled
+import { useAuth } from '@/context/auth-context'; // Re-enabled auth
+import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 
 // Schema for signup form
 const signupSchema = z.object({
@@ -35,15 +36,13 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoginLoading, setSocialLoginLoading] = useState<string | null>(null); // Added social loading state
   const [signupError, setSignupError] = useState<string | null>(null);
-  const user = null; // Placeholder
-  const authLoading = false; // Placeholder
-
+  const { user, loading: authLoading } = useAuth(); // Use auth context
 
   const { register, handleSubmit, formState: { errors } } = useForm<SignupFormInputs>({
     resolver: zodResolver(signupSchema),
   });
 
-   // Redirect if user is already logged in - Kept for when auth is re-enabled
+   // Redirect if user is already logged in
    useEffect(() => {
        if (!authLoading && user) {
            console.log("User already logged in, redirecting to dashboard from signup...");
@@ -69,7 +68,7 @@ export default function SignupPage() {
                     userMessage = 'O formato do email é inválido.';
                     break;
                 case 'auth/operation-not-allowed':
-                    userMessage = 'Cadastro com email/senha desabilitado. Tente usar Google.';
+                    userMessage = 'Cadastro com este método desabilitado. Tente usar Google.';
                     break;
                 case 'auth/popup-closed-by-user':
                     userMessage = 'Cadastro/Login cancelado pelo usuário.';
@@ -92,9 +91,12 @@ export default function SignupPage() {
                      userMessage = "Erro de configuração: Chave de API inválida. Contate o suporte.";
                      console.error("CRITICAL: Invalid Firebase API Key detected during signup.");
                      break;
-                 case 'auth/argument-error':
-                     userMessage = "Erro de configuração interna. Contate o suporte.";
-                     console.error("CRITICAL: Auth Argument Error - Likely Firebase config issue (check authDomain, projectId).");
+                 case 'auth/argument-error': // Often related to invalid authDomain
+                     userMessage = "Erro de configuração interna (authDomain inválido?). Contate o suporte.";
+                     console.error("CRITICAL: Auth Argument Error - Likely Firebase config issue (check authDomain, projectId).", error);
+                     break;
+                 case 'auth/invalid-credential': // Can happen if email format is wrong during create
+                     userMessage = 'Formato de email inválido.';
                      break;
                 default:
                     userMessage = `Erro de cadastro/login (${error.code}). Tente novamente.`;
@@ -136,7 +138,7 @@ export default function SignupPage() {
 
    // --- Social Login/Signup Handler ---
    const handleSocialLogin = async (providerType: 'google' | 'facebook' | 'twitter') => {
-        let provider;
+        let provider: GoogleAuthProvider | OAuthProvider; // Define type explicitly
         let providerName = '';
 
        if (!auth) {
@@ -184,22 +186,21 @@ export default function SignupPage() {
    };
 
     // Show loading state while checking auth status or if user is already defined
-    // Disabled as auth is disabled
-    /*
-    if (authLoading || user) {
+    if (authLoading || (!authLoading && user)) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
                 <Card className="w-full max-w-md text-center shadow-lg card p-6">
                     <CardHeader>
                         <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-4" />
                         <CardTitle>Carregando...</CardTitle>
-                        <CardDescription>Verificando sessão...</CardDescription>
+                        <CardDescription>
+                            {user ? 'Redirecionando para o painel...' : 'Verificando sessão...'}
+                        </CardDescription>
                     </CardHeader>
                 </Card>
             </div>
         );
     }
-    */
 
 
   return (
@@ -208,12 +209,13 @@ export default function SignupPage() {
         <CardHeader className="text-center">
            {/* Use Next.js Image component for the logo */}
            <Image
-                src="/buddyscan-logo.png" // Ensure this path is correct
+                src="/buddyscan-logo.png" // Ensure this path is correct and file exists in /public
                 alt="BuddyScan Logo"
-                width={180} // Set appropriate width
-                height={51} // Set appropriate height
+                width={180} // Adjust as needed
+                height={51} // Adjust based on aspect ratio
                 priority
-                className="mx-auto mb-4 object-contain" // Added object-contain
+                className="mx-auto mb-4 object-contain" // Ensure proper scaling
+                onError={(e) => console.error('Logo load error (Signup):', e)}
            />
           <CardTitle className="text-2xl font-bold text-primary">Crie sua Conta BuddyScan</CardTitle>
           <CardDescription>Cadastre-se para começar a monitorar suas plantas.</CardDescription>
@@ -229,7 +231,7 @@ export default function SignupPage() {
                  </Alert>
              )}
 
-          {/* Signup Form - Enabled */}
+          {/* Signup Form */}
            <form onSubmit={handleSubmit(onEmailSubmit)} className="space-y-4">
                <div className="space-y-2">
                 <Label htmlFor="email-signup" className="flex items-center gap-1.5"><Mail className="h-4 w-4 text-secondary" />Email</Label>
@@ -295,7 +297,7 @@ export default function SignupPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-3">
-             {/* Social Signup Buttons - Enabled */}
+             {/* Social Signup Buttons */}
             <Button
               variant="outline"
               onClick={() => handleSocialLogin('google')}
@@ -312,7 +314,6 @@ export default function SignupPage() {
                disabled={true} // Keep disabled until implemented
                className="button justify-center gap-2 opacity-50 cursor-not-allowed"
              >
-               {/* Placeholder Facebook Icon */}
                <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M18.77 7.46H14.5v-1.9c0-.9.6-1.1 1-1.1h3V.5h-4.33C10.24.5 9.5 3.14 9.5 5.35V7.46H6.11v4.05H9.5v10h5V11.51h3.27l.59-4.05z"></path></svg>
                Facebook (Em Breve)
              </Button>
@@ -322,7 +323,6 @@ export default function SignupPage() {
                disabled={true} // Keep disabled until implemented
                className="button justify-center gap-2 opacity-50 cursor-not-allowed"
              >
-               {/* Placeholder Twitter (X) Icon */}
                <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>
                Twitter/X (Em Breve)
              </Button>
@@ -338,4 +338,3 @@ export default function SignupPage() {
     </div>
   );
 }
-
