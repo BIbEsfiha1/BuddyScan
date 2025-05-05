@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -15,7 +16,7 @@ import { UserPlus, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
 import { auth, firebaseInitializationError } from '@/lib/firebase/config';
 // Keep Image import if used elsewhere
-import Image from 'next/image';
+// import Image from 'next/image'; // No longer using Next Image for logo here
 import { useAuth } from '@/context/auth-context'; // Re-enabled auth
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; // Import Tooltip
@@ -41,7 +42,7 @@ export default function SignupPage() {
   const [socialLoginLoading, setSocialLoginLoading] = useState<string | null>(null); // Added social loading state
   const [signupError, setSignupError] = useState<string | null>(null);
   const { user, loading: authLoading } = useAuth(); // Use auth context
-  const isAuthEnabled = true; // Re-enable auth features
+  const isAuthEnabled = true; // Keep auth enabled
 
   const { register, handleSubmit, formState: { errors } } = useForm<SignupFormInputs>({
     resolver: zodResolver(signupSchema),
@@ -92,6 +93,7 @@ export default function SignupPage() {
                  case 'auth/internal-error':
                       userMessage = 'Ocorreu um erro interno no servidor de autenticação. Tente novamente mais tarde.';
                       break;
+                 case 'auth/invalid-api-key': // Corrected code
                  case 'auth/api-key-not-valid':
                      userMessage = "Erro de configuração: Chave de API inválida. Contate o suporte.";
                      console.error("CRITICAL: Invalid Firebase API Key detected during signup.");
@@ -187,6 +189,9 @@ export default function SignupPage() {
 
         try {
             console.log(`Attempting signInWithPopup for ${providerName}...`);
+             if (!auth) { // Double check auth right before the call
+                throw new Error("Auth instance became null before signInWithPopup call.");
+             }
             const result = await signInWithPopup(auth, provider);
             const user = result.user;
             console.log(`${providerName} login/signup successful. User:`, user.email, user.uid);
@@ -223,14 +228,13 @@ export default function SignupPage() {
       <Card className="w-full max-w-md shadow-xl border-primary/20 card">
         <CardHeader className="text-center">
            {/* Use standard img tag for the logo */}
-            <Image
-                src="/buddyscan-logo.png" // Path relative to public folder
+            <img
+                src="/buddyscan-logo.png" // Direct path to the public folder
                 alt="BuddyScan Logo"
-                width={180} // Adjust width as needed
-                height={66} // Adjust height based on aspect ratio (742 / 2048 * 180 ≈ 66)
+                width="180" // Adjust width as needed
+                height="66" // Adjust height based on aspect ratio (742 / 2048 * 180 ≈ 66)
                 className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
-                priority // Prioritize loading
-                onError={(e) => console.error('Standard <img> load error (Signup):', (e.target as HTMLImageElement).src)}
+                // Removed onError for simplicity
             />
           <CardTitle className="text-2xl font-bold text-primary">Crie sua Conta BuddyScan</CardTitle>
           <CardDescription>Cadastre-se para começar a monitorar suas plantas.</CardDescription>
