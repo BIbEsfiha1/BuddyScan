@@ -15,7 +15,7 @@ import { LogIn, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
 import { auth, firebaseInitializationError } from '@/lib/firebase/config';
 import Image from 'next/image';
-import { useAuth } from '@/context/auth-context'; // Import useAuth hook
+// import { useAuth } from '@/context/auth-context'; // Authentication disabled
 
 // Schema for email/password login
 const loginSchema = z.object({
@@ -30,13 +30,15 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const { user, loading: authLoading } = useAuth(); // Get user and loading state from context
+  // const { user, loading: authLoading } = useAuth(); // Authentication disabled
+  const user = null; // Placeholder
+  const authLoading = false; // Placeholder
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
   });
 
-   // Redirect if user is already logged in
+   // Redirect if user is already logged in - Kept for when auth is re-enabled
    useEffect(() => {
        if (!authLoading && user) {
            console.log("User already logged in, redirecting to dashboard...");
@@ -49,23 +51,17 @@ export default function LoginPage() {
   const onEmailSubmit = async (data: LoginFormInputs) => {
      console.warn("Login com email e senha está desabilitado.");
      toast({ variant: "destructive", title: "Login Desabilitado", description: "O login com email e senha está temporariamente desabilitado." });
-     // setIsLoading(true);
-     // setLoginError(null);
-     // ... (rest of the original logic) ...
-     // setIsLoading(false);
   };
 
   // --- Social Login Handler ---
    const handleSocialLogin = async (providerType: 'google' | 'facebook' | 'twitter') => {
         console.warn("Login social está desabilitado.");
         toast({ variant: "destructive", title: "Login Desabilitado", description: "O login com redes sociais está temporariamente desabilitado." });
-       // setIsLoading(true);
-       // setLoginError(null);
-       // ... (rest of the original logic) ...
-       // setIsLoading(false);
    };
 
    // Show loading state while checking auth status or if user is already defined
+   // Disabled as auth is disabled
+   /*
    if (authLoading || user) {
       return (
           <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
@@ -79,19 +75,21 @@ export default function LoginPage() {
           </div>
       );
    }
+   */
 
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
       <Card className="w-full max-w-md shadow-xl border-primary/20 card">
         <CardHeader className="text-center">
+           {/* Use Next.js Image component for the logo */}
            <Image
-               src="/buddyscan-logo.png" // Updated logo path
-               alt="BuddyScan Logo" // Updated alt text
-               width={180}
-               height={51}
-               priority
-               className="mx-auto mb-4"
+               src="/buddyscan-logo.png" // Ensure this path is correct (relative to public folder)
+               alt="BuddyScan Logo"
+               width={180} // Set appropriate width
+               height={51} // Set appropriate height based on aspect ratio
+               priority // Load logo quickly
+               className="mx-auto mb-4" // Keep styling for centering etc.
            />
           <CardTitle className="text-2xl font-bold text-primary">Bem-vindo de volta!</CardTitle>
           <CardDescription>Faça login para acessar seu painel BuddyScan.</CardDescription>
@@ -179,3 +177,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+    

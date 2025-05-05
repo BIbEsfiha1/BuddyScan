@@ -9,6 +9,35 @@ import { CheckCircle, ScanLine, BookOpenText, BrainCircuit, BarChart } from '@/c
 export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-background via-muted/5 to-primary/10 text-foreground">
+
+       {/* Header Section for Landing Page */}
+       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+         <div className="container flex h-16 items-center justify-between">
+           {/* Logo */}
+           <Link href="/" className="flex items-center gap-2 mr-6">
+              <Image
+                 src="/buddyscan-logo.png" // Path to the logo in the public folder
+                 alt="BuddyScan Logo"
+                 width={140} // Adjust width as needed
+                 height={40} // Adjust height as needed
+                 priority
+              />
+           </Link>
+            {/* Navigation/Actions */}
+           <nav className="flex items-center gap-4">
+              <Button variant="ghost" asChild>
+                 <Link href="#features">Funcionalidades</Link>
+              </Button>
+               <Button variant="ghost" asChild>
+                 <Link href="#how-it-works">Como Funciona</Link>
+               </Button>
+               <Button asChild className="button">
+                 <Link href="/dashboard">Acessar o App</Link>
+              </Button>
+           </nav>
+         </div>
+       </header>
+
       {/* Main Content */}
       <main className="flex-1">
         {/* Hero Section */}
@@ -112,7 +141,7 @@ export default function LandingPage() {
         </section>
 
         {/* How It Works Section */}
-        <section className="w-full py-12 md:py-24 lg:py-32 bg-gradient-to-b from-muted/10 to-transparent">
+        <section id="how-it-works" className="w-full py-12 md:py-24 lg:py-32 bg-gradient-to-b from-muted/10 to-transparent">
           <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">
             <div className="space-y-3">
               <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">Comece a Usar em 3 Passos Simples</h2>
@@ -165,3 +194,5 @@ export default function LandingPage() {
     </div>
   );
 }
+
+    

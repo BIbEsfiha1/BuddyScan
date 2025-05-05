@@ -15,7 +15,7 @@ import { UserPlus, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
 import { auth, firebaseInitializationError } from '@/lib/firebase/config';
 import Image from 'next/image';
-import { useAuth } from '@/context/auth-context'; // Import useAuth hook
+// import { useAuth } from '@/context/auth-context'; // Authentication disabled
 
 // Schema for signup form
 const signupSchema = z.object({
@@ -34,13 +34,15 @@ export default function SignupPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [signupError, setSignupError] = useState<string | null>(null);
-  const { user, loading: authLoading } = useAuth(); // Get user and loading state
+  // const { user, loading: authLoading } = useAuth(); // Authentication disabled
+  const user = null; // Placeholder
+  const authLoading = false; // Placeholder
 
   const { register, handleSubmit, formState: { errors } } = useForm<SignupFormInputs>({
     resolver: zodResolver(signupSchema),
   });
 
-   // Redirect if user is already logged in
+   // Redirect if user is already logged in - Kept for when auth is re-enabled
    useEffect(() => {
        if (!authLoading && user) {
            console.log("User already logged in, redirecting to dashboard from signup...");
@@ -53,24 +55,17 @@ export default function SignupPage() {
   const onEmailSubmit = async (data: SignupFormInputs) => {
      console.warn("Cadastro com email e senha está desabilitado.");
      toast({ variant: "destructive", title: "Cadastro Desabilitado", description: "O cadastro com email e senha está temporariamente desabilitado." });
-    // setIsLoading(true);
-    // setSignupError(null);
-    // ... (rest of original logic) ...
-    // setIsLoading(false);
   };
 
    // --- Social Login/Signup Handler ---
-   // Same handler as login page, Firebase handles linking or creation automatically
    const handleSocialLogin = async (providerType: 'google' | 'facebook' | 'twitter') => {
         console.warn("Cadastro/Login social está desabilitado.");
         toast({ variant: "destructive", title: "Cadastro Desabilitado", description: "O cadastro/login com redes sociais está temporariamente desabilitado." });
-      // setIsLoading(true);
-      // setSignupError(null);
-      // ... (rest of original logic) ...
-      // setIsLoading(false);
    };
 
     // Show loading state while checking auth status or if user is already defined
+    // Disabled as auth is disabled
+    /*
     if (authLoading || user) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
@@ -84,17 +79,19 @@ export default function SignupPage() {
             </div>
         );
     }
+    */
 
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
       <Card className="w-full max-w-md shadow-xl border-primary/20 card">
         <CardHeader className="text-center">
+           {/* Use Next.js Image component for the logo */}
            <Image
-                src="/buddyscan-logo.png" // Updated logo path
-                alt="BuddyScan Logo" // Updated alt text
-                width={180}
-                height={51}
+                src="/buddyscan-logo.png" // Ensure this path is correct
+                alt="BuddyScan Logo"
+                width={180} // Set appropriate width
+                height={51} // Set appropriate height
                 priority
                 className="mx-auto mb-4"
            />
@@ -197,3 +194,5 @@ export default function SignupPage() {
     </div>
   );
 }
+
+    

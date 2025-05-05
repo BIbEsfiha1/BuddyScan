@@ -19,29 +19,22 @@
  import { Label } from '@/components/ui/label'; // Import Label
  import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // Import Avatar
  import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'; // Import Dropdown
- import { useAuth } from '@/context/auth-context'; // Import useAuth hook
+ // import { useAuth } from '@/context/auth-context'; // Authentication disabled
  import { useRouter } from 'next/navigation';
  import { useToast } from '@/hooks/use-toast';
 
 
  export default function AppHeader() {
    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-   const { user, loading, logout } = useAuth(); // Get user, loading state, and logout function
+   // const { user, loading, logout } = useAuth(); // Authentication disabled
+   const user = null; // Placeholder as auth is disabled
+   const loading = false; // Placeholder as auth is disabled
    const router = useRouter();
    const { toast } = useToast();
 
    const handleLogout = async () => {
        // Logout is currently disabled, so this function does nothing.
-       // When re-enabled, uncomment the following:
-        // try {
-        //     await logout();
-        //     toast({ title: "Logout realizado", description: "Você foi desconectado." });
-        //     router.push('/'); // Redirect to landing page after logout
-        // } catch (error) {
-        //     console.error("Logout failed:", error);
-        //     toast({ variant: "destructive", title: "Erro no Logout", description: "Não foi possível fazer logout." });
-        // }
-        toast({ title: "Logout Desabilitado", description: "A funcionalidade de logout está temporariamente desabilitada." });
+       toast({ title: "Logout Desabilitado", description: "A funcionalidade de logout está temporariamente desabilitada." });
    };
 
    return (
@@ -52,12 +45,12 @@
             {/* Use Next Image for optimization */}
             {/* Ensure buddyscan-logo.png exists in the /public folder */}
              <Image
-                src="/buddyscan-logo.png" // Path to the logo in the public folder
-                alt="BuddyScan Logo" // Updated alt text
+                src="/buddyscan-logo.png" // Correct path from public folder
+                alt="BuddyScan Logo"
                 width={140} // Adjust width as needed
                 height={40} // Adjust height as needed
                 priority // Load the logo quickly
-                className="h-8 md:h-10 w-auto" // Removed dark mode invert
+                // Removed potentially conflicting height/width classes like h-8, h-10, w-auto
              />
           </Link>
 
@@ -112,14 +105,16 @@
              ) : user ? (
                   <DropdownMenu>
                      <DropdownMenuTrigger asChild>
-                         <Button variant="ghost" className="relative h-9 w-9 rounded-full button p-0">
+                          <Button variant="ghost" className="relative h-9 w-9 rounded-full button p-0">
                             <Avatar className="h-9 w-9 border-2 border-primary/30">
+                                {/* Use a dynamic src or fallback */}
                                 <AvatarImage src={user.photoURL || undefined} alt={user.displayName || user.email || 'Usuário'} />
                                 <AvatarFallback>
+                                   {/* Display initial or icon */}
                                    {user.email ? user.email[0].toUpperCase() : <UserCircle className="h-5 w-5"/>}
                                 </AvatarFallback>
                              </Avatar>
-                         </Button>
+                          </Button>
                      </DropdownMenuTrigger>
                      <DropdownMenuContent className="w-56" align="end" forceMount>
                          <DropdownMenuLabel className="font-normal">
@@ -141,10 +136,9 @@
                      </DropdownMenuContent>
                   </DropdownMenu>
              ) : (
-                 // Remove asChild here as it's not needed for a simple span wrapper
+                // Show placeholder since login is disabled
                  <Button className="button" disabled>
-                     {/* <Link href="/login">Login</Link> */}
-                     <span>Login Desabilitado</span> {/* Show placeholder text */}
+                     Login Desabilitado
                  </Button>
              )}
          </div>
@@ -152,3 +146,5 @@
      </header>
    );
  }
+
+    
