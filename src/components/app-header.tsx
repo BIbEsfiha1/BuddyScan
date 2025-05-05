@@ -1,4 +1,3 @@
-
 // src/components/app-header.tsx
  'use client';
 
@@ -46,18 +45,18 @@
      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
        <div className="container flex h-16 items-center justify-between"> {/* Increased height */}
          {/* Logo/Brand - Use Image component */}
-         <Link href="/" className="flex items-center gap-2 mr-6"> {/* Added gap */}
-           {/* Use Next Image for optimization */}
-           {/* Ensure budscan-logo.png exists in the /public folder */}
-           <Image
-               src="/budscan-logo.png" // Path to the logo in the public folder
-               alt="BudScan Logo"
+          <Link href="/dashboard" className="flex items-center gap-2 mr-6"> {/* Changed href to dashboard */}
+            {/* Use Next Image for optimization */}
+            {/* Ensure buddyscan-logo.png exists in the /public folder */}
+            <Image
+               src="/buddyscan-logo.png" // Path to the logo in the public folder
+               alt="BuddyScan Logo" // Updated alt text
                width={140} // Adjust width as needed
                height={40} // Adjust height as needed
                priority // Load the logo quickly
                className="h-8 md:h-10 w-auto dark:invert-[0.05]" // Minimal invert in dark mode
-           />
-         </Link>
+            />
+          </Link>
 
          {/* Right side actions */}
          <div className="flex items-center gap-2"> {/* Reduced gap slightly */}
@@ -139,8 +138,9 @@
                      </DropdownMenuContent>
                   </DropdownMenu>
              ) : (
-                 <Button asChild className="button">
-                     <Link href="/login">Login</Link>
+                 <Button asChild className="button" disabled> {/* Disable login button */}
+                     {/* <Link href="/login">Login</Link> */}
+                     <span>Login Desabilitado</span> {/* Show placeholder text */}
                  </Button>
              )}
          </div>

@@ -1,4 +1,3 @@
-
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google'; // Use Inter or Geist as preferred
 import './globals.css';
@@ -15,7 +14,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'BudScan', // Updated title
+  title: 'BuddyScan', // Updated title
   description: 'Diário e Análise Inteligente de Plantas', // Updated description
 };
 

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -52,149 +51,23 @@ export default function SignupPage() {
 
   // --- Email/Password Signup Handler ---
   const onEmailSubmit = async (data: SignupFormInputs) => {
-    setIsLoading(true);
-    setSignupError(null);
-
-    if (firebaseInitializationError) {
-        console.error("Firebase initialization error:", firebaseInitializationError);
-        setSignupError(`Erro de configuração do Firebase: ${firebaseInitializationError.message}. Não é possível registrar.`);
-        toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Não foi possível conectar ao serviço de autenticação.' });
-        setIsLoading(false);
-        return;
-    }
-     if (!auth) {
-         setSignupError("Serviço de autenticação não está pronto. Tente novamente em breve.");
-         toast({ variant: 'destructive', title: 'Erro Interno', description: 'Auth não inicializado.' });
-         setIsLoading(false);
-         return;
-     }
-
-    try {
-      console.log('Attempting email signup for:', data.email);
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-      const user = userCredential.user;
-      console.log('Email signup successful for:', user.email, 'UID:', user.uid);
-      toast({
-        title: 'Cadastro Realizado!',
-        description: `Sua conta foi criada com sucesso. Bem-vindo!`,
-        variant: 'default',
-      });
-      // router.push('/dashboard'); // Redirect handled by useEffect
-    } catch (error: any) {
-      console.error('Email signup failed:', error);
-      let errorMessage = 'Falha no cadastro. Tente novamente.';
-      if (error.code) {
-          switch (error.code) {
-              case 'auth/email-already-in-use':
-                  errorMessage = 'Este email já está em uso por outra conta.';
-                  break;
-              case 'auth/invalid-email':
-                  errorMessage = 'Formato de email inválido.';
-                  break;
-              case 'auth/weak-password':
-                  errorMessage = 'A senha é muito fraca. Use pelo menos 6 caracteres.';
-                  break;
-              default:
-                  errorMessage = `Erro de cadastro: ${error.message}`;
-          }
-      }
-      setSignupError(errorMessage);
-      toast({
-        variant: 'destructive',
-        title: 'Falha no Cadastro',
-        description: errorMessage,
-      });
-    } finally {
-      setIsLoading(false);
-    }
+     console.warn("Cadastro com email e senha está desabilitado.");
+     toast({ variant: "destructive", title: "Cadastro Desabilitado", description: "O cadastro com email e senha está temporariamente desabilitado." });
+    // setIsLoading(true);
+    // setSignupError(null);
+    // ... (rest of original logic) ...
+    // setIsLoading(false);
   };
 
    // --- Social Login/Signup Handler ---
    // Same handler as login page, Firebase handles linking or creation automatically
    const handleSocialLogin = async (providerType: 'google' | 'facebook' | 'twitter') => {
-      setIsLoading(true);
-      setSignupError(null);
-
-      if (firebaseInitializationError) {
-          console.error("Firebase initialization error:", firebaseInitializationError);
-          setSignupError(`Erro de configuração do Firebase: ${firebaseInitializationError.message}. Não é possível registrar.`);
-          toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Não foi possível conectar ao serviço de autenticação.' });
-          setIsLoading(false);
-          return;
-      }
-       if (!auth) {
-           setSignupError("Serviço de autenticação não está pronto. Tente novamente em breve.");
-           toast({ variant: 'destructive', title: 'Erro Interno', description: 'Auth não inicializado.' });
-           setIsLoading(false);
-           return;
-       }
-
-      let provider;
-      let providerName = '';
-
-      try {
-          switch (providerType) {
-              case 'google':
-                  provider = new GoogleAuthProvider();
-                  providerName = 'Google';
-                  break;
-              // Add Facebook and Twitter providers here if needed
-              // case 'facebook': provider = new OAuthProvider('facebook.com'); providerName = 'Facebook'; break;
-              // case 'twitter': provider = new OAuthProvider('twitter.com'); providerName = 'X (Twitter)'; break;
-              default:
-                  throw new Error('Provedor social não suportado.');
-          }
-
-          console.log(`Attempting signInWithPopup for ${providerName} (Signup/Login)...`);
-           if (!auth) { // Re-check auth right before use
-              throw new Error("Auth instance became null before signInWithPopup call.");
-           }
-          const result = await signInWithPopup(auth, provider);
-          const user = result.user;
-          console.log(`${providerName} signup/login successful. User:`, user.email, user.uid);
-          toast({
-              title: `Login/Cadastro com ${providerName} bem-sucedido!`,
-              description: `Bem-vindo!`, // Removed display name/email
-              variant: 'default',
-          });
-          // router.push('/dashboard'); // Redirect handled by useEffect
-      } catch (error: any) {
-          console.error(`${providerName} signup/login failed:`, error);
-           let errorMessage = `Falha no login/cadastro com ${providerName}.`;
-           if (error.code) {
-              // Reuse error handling from login page
-               switch (error.code) {
-                   case 'auth/account-exists-with-different-credential':
-                       errorMessage = 'Já existe uma conta com este email usando um método de login diferente.';
-                       break;
-                   case 'auth/popup-closed-by-user':
-                       errorMessage = 'Janela de login fechada antes da conclusão.';
-                       break;
-                   case 'auth/cancelled-popup-request':
-                        errorMessage = 'Múltiplas tentativas de login. Por favor, tente novamente.';
-                        break;
-                   case 'auth/popup-blocked':
-                       errorMessage = 'O popup de login foi bloqueado pelo navegador. Por favor, habilite popups para este site.';
-                       break;
-                   case 'auth/argument-error':
-                       errorMessage = `Erro de configuração do provedor ${providerName}. Verifique as configurações no Firebase Console. (auth/argument-error)`;
-                       break;
-                   case 'auth/operation-not-allowed':
-                        errorMessage = `Login com ${providerName} não está habilitado no projeto Firebase.`;
-                        break;
-                   default:
-                       errorMessage = `Erro de login/cadastro com ${providerName}: ${error.message}`;
-               }
-           }
-           setSignupError(errorMessage);
-          toast({
-              variant: 'destructive',
-              title: `Falha no Login/Cadastro com ${providerName}`,
-              description: errorMessage,
-          });
-      } finally {
-          setIsLoading(false);
-      }
+        console.warn("Cadastro/Login social está desabilitado.");
+        toast({ variant: "destructive", title: "Cadastro Desabilitado", description: "O cadastro/login com redes sociais está temporariamente desabilitado." });
+      // setIsLoading(true);
+      // setSignupError(null);
+      // ... (rest of original logic) ...
+      // setIsLoading(false);
    };
 
     // Show loading state while checking auth status or if user is already defined
@@ -218,14 +91,14 @@ export default function SignupPage() {
       <Card className="w-full max-w-md shadow-xl border-primary/20 card">
         <CardHeader className="text-center">
            <Image
-                src="/budscan-logo.png"
-                alt="BudScan Logo"
+                src="/buddyscan-logo.png" // Updated logo path
+                alt="BuddyScan Logo" // Updated alt text
                 width={180}
                 height={51}
                 priority
                 className="mx-auto mb-4"
            />
-          <CardTitle className="text-2xl font-bold text-primary">Crie sua Conta BudScan</CardTitle>
+          <CardTitle className="text-2xl font-bold text-primary">Crie sua Conta BuddyScan</CardTitle>
           <CardDescription>Cadastre-se para começar a monitorar suas plantas.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -239,56 +112,57 @@ export default function SignupPage() {
                  </Alert>
              )}
 
-          <form onSubmit={handleSubmit(onEmailSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email-signup" className="flex items-center gap-1.5"><Mail className="h-4 w-4 text-secondary" />Email</Label>
-              <Input
-                id="email-signup"
-                type="email"
-                placeholder="seuemail@exemplo.com"
-                {...register('email')}
-                disabled={isLoading || !!firebaseInitializationError}
-                className={`input ${errors.email ? 'border-destructive focus:ring-destructive' : ''}`}
-                aria-invalid={errors.email ? "true" : "false"}
-              />
-              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password-signup" className="flex items-center gap-1.5"><Lock className="h-4 w-4 text-secondary" />Senha</Label>
-              <Input
-                id="password-signup"
-                type="password"
-                placeholder="Mínimo 6 caracteres"
-                {...register('password')}
-                disabled={isLoading || !!firebaseInitializationError}
-                className={`input ${errors.password ? 'border-destructive focus:ring-destructive' : ''}`}
-                aria-invalid={errors.password ? "true" : "false"}
-              />
-               {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
-            </div>
-             <div className="space-y-2">
-              <Label htmlFor="confirmPassword-signup" className="flex items-center gap-1.5"><Lock className="h-4 w-4 text-secondary" />Confirmar Senha</Label>
-              <Input
-                id="confirmPassword-signup"
-                type="password"
-                placeholder="Repita a senha"
-                {...register('confirmPassword')}
-                disabled={isLoading || !!firebaseInitializationError}
-                className={`input ${errors.confirmPassword ? 'border-destructive focus:ring-destructive' : ''}`}
-                aria-invalid={errors.confirmPassword ? "true" : "false"}
-              />
-               {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
-            </div>
+          {/* Signup Form - Disabled */}
+           <div className="space-y-4 opacity-50 pointer-events-none">
+               <div className="space-y-2">
+                <Label htmlFor="email-signup" className="flex items-center gap-1.5"><Mail className="h-4 w-4 text-secondary" />Email</Label>
+                <Input
+                  id="email-signup"
+                  type="email"
+                  placeholder="seuemail@exemplo.com"
+                  {...register('email')}
+                  disabled={true} // Always disabled
+                  className={`input ${errors.email ? 'border-destructive focus:ring-destructive' : ''}`}
+                  aria-invalid={errors.email ? "true" : "false"}
+                />
+                {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password-signup" className="flex items-center gap-1.5"><Lock className="h-4 w-4 text-secondary" />Senha</Label>
+                <Input
+                  id="password-signup"
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  {...register('password')}
+                  disabled={true} // Always disabled
+                  className={`input ${errors.password ? 'border-destructive focus:ring-destructive' : ''}`}
+                  aria-invalid={errors.password ? "true" : "false"}
+                />
+                 {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+              </div>
+               <div className="space-y-2">
+                <Label htmlFor="confirmPassword-signup" className="flex items-center gap-1.5"><Lock className="h-4 w-4 text-secondary" />Confirmar Senha</Label>
+                <Input
+                  id="confirmPassword-signup"
+                  type="password"
+                  placeholder="Repita a senha"
+                  {...register('confirmPassword')}
+                  disabled={true} // Always disabled
+                  className={`input ${errors.confirmPassword ? 'border-destructive focus:ring-destructive' : ''}`}
+                  aria-invalid={errors.confirmPassword ? "true" : "false"}
+                />
+                 {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
+              </div>
 
-            {signupError && (
-              <p className="text-sm text-destructive text-center bg-destructive/10 p-2 rounded-md">{signupError}</p>
-            )}
+              {signupError && (
+                <p className="text-sm text-destructive text-center bg-destructive/10 p-2 rounded-md">{signupError}</p>
+              )}
 
-            <Button type="submit" className="w-full font-semibold button" disabled={isLoading || !!firebaseInitializationError}>
-              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-              Cadastrar com Email
-            </Button>
-          </form>
+              <Button type="submit" className="w-full font-semibold button" disabled={true}> {/* Always disabled */}
+                <UserPlus className="mr-2 h-4 w-4" />
+                Cadastrar com Email (Desabilitado)
+              </Button>
+           </div>
 
           <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">
@@ -300,14 +174,15 @@ export default function SignupPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-3">
+             {/* Social Signup Buttons - Disabled */}
             <Button
               variant="outline"
               onClick={() => handleSocialLogin('google')}
-              disabled={isLoading || !!firebaseInitializationError}
+              disabled={true} // Always disabled
               className="button justify-center gap-2"
             >
-              {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.36 1.67-4.06 1.67-3.4 0-6.33-2.83-6.33-6.33s2.93-6.33 6.33-6.33c1.9 0 3.21.73 4.18 1.69l2.6-2.6C16.84 3.18 14.91 2 12.48 2 7.48 2 3.11 6.33 3.11 11.33s4.37 9.33 9.37 9.33c3.19 0 5.64-1.18 7.57-3.01 2-1.9 2.6-4.5 2.6-6.66 0-.58-.05-1.14-.13-1.67z"></path></svg>}
-              Google
+              <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.36 1.67-4.06 1.67-3.4 0-6.33-2.83-6.33-6.33s2.93-6.33 6.33-6.33c1.9 0 3.21.73 4.18 1.69l2.6-2.6C16.84 3.18 14.91 2 12.48 2 7.48 2 3.11 6.33 3.11 11.33s4.37 9.33 9.37 9.33c3.19 0 5.64-1.18 7.57-3.01 2-1.9 2.6-4.5 2.6-6.66 0-.58-.05-1.14-.13-1.67z"></path></svg>
+              Google (Desabilitado)
             </Button>
             {/* Placeholder for other social logins */}
           </div>

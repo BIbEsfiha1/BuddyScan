@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -425,6 +424,19 @@ export default function DashboardPage() { // Renamed component to DashboardPage
    const handleDialogOpen = useCallback(() => {
         console.log(`Dialog opening intent received...`);
         // Prerequisite check moved to handleScanClick and useEffect for initial load
+         // Prerequisite check
+         if (!isScannerSupported || !barcodeDetectorRef.current) {
+             const errorMsg = !isScannerSupported
+                 ? 'O escaneamento de QR code não é suportado neste navegador.'
+                 : 'Não foi possível inicializar o leitor de QR code. Tente recarregar a página.';
+             console.error("Prerequisite check failed:", errorMsg);
+             toast({
+                 variant: 'destructive',
+                 title: 'Erro de Compatibilidade',
+                 description: errorMsg,
+             });
+             return; // Do not proceed if prerequisites fail
+         }
 
         setScannerError(null);
         setScannerStatus('idle'); // Start as idle, camera starts, then initializing
@@ -432,7 +444,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
         startCamera(); // Initiate camera start
         console.log("Dialog state set to open, camera start initiated.");
 
-   }, [startCamera]);
+   }, [startCamera, toast, isScannerSupported]); // Add toast and isScannerSupported dependency
 
     const handleOpenChange = useCallback((open: boolean) => {
        console.log(`handleOpenChange called with open: ${open}`);
@@ -561,25 +573,8 @@ export default function DashboardPage() { // Renamed component to DashboardPage
   // --- Button Click Handlers ---
   const handleScanClick = () => {
     console.log("Scan button clicked.");
-    if (!isScannerSupported) {
-        console.error("Cannot open scanner dialog: BarcodeDetector API not supported.");
-        toast({
-            variant: 'destructive',
-            title: 'Erro de Compatibilidade',
-            description: 'O escaneamento de QR code não é suportado neste navegador.',
-        });
-        return;
-    }
-    if (!barcodeDetectorRef.current) {
-        console.error("Cannot open scanner dialog: BarcodeDetector failed to initialize.");
-        toast({
-            variant: 'destructive',
-            title: 'Erro de Inicialização',
-            description: 'Não foi possível inicializar o leitor de QR code. Tente recarregar a página.',
-        });
-        return;
-    }
-    // Proceed to open dialog only if supported and initialized
+    // Prerequisite check moved to handleDialogOpen, called by handleOpenChange
+    // handleOpenChange will now call handleDialogOpen which includes the check
     handleOpenChange(true);
   };
 
@@ -596,7 +591,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
        <header className="mb-8">
          <div className="flex items-center gap-3 mb-1">
              <HomeIcon className="h-7 w-7 text-primary"/>
-             <h1 className="text-3xl font-bold tracking-tight">Painel BudScan</h1>
+             <h1 className="text-3xl font-bold tracking-tight">Painel BuddyScan</h1> {/* Updated name */}
          </div>
          <p className="text-lg text-muted-foreground">Seu centro de controle de cultivo inteligente.</p>
        </header>
@@ -878,4 +873,3 @@ export default function DashboardPage() { // Renamed component to DashboardPage
      </TooltipProvider>
   );
 }
-
