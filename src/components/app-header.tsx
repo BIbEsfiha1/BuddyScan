@@ -3,7 +3,7 @@
 
  import React, { useState } from 'react';
  import Link from 'next/link';
- // Keep Image import if used elsewhere, but we're replacing the logo usage
+ // Import Image component from Next.js
  import Image from 'next/image';
  import ThemeToggle from '@/components/theme-toggle';
  import { Settings, Palette, LogOut, UserCircle, Loader2, Home as HomeIcon } from '@/components/ui/lucide-icons'; // Added icons, including HomeIcon
@@ -24,6 +24,9 @@
  import { useRouter } from 'next/navigation';
  import { useToast } from '@/hooks/use-toast';
  import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+ // Import Tooltip components
+ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
 
  export default function AppHeader() {
    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -55,18 +58,16 @@
    return (
      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
        <div className="container flex h-16 items-center justify-between"> {/* Increased height */}
-         {/* Logo/Brand - Use standard img tag for debugging */}
+         {/* Logo/Brand */}
           <Link href="/dashboard" className="flex items-center gap-2 mr-6">
              {/* Verify path: '/buddyscan-logo.png' assumes the file is directly in /public */}
-             {/* Use standard img tag */}
-             <img
+             <Image
                  src="/buddyscan-logo.png" // Path relative to public folder
                  alt="BuddyScan Logo"
-                 width="140" // Set width directly
-                 height="51" // Set height based on aspect ratio (2048/742 * 140 ≈ 51)
+                 width={140} // Adjusted width
+                 height={51} // Adjusted height based on aspect ratio (742/2048 * 140 ≈ 51)
+                 priority // Prioritize loading the logo
                  className="object-contain h-[51px]" // Use explicit height class
-                 // Add error logging for standard img tag
-                 onError={(e) => console.error('Standard <img> load error (Header):', e.target.src, e)}
              />
           </Link>
 
