@@ -7,12 +7,12 @@ import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/fire
 // Your web app's Firebase configuration
 // Using the latest config provided by the user.
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCI3PcqYwR3v4EZVD2EY6tnbqQK94olEOg", // Using provided API Key
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "cannalog-c34fx.firebaseapp.com", // Using provided Auth Domain
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "cannalog-c34fx", // Using provided Project ID
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "cannalog-c34fx.firebasestorage.app", // Using provided Storage Bucket
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "581752624409", // Using provided Sender ID
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:581752624409:web:e30cd8231db418dc2a6188" // Using provided App ID
+  apiKey: "AIzaSyCI3PcqYwR3v4EZVD2EY6tnbqQK94olEOg", // Updated API Key
+  authDomain: "cannalog-c34fx.firebaseapp.com", // Updated Auth Domain
+  projectId: "cannalog-c34fx", // Updated Project ID
+  storageBucket: "cannalog-c34fx.firebasestorage.app", // Updated Storage Bucket
+  messagingSenderId: "581752624409", // Updated Sender ID
+  appId: "1:581752624409:web:e30cd8231db418dc2a6188" // Updated App ID
 };
 
 
