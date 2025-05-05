@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -41,7 +42,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
   const [scannerError, setScannerError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const barcodeDetectorRef = useRef<any | null>(barcodeDetectorRef.current); // Using any for BarcodeDetector due to type issues
+  const barcodeDetectorRef = useRef<any | null>(null); // Fix: Initialize with null
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isMounted, setIsMounted] = useState(false); // Track mount state
   const [isScannerSupported, setIsScannerSupported] = useState(false); // State for scanner support
@@ -872,3 +873,5 @@ export default function DashboardPage() { // Renamed component to DashboardPage
      </TooltipProvider>
   );
 }
+
+    
