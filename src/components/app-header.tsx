@@ -1,4 +1,3 @@
-{// src/components/app-header.tsx
  'use client';
 
  import React, { useState } from 'react';
@@ -25,7 +24,7 @@
  import { useToast } from '@/hooks/use-toast';
  import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
  // Import Tooltip components
- import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; // Ensure TooltipProvider is imported
 
 
  export default function AppHeader() {
@@ -56,16 +55,14 @@
        <div className="container flex h-16 items-center justify-between"> {/* Increased height */}
          {/* Logo/Brand */}
           <Link href={isAuthEnabled && user ? "/dashboard" : "/"} className="flex items-center gap-2 mr-6"> {/* Link to dashboard if logged in, else landing */}
-             {/* Verify path: '/buddyscan-logo.png' assumes the file is directly in /public */}
-             {/* Use standard img tag for easier debugging */}
-              <img
+              <Image
                  src="/buddyscan-logo.png" // Path relative to the public folder
                  alt="BuddyScan Logo"
-                 width="140" // Set width directly
-                 height="51" // Set height based on aspect ratio (2048/742 * 140 ≈ 51)
-                 className="object-contain h-[51px]" // Use explicit height class if needed
-                 // Add error logging for the standard img tag
-                 onError={(e) => console.error('Standard <img> load error (Header):', (e.target as HTMLImageElement).src, e)}
+                 width="140" // Set width directly based on logo aspect ratio (742 / 2048 * 140 ≈ 51)
+                 height="51" // Set height based on aspect ratio
+                 className="object-contain h-[51px]" // Use explicit height class
+                 priority // Prioritize logo loading
+                 onError={(e) => console.error('Standard <img> load error (Header):', (e.target as HTMLImageElement).src)}
               />
           </Link>
 
@@ -198,4 +195,3 @@
      </header>
    );
  }
-}
