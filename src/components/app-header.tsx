@@ -6,7 +6,7 @@
  import Image from 'next/image';
  import ThemeToggle from '@/components/theme-toggle';
  import { Settings, Palette, LogOut, UserCircle, Loader2, Home as HomeIcon } from '@/components/ui/lucide-icons'; // Added icons, including HomeIcon
- import { Button } from '@/components/ui/button';
+ import { Button, buttonVariants } from '@/components/ui/button'; // Import buttonVariants
  import {
     Dialog,
     DialogContent,
@@ -33,7 +33,7 @@
    const { user, loading: authLoading, logout } = useAuth(); // Use auth context
    const router = useRouter();
    const { toast } = useToast();
-   const isAuthEnabled = true; // Re-enable auth features
+   const isAuthEnabled = true; // Keep auth enabled
 
    const handleLogout = async () => {
         if (isAuthEnabled && logout) {
@@ -56,14 +56,15 @@
        <div className="container flex h-16 items-center justify-between"> {/* Increased height */}
          {/* Logo/Brand */}
           <Link href={isAuthEnabled && user ? "/dashboard" : "/"} className="flex items-center gap-2 mr-6"> {/* Link to dashboard if logged in, else landing */}
-              {/* Standard img tag for easier debugging */}
+             {/* Using standard img tag as Image component was causing issues */}
               <img
-                 src="/buddyscan-logo.png" // Direct path to public folder
-                 alt="BuddyScan Logo"
-                 width={140} // Set width directly
-                 height={51} // Set height based on aspect ratio (742 / 2048 * 140 ≈ 51)
-                 className="object-contain h-[51px]" // Use explicit height class if needed
-                 // No onError needed here if we check network tab
+                  src="/buddyscan-logo.png" // Direct path to public folder
+                  alt="BuddyScan Logo"
+                  width="140" // Adjusted width
+                  height="51" // Adjusted height based on aspect ratio
+                  className="object-contain h-[51px]" // Ensure proper scaling
+                  // Added error handling for standard img
+                  onError={(e) => console.error('Standard <img> load error (Header):', (e.target as HTMLImageElement).src)}
               />
           </Link>
 
@@ -127,17 +128,19 @@
                  ) : user ? (
                       // User is logged in - Show dropdown
                       <DropdownMenu>
-                         {/* Correct usage: Set asChild on the Trigger */}
-                         <DropdownMenuTrigger asChild>
-                             {/* The Button becomes the direct child */}
-                             <Button variant="ghost" className="relative h-9 w-9 rounded-full button p-0 focus-visible:ring-0 focus-visible:ring-offset-0">
-                                 <Avatar className="h-9 w-9 border-2 border-primary/30">
-                                     <AvatarImage src={user.photoURL || undefined} alt={user.displayName || user.email || 'Usuário'} />
-                                     <AvatarFallback>
-                                        {user.email ? user.email[0].toUpperCase() : <UserCircle className="h-5 w-5"/>}
-                                     </AvatarFallback>
-                                  </Avatar>
-                             </Button>
+                         {/* Remove intermediate Button, apply styles directly to Trigger */}
+                         <DropdownMenuTrigger
+                             className={cn(
+                                buttonVariants({ variant: "ghost", size: "icon" }), // Use buttonVariants helper
+                                "relative h-9 w-9 rounded-full button p-0 focus-visible:ring-0 focus-visible:ring-offset-0" // Keep specific overrides
+                             )}
+                         >
+                             <Avatar className="h-9 w-9 border-2 border-primary/30">
+                                 <AvatarImage src={user.photoURL || undefined} alt={user.displayName || user.email || 'Usuário'} />
+                                 <AvatarFallback>
+                                    {user.email ? user.email[0].toUpperCase() : <UserCircle className="h-5 w-5"/>}
+                                 </AvatarFallback>
+                              </Avatar>
                          </DropdownMenuTrigger>
                          <DropdownMenuContent className="w-56" align="end" forceMount>
                              <DropdownMenuLabel className="font-normal">
@@ -198,3 +201,4 @@
      </header>
    );
  }
+
