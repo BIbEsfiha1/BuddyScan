@@ -7,7 +7,7 @@
  import Image from 'next/image';
  import ThemeToggle from '@/components/theme-toggle';
  import { Settings, Palette, LogOut, UserCircle, Loader2, Home as HomeIcon } from '@/components/ui/lucide-icons'; // Added icons, including HomeIcon
- import { Button } from '@/components/ui/button';
+ import { Button } from '@/components/ui/button'; // Import Button
  import {
     Dialog,
     DialogContent,
@@ -57,7 +57,7 @@
        <div className="container flex h-16 items-center justify-between"> {/* Increased height */}
          {/* Logo/Brand */}
           <Link href={isAuthEnabled && user ? "/dashboard" : "/"} className="flex items-center gap-2 mr-6"> {/* Link to dashboard if logged in, else landing */}
-             {/* Use standard img tag for easier debugging */}
+             {/* Standard img tag for easier debugging */}
              {/* Verify path: '/buddyscan-logo.png' assumes the file is directly in /public */}
               <img
                  src="/buddyscan-logo.png" // Path relative to the public folder
@@ -174,12 +174,11 @@
                       </DropdownMenu>
                  ) : (
                     // User is not logged in - Show Login Button
+                     // Correct usage: Button asChild wraps Link, no legacyBehavior
                      <Button asChild className="button">
-                        {/* Apply legacyBehavior to force <a> tag rendering for Slot */}
-                         <Link href="/login" legacyBehavior>
-                           <a className="button">Login</a> {/* Apply button styles to the anchor */}
-                         </Link>
+                       <Link href="/login">Login</Link>
                      </Button>
+
                  )}
                 </>
              ) : (
@@ -210,5 +209,3 @@
      </header>
    );
  }
-
-    
