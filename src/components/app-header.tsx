@@ -25,11 +25,12 @@
  import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
  // Import Tooltip components
  import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; // Ensure TooltipProvider is imported
+ import { cn } from '@/lib/utils';
 
 
  export default function AppHeader() {
    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-   const { user, loading, logout } = useAuth(); // Use auth context
+   const { user, loading: authLoading, logout } = useAuth(); // Use auth context
    const router = useRouter();
    const { toast } = useToast();
    const isAuthEnabled = true; // Re-enable auth features
@@ -55,15 +56,14 @@
        <div className="container flex h-16 items-center justify-between"> {/* Increased height */}
          {/* Logo/Brand */}
           <Link href={isAuthEnabled && user ? "/dashboard" : "/"} className="flex items-center gap-2 mr-6"> {/* Link to dashboard if logged in, else landing */}
-              {/* Use standard img tag for easier debugging */}
+              {/* Standard img tag for easier debugging */}
               <img
-                 src="/buddyscan-logo.png" // Path relative to the public folder
+                 src="/buddyscan-logo.png" // Direct path to public folder
                  alt="BuddyScan Logo"
-                 width="140" // Set width directly
-                 height="51" // Set height based on aspect ratio (742 / 2048 * 140 ≈ 51)
+                 width={140} // Set width directly
+                 height={51} // Set height based on aspect ratio (742 / 2048 * 140 ≈ 51)
                  className="object-contain h-[51px]" // Use explicit height class if needed
-                 // Add error logging for the standard img tag
-                 onError={(e) => console.error('Standard <img> load error (Header):', e.target.src, e)}
+                 // No onError needed here if we check network tab
               />
           </Link>
 
@@ -118,7 +118,7 @@
              {/* User Avatar / Login Button - Conditionally render based on isAuthEnabled */}
              {isAuthEnabled ? (
                  <>
-                 {loading ? (
+                 {authLoading ? (
                      // Skeleton loader while auth state is loading
                       <div className="flex items-center gap-2">
                          <Skeleton className="h-9 w-9 rounded-full" />
@@ -127,7 +127,9 @@
                  ) : user ? (
                       // User is logged in - Show dropdown
                       <DropdownMenu>
-                         <DropdownMenuTrigger asChild={false}> {/* Removed asChild */}
+                         {/* Correct usage: Set asChild on the Trigger */}
+                         <DropdownMenuTrigger asChild>
+                             {/* The Button becomes the direct child */}
                              <Button variant="ghost" className="relative h-9 w-9 rounded-full button p-0 focus-visible:ring-0 focus-visible:ring-offset-0">
                                  <Avatar className="h-9 w-9 border-2 border-primary/30">
                                      <AvatarImage src={user.photoURL || undefined} alt={user.displayName || user.email || 'Usuário'} />
