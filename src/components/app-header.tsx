@@ -56,15 +56,15 @@
        <div className="container flex h-16 items-center justify-between"> {/* Increased height */}
          {/* Logo/Brand */}
           <Link href={isAuthEnabled && user ? "/dashboard" : "/"} className="flex items-center gap-2 mr-6"> {/* Link to dashboard if logged in, else landing */}
-             {/* Using standard img tag as Image component was causing issues */}
+             {/* Standard img tag for debugging */}
               <img
-                  src="/buddyscan-logo.png" // Direct path to public folder
-                  alt="BuddyScan Logo"
-                  width="140" // Adjusted width
-                  height="51" // Adjusted height based on aspect ratio
-                  className="object-contain h-[51px]" // Ensure proper scaling
-                  // Added error handling for standard img
-                  onError={(e) => console.error('Standard <img> load error (Header):', (e.target as HTMLImageElement).src)}
+                 src="/buddyscan-logo.png" // Path relative to the public folder
+                 alt="BuddyScan Logo"
+                 width="140" // Set width directly
+                 height="51" // Set height based on aspect ratio (2048/742 * 140 ≈ 51)
+                 className="object-contain h-[51px]" // Use explicit height class if needed
+                 // Add error logging for the standard img tag
+                 onError={(e) => console.error('Standard <img> load error (Header):', (e.target as HTMLImageElement).src, e)}
               />
           </Link>
 
@@ -177,7 +177,7 @@
               // Auth is disabled - Show placeholder
                <TooltipProvider>
                       <Tooltip>
-                           <TooltipTrigger asChild>
+                           <TooltipTrigger> {/* Removed asChild */}
                               {/* Wrap disabled button in span for tooltip */}
                               <span tabIndex={0} className="inline-block">
                                  <Button variant="ghost" className="relative h-9 w-9 rounded-full button p-0 focus-visible:ring-0 focus-visible:ring-offset-0 opacity-50 cursor-not-allowed" disabled>
@@ -202,3 +202,4 @@
    );
  }
 
+    
