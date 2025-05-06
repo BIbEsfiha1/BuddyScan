@@ -7,7 +7,7 @@
  import Image from 'next/image';
  import ThemeToggle from '@/components/theme-toggle';
  import { Settings, Palette, LogOut, UserCircle, Loader2, Home as HomeIcon } from '@/components/ui/lucide-icons'; // Added icons, including HomeIcon
- import { Button } from '@/components/ui/button'; // Removed unused buttonVariants import
+ import { Button } from '@/components/ui/button';
  import {
     Dialog,
     DialogContent,
@@ -57,8 +57,8 @@
        <div className="container flex h-16 items-center justify-between"> {/* Increased height */}
          {/* Logo/Brand */}
           <Link href={isAuthEnabled && user ? "/dashboard" : "/"} className="flex items-center gap-2 mr-6"> {/* Link to dashboard if logged in, else landing */}
-             {/* Standard img tag for easier debugging */}
              {/* Use standard img tag for easier debugging */}
+             {/* Verify path: '/buddyscan-logo.png' assumes the file is directly in /public */}
               <img
                  src="/buddyscan-logo.png" // Path relative to the public folder
                  alt="BuddyScan Logo"
@@ -66,7 +66,10 @@
                  height="51" // Set height based on aspect ratio (2048/742 * 140 ≈ 51)
                  className="object-contain h-[51px]" // Use explicit height class if needed
                  // Add error logging for the standard img tag
-                 onError={(e) => console.error('Standard <img> load error (Header):', (e.target as HTMLImageElement).src, e)}
+                  onError={(e) => {
+                     console.error('Standard <img> load error (Header):', (e.target as HTMLImageElement).src);
+                     // Optionally set a fallback or hide the image on error
+                 }}
               />
           </Link>
 
@@ -130,7 +133,7 @@
                  ) : user ? (
                       // User is logged in - Show dropdown
                       <DropdownMenu>
-                         {/* Remove intermediate Button, apply styles directly to Trigger */}
+                         {/* Apply styles directly to Trigger */}
                          <DropdownMenuTrigger asChild>
                            <Button
                              variant="ghost"
@@ -172,7 +175,10 @@
                  ) : (
                     // User is not logged in - Show Login Button
                      <Button asChild className="button">
-                         <Link href="/login">Login</Link> {/* Point to login page if not logged in */}
+                        {/* Apply legacyBehavior to force <a> tag rendering for Slot */}
+                         <Link href="/login" legacyBehavior>
+                           <a className="button">Login</a> {/* Apply button styles to the anchor */}
+                         </Link>
                      </Button>
                  )}
                 </>
@@ -204,3 +210,5 @@
      </header>
    );
  }
+
+    
