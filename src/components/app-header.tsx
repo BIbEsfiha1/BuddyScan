@@ -55,14 +55,15 @@
        <div className="container flex h-16 items-center justify-between"> {/* Increased height */}
          {/* Logo/Brand */}
           <Link href={isAuthEnabled && user ? "/dashboard" : "/"} className="flex items-center gap-2 mr-6"> {/* Link to dashboard if logged in, else landing */}
-              <Image
+              {/* Use standard img tag for easier debugging */}
+              <img
                  src="/buddyscan-logo.png" // Path relative to the public folder
                  alt="BuddyScan Logo"
-                 width="140" // Set width directly based on logo aspect ratio (742 / 2048 * 140 ≈ 51)
-                 height="51" // Set height based on aspect ratio
-                 className="object-contain h-[51px]" // Use explicit height class
-                 priority // Prioritize logo loading
-                 onError={(e) => console.error('Standard <img> load error (Header):', (e.target as HTMLImageElement).src)}
+                 width="140" // Set width directly
+                 height="51" // Set height based on aspect ratio (742 / 2048 * 140 ≈ 51)
+                 className="object-contain h-[51px]" // Use explicit height class if needed
+                 // Add error logging for the standard img tag
+                 onError={(e) => console.error('Standard <img> load error (Header):', e.target.src, e)}
               />
           </Link>
 
@@ -126,7 +127,7 @@
                  ) : user ? (
                       // User is logged in - Show dropdown
                       <DropdownMenu>
-                         <DropdownMenuTrigger asChild>
+                         <DropdownMenuTrigger asChild={false}> {/* Removed asChild */}
                              <Button variant="ghost" className="relative h-9 w-9 rounded-full button p-0 focus-visible:ring-0 focus-visible:ring-offset-0">
                                  <Avatar className="h-9 w-9 border-2 border-primary/30">
                                      <AvatarImage src={user.photoURL || undefined} alt={user.displayName || user.email || 'Usuário'} />
