@@ -1,3 +1,4 @@
+ // src/components/app-header.tsx
  'use client';
 
  import React, { useState } from 'react';
@@ -6,7 +7,7 @@
  import Image from 'next/image';
  import ThemeToggle from '@/components/theme-toggle';
  import { Settings, Palette, LogOut, UserCircle, Loader2, Home as HomeIcon } from '@/components/ui/lucide-icons'; // Added icons, including HomeIcon
- import { Button, buttonVariants } from '@/components/ui/button'; // Import buttonVariants
+ import { Button } from '@/components/ui/button'; // Removed unused buttonVariants import
  import {
     Dialog,
     DialogContent,
@@ -56,7 +57,8 @@
        <div className="container flex h-16 items-center justify-between"> {/* Increased height */}
          {/* Logo/Brand */}
           <Link href={isAuthEnabled && user ? "/dashboard" : "/"} className="flex items-center gap-2 mr-6"> {/* Link to dashboard if logged in, else landing */}
-             {/* Standard img tag for debugging */}
+             {/* Standard img tag for easier debugging */}
+             {/* Use standard img tag for easier debugging */}
               <img
                  src="/buddyscan-logo.png" // Path relative to the public folder
                  alt="BuddyScan Logo"
@@ -129,18 +131,19 @@
                       // User is logged in - Show dropdown
                       <DropdownMenu>
                          {/* Remove intermediate Button, apply styles directly to Trigger */}
-                         <DropdownMenuTrigger
-                             className={cn(
-                                buttonVariants({ variant: "ghost", size: "icon" }), // Use buttonVariants helper
-                                "relative h-9 w-9 rounded-full button p-0 focus-visible:ring-0 focus-visible:ring-offset-0" // Keep specific overrides
-                             )}
-                         >
+                         <DropdownMenuTrigger asChild>
+                           <Button
+                             variant="ghost"
+                             size="icon"
+                             className="relative h-9 w-9 rounded-full button p-0 focus-visible:ring-0 focus-visible:ring-offset-0" // Keep specific overrides
+                           >
                              <Avatar className="h-9 w-9 border-2 border-primary/30">
                                  <AvatarImage src={user.photoURL || undefined} alt={user.displayName || user.email || 'Usuário'} />
                                  <AvatarFallback>
                                     {user.email ? user.email[0].toUpperCase() : <UserCircle className="h-5 w-5"/>}
                                  </AvatarFallback>
                               </Avatar>
+                           </Button>
                          </DropdownMenuTrigger>
                          <DropdownMenuContent className="w-56" align="end" forceMount>
                              <DropdownMenuLabel className="font-normal">
@@ -177,7 +180,7 @@
               // Auth is disabled - Show placeholder
                <TooltipProvider>
                       <Tooltip>
-                           <TooltipTrigger> {/* Removed asChild */}
+                           <TooltipTrigger asChild>
                               {/* Wrap disabled button in span for tooltip */}
                               <span tabIndex={0} className="inline-block">
                                  <Button variant="ghost" className="relative h-9 w-9 rounded-full button p-0 focus-visible:ring-0 focus-visible:ring-offset-0 opacity-50 cursor-not-allowed" disabled>
@@ -201,5 +204,3 @@
      </header>
    );
  }
-
-    
