@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from '@/hooks/use-toast';
 import { LogIn, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider, getRedirectResult } from 'firebase/auth';
+// Import firebaseInitializationError along with auth
 import { auth, firebaseInitializationError } from '@/lib/firebase/config';
 // Use standard img tag
 import Image from 'next/image';

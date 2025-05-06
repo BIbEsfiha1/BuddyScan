@@ -1,201 +1,119 @@
+
 // src/lib/firebase/config.ts
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth, browserLocalPersistence, initializeAuth, connectAuthEmulator } from 'firebase/auth'; // Added connectAuthEmulator
+
+import { initializeApp, getApps, getApp, FirebaseApp, FirebaseError } from 'firebase/app';
+import { getAuth, Auth, browserLocalPersistence, initializeAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, Firestore, connectFirestoreEmulator, Timestamp } from 'firebase/firestore'; // Import Firestore and Timestamp
 
-// --- Emulator Configuration ---
-// Ensure these environment variables are set in your .env.local file
+// --- Environment Variable Validation ---
+let firebaseInitializationError: FirebaseError | null = null;
+
 const firebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
     authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
     projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID, // Keep this one if it's static
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
   };
 
-const EMULATOR_HOST = process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST;
-const AUTH_EMULATOR_PORT = 9099; // Default Auth port
-const FIRESTORE_EMULATOR_PORT = 8080; // Default Firestore port
+const missingEnvVars = Object.entries(firebaseConfig).filter(([key, value]) => !value).map(([key]) => key);
 
-
-// --- Detailed Config Logging ---
-// Log the config being used ONCE on the client side for easier debugging
-if (typeof window !== 'undefined' && !(window as any).__firebaseConfigLogged) {
-  console.log("--- Firebase Configuration Used (config.ts from ENV VARS) ---");
-  console.log("API Key:", firebaseConfig.apiKey ? 'Present' : 'MISSING!');
-  console.log("Auth Domain:", firebaseConfig.authDomain || 'MISSING! (CRITICAL for Social Login)');
-  console.log("Project ID:", firebaseConfig.projectId || 'MISSING!');
-  console.log("Storage Bucket:", firebaseConfig.storageBucket || 'Optional - Missing');
-  console.log("Messaging Sender ID:", firebaseConfig.messagingSenderId || 'Optional - Missing');
-  console.log("App ID:", firebaseConfig.appId || 'Optional - Missing');
-  // console.log("Measurement ID:", firebaseConfig.measurementId || 'Optional (Analytics) - Missing');
-  console.log("Emulator Host (NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST):", EMULATOR_HOST || 'Not Set (Using Production)');
-  console.log("------------------------------------");
-  (window as any).__firebaseConfigLogged = true; // Prevent repeated logging
+if (missingEnvVars.length > 0) {
+    const errorMessage = `Firebase configuration is missing environment variables: ${missingEnvVars.join(', ')}. Please set them in your .env.local file.`;
+    console.error(errorMessage);
+    firebaseInitializationError = new FirebaseError('config/missing-env-vars', errorMessage);
+    // Optionally, you could throw the error here to halt execution if Firebase is absolutely critical
+    // throw firebaseInitializationError;
 }
 
 
-// Function to check if all required Firebase config values are present
-function hasFirebaseConfig(): boolean {
-    // API Key, Project ID, and Auth Domain are CRITICAL for basic auth and social login flows
-    return !!firebaseConfig.apiKey && !!firebaseConfig.projectId && !!firebaseConfig.authDomain;
-}
-
-// --- Global Error State ---
-let firebaseInitializationError: Error | null = null;
-
-// --- Configuration Validation ---
-// Log missing variables only once on the client side
-if (typeof window !== 'undefined') {
-    const requiredVars = {
-      apiKey: firebaseConfig.apiKey,
-      authDomain: firebaseConfig.authDomain, // MUST check authDomain
-      projectId: firebaseConfig.projectId,
-    };
-
-    const missingEnvVars = Object.entries(requiredVars)
-        .filter(([, value]) => !value)
-        .map(([key]) => `NEXT_PUBLIC_FIREBASE_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`);
-
-    if (missingEnvVars.length > 0) {
-         const message = `AVISO: Variáveis de ambiente CRÍTICAS da configuração do Firebase ausentes ou inválidas: ${missingEnvVars.join(', ')}. Verifique seu arquivo .env ou as configurações do ambiente. Login social e outras funcionalidades podem FALHAR.`;
-         console.warn(message); // Use warn for missing config
-         // Set initialization error only if it hasn't been set by a catch block later
-         if (!firebaseInitializationError) {
-             firebaseInitializationError = new Error(`Variáveis de ambiente CRÍTICAS do Firebase ausentes: ${missingEnvVars.join(', ')}`);
-         }
-    }
-}
-
-
-// --- Initialize Firebase ---
+// --- Firebase Initialization ---
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
-let db: Firestore | null = null; // Add Firestore instance variable
+let db: Firestore | null = null;
 
-try {
-    // Prevent initialization if an error was already detected (e.g., missing required config)
-    if (!firebaseInitializationError && hasFirebaseConfig()) {
-        if (!getApps().length) {
-            console.log("Attempting to initialize Firebase App with config:", firebaseConfig);
-            app = initializeApp(firebaseConfig);
-            console.log('Firebase App initialized successfully.');
+if (!firebaseInitializationError) {
+    try {
+        app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+        console.log('Firebase App initialized successfully.');
+
+        // Initialize Auth
+        // Use initializeAuth for persistence settings BEFORE getAuth
+        // Check if running in a browser environment before setting persistence
+        if (typeof window !== 'undefined') {
+             auth = initializeAuth(app, { persistence: browserLocalPersistence });
+             console.log('Firebase Auth initialized with browser persistence.');
         } else {
-          app = getApp();
-          console.log('Firebase App already exists, using existing instance.');
-        }
-    } else {
-        const errorMsg = `Erro Crítico: Inicialização do Firebase App ignorada devido a ${firebaseInitializationError ? 'erro prévio' : 'configuração ausente (apiKey, projectId, ou authDomain)'}. Verifique as variáveis de ambiente.`;
-        console.error(errorMsg);
-        if (!firebaseInitializationError) { // Avoid overwriting specific errors
-            firebaseInitializationError = new Error("Configuração essencial do Firebase ausente (apiKey, projectId, ou authDomain).");
-        }
-    }
-
-    // Initialize Auth only if app was successfully initialized and there's no prior error
-    if (app && !firebaseInitializationError) {
-        console.log("[DEBUG] Attempting to initialize Firebase Auth. Expected Auth Domain:", firebaseConfig.authDomain); // Log intended auth domain
-        // Use initializeAuth for better compatibility with different environments
-        auth = initializeAuth(app, {
-            persistence: browserLocalPersistence, // Use local persistence
-            // errorMap: customErrorMap, // Optional: Add custom error mapping if needed
-        });
-        // Log the Auth Domain actually being used by the auth instance
-        console.log('[DEBUG] Firebase Auth initialized. Actual Auth instance config:', auth.config);
-         if (auth.config.authDomain !== firebaseConfig.authDomain) {
-            console.error(`[CRITICAL DEBUG] Mismatch detected! Initial config authDomain: "${firebaseConfig.authDomain}", Auth instance authDomain: "${auth.config.authDomain}". THIS IS LIKELY THE CAUSE OF auth/argument-error.`);
-         } else {
-             console.log("[DEBUG] Auth instance authDomain matches initial config.");
-         }
-
-        // Connect to Auth Emulator if running locally (using the same host as Firestore)
-        if (EMULATOR_HOST && auth) { // Check if auth is not null before connecting emulator
-            // Use the same host as Firestore, but specify the Auth port
-            const authEmulatorUrl = `http://${EMULATOR_HOST}:${AUTH_EMULATOR_PORT}`;
-            console.log(`Attempting to connect to Auth Emulator: ${authEmulatorUrl}`);
-            try {
-                // Ensure connectAuthEmulator is called only once
-                if (!(auth as any).__authEmulatorConnected) {
-                    connectAuthEmulator(auth, authEmulatorUrl);
-                    (auth as any).__authEmulatorConnected = true; // Mark as connected
-                    console.log('Connected to Auth Emulator.');
-                } else {
-                    console.log('Already connected to Auth Emulator.');
-                }
-            } catch (emulatorError: any) {
-                 console.error(`Error connecting to Auth Emulator at ${authEmulatorUrl}:`, emulatorError);
-                 // Optionally set firebaseInitializationError here if emulator connection is critical for dev
-                 if (!firebaseInitializationError) { // Avoid overwriting specific errors
-                    firebaseInitializationError = new Error(`Failed to connect to Auth emulator: ${emulatorError.message}`);
-                 }
-            }
+             // Initialize without persistence for server/non-browser environments
+             auth = getAuth(app);
+             console.log('Firebase Auth initialized (no persistence).');
         }
 
-    } else if (!firebaseInitializationError) { // Only log if no error exists yet
-        const authSkipMsg = 'Erro: Inicialização do Firebase Auth ignorada porque a inicialização do app falhou ou foi ignorada.';
-        console.error(authSkipMsg);
-        firebaseInitializationError = new Error(authSkipMsg);
-    }
+        // Log the actual config being used by the auth instance
+        console.log('[DEBUG] Firebase Auth initialized. Actual Auth instance config:', auth?.config);
+        // Add check for authDomain mismatch
+        if (auth?.config?.authDomain !== firebaseConfig.authDomain) {
+          console.error(`[CRITICAL DEBUG] Mismatch detected! Initial config authDomain: "${firebaseConfig.authDomain}", Auth instance authDomain: "${auth?.config?.authDomain}".`);
+        }
 
-     // Initialize Firestore only if app was successfully initialized and there's no prior error
-     if (app && !firebaseInitializationError) {
-        console.log("Attempting to initialize Firebase Firestore...");
+
+        // Initialize Firestore
         db = getFirestore(app);
-        console.log('Firebase Firestore initialized successfully.');
+        console.log('Firebase Firestore initialized.');
 
-         // Connect to Firestore Emulator if running locally
-        if (EMULATOR_HOST && db) { // Check if db is not null
-             console.log(`Attempting to connect to Firestore Emulator: host=${EMULATOR_HOST} port=${FIRESTORE_EMULATOR_PORT}`);
-            try {
-                // Ensure connectFirestoreEmulator is called only once
-                 if (!(db as any).__firestoreEmulatorConnected) {
-                    connectFirestoreEmulator(db, EMULATOR_HOST, FIRESTORE_EMULATOR_PORT);
-                    (db as any).__firestoreEmulatorConnected = true; // Mark as connected
-                    console.log('Connected to Firestore Emulator.');
-                 } else {
-                    console.log('Already connected to Firestore Emulator.');
-                 }
-             } catch (emulatorError: any) {
-                 console.error(`Error connecting to Firestore Emulator at ${EMULATOR_HOST}:${FIRESTORE_EMULATOR_PORT}:`, emulatorError);
-                 if (!firebaseInitializationError) {
-                    firebaseInitializationError = new Error(`Failed to connect to Firestore emulator: ${emulatorError.message}`);
-                 }
-             }
-         }
-
-    } else if (!firebaseInitializationError) { // Only log if no error exists yet
-        const dbSkipMsg = 'Erro: Inicialização do Firebase Firestore ignorada porque a inicialização do app falhou ou foi ignorada.';
-        console.error(dbSkipMsg);
-        firebaseInitializationError = new Error(dbSkipMsg);
+    } catch (error: any) {
+        console.error('Error initializing Firebase:', error);
+        firebaseInitializationError = error instanceof FirebaseError ? error : new FirebaseError('config/initialization-failed', `Firebase initialization failed: ${error.message}`);
+        app = null;
+        auth = null;
+        db = null;
     }
-
-} catch (error: any) {
-    // This catch block handles errors during initializeApp, initializeAuth or getFirestore
-    console.error("CRITICAL Firebase initialization error:", error);
-
-    // Provide a more specific message based on common error codes
-    if (error.code === 'auth/invalid-api-key' || error.message?.includes('invalid-api-key') || error.code === 'invalid-api-key') {
-         const apiKeyErrorMsg = "Erro Crítico: Chave de API do Firebase inválida detectada durante a inicialização. Verifique o valor de NEXT_PUBLIC_FIREBASE_API_KEY.";
-         console.error(apiKeyErrorMsg);
-         firebaseInitializationError = new Error(apiKeyErrorMsg);
-    } else if (error.code === 'auth/invalid-auth-domain' || error.message?.includes('authDomain')) {
-         const authDomainErrorMsg = "Erro Crítico: Auth Domain do Firebase inválido ou ausente. Verifique o valor de NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN.";
-         console.error(authDomainErrorMsg);
-         firebaseInitializationError = new Error(authDomainErrorMsg);
-    } else if (error.code === 'auth/argument-error' || error.message?.includes('argument-error')) {
-         // This might be the case if the entire config object is malformed, but more often related to authDomain for signInWithPopup
-         const argErrorMsg = "Erro Crítico: Argumento inválido durante a inicialização do Firebase (possivelmente authDomain ou config inválida). Verifique a configuração no console Firebase e .env.";
-         console.error(argErrorMsg);
-         firebaseInitializationError = new Error(argErrorMsg);
-    } else {
-         firebaseInitializationError = new Error(`Falha na inicialização do Firebase: ${error.message || 'Erro desconhecido'}`);
-    }
-
-    app = null; // Ensure app is null on error
-    auth = null; // Ensure auth is null on error
-    db = null; // Ensure db is null on error
+} else {
+    console.error('Firebase initialization skipped due to missing environment variables.');
 }
 
-// Export the initialized instances and the potential error
-export { app, auth, db, firebaseInitializationError, Timestamp }; // Export Timestamp
+
+// --- Emulator Connection ---
+if (app && auth && db && process.env.NODE_ENV === 'development') {
+    const host = process.env.NEXT_PUBLIC_FIREBASE_EMULATOR_HOST || 'localhost'; // Default to localhost if not set
+    const useEmulator = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true';
+
+    if (useEmulator) {
+        console.log(`[DEV MODE] Connecting Firebase Emulators on host: ${host}`);
+        try {
+            // Check if already connected to avoid errors (optional but good practice)
+            // Note: Firebase SDK >= v9 doesn't expose easy "isConnected" flags for emulators
+            // We'll rely on the connect functions handling subsequent calls gracefully or potential errors.
+
+            // Connect Auth Emulator
+            connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
+            console.log(`Connected to Auth emulator at http://${host}:9099`);
+
+            // Connect Firestore Emulator
+            connectFirestoreEmulator(db, host, 8080);
+            console.log(`Connected to Firestore emulator at ${host}:8080`);
+
+        } catch (error: any) {
+             console.error(`Error connecting to Firebase emulators:`, error);
+             // Decide if this should be a fatal error or just a warning
+             // For instance, you might set firebaseInitializationError here as well
+             // firebaseInitializationError = new FirebaseError('config/emulator-connection-failed', `Failed to connect to emulators: ${error.message}`);
+        }
+    } else {
+        console.log("[DEV MODE] Emulators not configured to run (NEXT_PUBLIC_USE_FIREBASE_EMULATORS is not 'true'). Connecting to production Firebase.");
+    }
+} else if (process.env.NODE_ENV === 'development') {
+     console.warn("[DEV MODE] Firebase app not initialized or emulator connection skipped.");
+}
+
+
+// --- Exports ---
+export {
+    app,
+    auth,
+    db,
+    firebaseInitializationError, // Ensure firebaseInitializationError is exported
+    Timestamp, // Re-export Timestamp if needed elsewhere
+};
+export type { FirebaseApp, Auth, Firestore }; // Export types
