@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore';
 
 // --- Environment Variable Validation ---
-// Check for required environment variables
+// Check for required environment variables *only once* at the top level
 const requiredEnvVars = [
     'NEXT_PUBLIC_FIREBASE_API_KEY',
     'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
@@ -26,35 +26,39 @@ const requiredEnvVars = [
     'NEXT_PUBLIC_FIREBASE_APP_ID',
 ];
 
+// Use a flag to indicate if initialization should proceed
+let canInitializeFirebase = true;
+let firebaseInitializationErrorMessage: string | null = null;
+
+// Perform the check
 const missingEnvVars = requiredEnvVars.filter(v => !process.env[v]);
-let firebaseInitializationError: Error | null = null;
 
 if (missingEnvVars.length > 0) {
-    const errorMessage = `🚨 Falta configuração crítica do Firebase. Variáveis ausentes: ${missingEnvVars.join(', ')}. Confira seu .env.local`;
-    console.error(errorMessage); // Log the error
-    // Set the error object to be checked elsewhere
-    firebaseInitializationError = new Error(errorMessage);
+    firebaseInitializationErrorMessage = `🚨 Falta configuração crítica do Firebase. Variáveis ausentes: ${missingEnvVars.join(', ')}. Confira seu .env.local`;
+    console.error(firebaseInitializationErrorMessage); // Log the error
+    canInitializeFirebase = false;
 }
 
 // --- Firebase Configuration Object ---
-// Construct config directly from environment variables
-// Use "!" to assert they are defined (checked above, but helps TS)
-const firebaseConfig = {
+// Construct config only if initialization is possible
+const firebaseConfig = canInitializeFirebase ? {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
     authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
     projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
     messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
-};
+} : {}; // Provide an empty object if config is missing to avoid further errors accessing undefined
 
 // --- Firebase Initialization ---
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
+// Store the error object if check failed
+let firebaseInitializationError: Error | null = firebaseInitializationErrorMessage ? new Error(firebaseInitializationErrorMessage) : null;
 
 // Only attempt initialization if required env vars were present
-if (!firebaseInitializationError) {
+if (canInitializeFirebase) {
   try {
     // Initialize (or get) the Firebase App
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -75,9 +79,9 @@ if (!firebaseInitializationError) {
 
     // Debug log for authDomain mismatch check - Crucial for social login errors
     if (auth && auth.config?.authDomain !== firebaseConfig.authDomain) {
-        console.error(`[CRITICAL DEBUG] Mismatch detected! Initial config authDomain: "${firebaseConfig.authDomain}", Auth instance authDomain: "${auth.config.authDomain}". Check environment variables and build process.`);
+        console.error(`[CRITICAL DEBUG] Mismatch detectado! Config inicial authDomain: "${firebaseConfig.authDomain}", Instância Auth authDomain: "${auth.config.authDomain}". Verifique as variáveis de ambiente e o processo de build.`);
         // Optionally set the initialization error if this mismatch is critical
-        // firebaseInitializationError = new Error("Firebase authDomain mismatch detected.");
+        // firebaseInitializationError = new Error("Firebase authDomain mismatch detectado.");
         // auth = null; // Consider nullifying if this is a fatal error
     } else if (auth) {
          console.log(`[DEBUG] authDomain verificado e correto: ${auth.config.authDomain}`);
@@ -124,7 +128,10 @@ if (!firebaseInitializationError) {
 
   } catch (error: any) {
     console.error('Erro inicializando serviços Firebase:', error);
-    firebaseInitializationError = error instanceof Error ? error : new Error(`Inicialização do Firebase falhou: ${error.message}`);
+    // Ensure firebaseInitializationError is set if an error occurs during init
+    if (!firebaseInitializationError) { // Only set if not already set by env var check
+        firebaseInitializationError = error instanceof Error ? error : new Error(`Inicialização do Firebase falhou: ${error.message}`);
+    }
     app = null;
     auth = null;
     db = null;
@@ -136,6 +143,7 @@ if (!firebaseInitializationError) {
 
 
 // --- Exports ---
+// Ensure firebaseInitializationError is exported correctly
 export {
     app,
     auth,
