@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -260,20 +261,19 @@ export default function LoginPage() {
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
       <Card className="w-full max-w-md shadow-xl border-primary/20 card">
         <CardHeader className="text-center">
-            {/* Use standard img tag */}
+            {/* Standard img tag for easier debugging */}
              <img
-                 src="/buddyscan-logo.png" // Path relative to the public folder
+                 src="/buddyscan-logo.png" // Direct path to public folder
                  alt="BuddyScan Logo"
                  width={180} // Adjust width as needed
-                 height={66} // Adjust height based on aspect ratio (742 / 2048 * 180 ≈ 66)
+                 height={66} // Adjust height based on aspect ratio
                  className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
-                 // Note: onError won't trigger for 404s with standard img tags in the same way as Next/Image
                  // Check network tab for 404s if the image doesn't load.
                  onError={(e) => {
-                    console.error('Standard <img> load error (Login):', (e.target as HTMLImageElement).src);
-                    // Optionally set a fallback or hide the image on error
-                    // (e.target as HTMLImageElement).style.display = 'none';
-                }}
+                     console.error('Standard <img> load error (Login):', (e.target as HTMLImageElement).src);
+                     // Optionally set a fallback or hide the image on error
+                     // (e.target as HTMLImageElement).style.display = 'none';
+                 }}
              />
           <CardTitle className="text-2xl font-bold text-primary">Bem-vindo de volta!</CardTitle>
           <CardDescription>Faça login para acessar seu painel BuddyScan.</CardDescription>
