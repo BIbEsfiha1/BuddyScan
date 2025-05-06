@@ -8,12 +8,12 @@ import { getFirestore, Firestore, connectFirestoreEmulator, Timestamp } from 'fi
 // Using the latest config provided by the user.
 // Ensure these environment variables are set in your .env.local file
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyBsoLTF3sEq1bcKsWqmQ51xFgTwSpsTdH4", // Use provided key directly
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "cannalog-c34fx.firebaseapp.com", // Add fallback for safety
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "cannalog-c34fx",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "cannalog-c34fx.firebasestorage.app",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "581752624409",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:581752624409:web:e30cd8231db418dc2a6188"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCI3PcqYwR3v4EZVD2EY6tnbqQK94olEOg", // Updated fallback
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "cannalog-c34fx.firebaseapp.com", // Updated fallback
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "cannalog-c34fx", // Updated fallback
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "cannalog-c34fx.firebasestorage.app", // Updated fallback
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "581752624409", // Updated fallback
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:581752624409:web:e30cd8231db418dc2a6188" // Updated fallback
 }; // Add measurementId if using Analytics: measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 
 
@@ -201,4 +201,4 @@ try {
 }
 
 // Export the initialized instances and the potential error
-export { app, auth, db, firebaseInitializationError };
+export { app, auth, db, firebaseInitializationError, Timestamp }; // Export Timestamp
