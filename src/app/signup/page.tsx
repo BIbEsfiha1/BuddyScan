@@ -210,6 +210,7 @@ export default function SignupPage() {
              }
              // Log the specific config details of the auth instance being used RIGHT BEFORE the call
              console.log("[DEBUG] Auth Config Used by Instance (Signup):");
+              console.log(" auth.config:", auth.config);
              console.log("  apiKey:", auth.config.apiKey ? 'Present' : 'MISSING!');
              console.log("  authDomain:", auth.config.authDomain || 'MISSING! (Likely cause of auth/argument-error)');
              console.log("  projectId:", auth.config.projectId || 'MISSING!');

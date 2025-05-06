@@ -4,18 +4,15 @@ import { getAuth, Auth, browserLocalPersistence, initializeAuth, connectAuthEmul
 import { getFirestore, Firestore, connectFirestoreEmulator, Timestamp } from 'firebase/firestore'; // Import Firestore and Timestamp
 
 // --- Emulator Configuration ---
-// Your web app's Firebase configuration
-// Using the latest config provided by the user.
 // Ensure these environment variables are set in your .env.local file
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCI3PcqYwR3v4EZVD2EY6tnbqQK94olEOg", // Updated fallback
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "cannalog-c34fx.firebaseapp.com", // Updated fallback
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "cannalog-c34fx", // Updated fallback
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "cannalog-c34fx.firebasestorage.app", // Updated fallback
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "581752624409", // Updated fallback
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:581752624409:web:e30cd8231db418dc2a6188" // Updated fallback
-}; // Add measurementId if using Analytics: measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
-
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID, // Keep this one if it's static
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+  };
 
 const EMULATOR_HOST = process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST;
 const AUTH_EMULATOR_PORT = 9099; // Default Auth port
@@ -25,7 +22,7 @@ const FIRESTORE_EMULATOR_PORT = 8080; // Default Firestore port
 // --- Detailed Config Logging ---
 // Log the config being used ONCE on the client side for easier debugging
 if (typeof window !== 'undefined' && !(window as any).__firebaseConfigLogged) {
-  console.log("--- Firebase Configuration Used (config.ts) ---");
+  console.log("--- Firebase Configuration Used (config.ts from ENV VARS) ---");
   console.log("API Key:", firebaseConfig.apiKey ? 'Present' : 'MISSING!');
   console.log("Auth Domain:", firebaseConfig.authDomain || 'MISSING! (CRITICAL for Social Login)');
   console.log("Project ID:", firebaseConfig.projectId || 'MISSING!');
