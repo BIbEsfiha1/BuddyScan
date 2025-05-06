@@ -20,7 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"; // Import Select components
 import { useToast } from '@/hooks/use-toast'; // Import useToast
-import { firebaseInitializationError } from '@/lib/firebase/config'; // Import firebase error
+import { firebaseInitializationError } from '@/lib/firebase/config'; // firebaseInitializationError is now an Error object or null
+import { useAuth } from '@/context/auth-context'; // Import useAuth
 
 // Define expected params structure remains the same
 interface PlantPageProps {
@@ -35,11 +36,17 @@ export default function PlantPage({ params }: PlantPageProps) {
   const resolvedParams = use(params);
   const { qrCode: plantId } = resolvedParams; // Use qrCode as plantId
   const { toast } = useToast();
+  const { user, loading: authLoading, authError } = useAuth(); // Get user and auth status
+
   const [plant, setPlant] = useState<Plant | null>(null);
   const [currentStatus, setCurrentStatus] = useState<string>(''); // Local state for status
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false); // Loading state for status update
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true); // Add loading state
+
+  // Determine the current Firebase error state
+  const currentFirebaseError = firebaseInitializationError || authError;
+
 
   // Fetch plant data from Firestore
   useEffect(() => {
@@ -57,9 +64,9 @@ export default function PlantPage({ params }: PlantPageProps) {
       }
 
        // Check for Firebase initialization errors before proceeding
-      if (firebaseInitializationError) {
-          console.error("Firebase initialization error:", firebaseInitializationError);
-          setError(`Erro de configuração do Firebase: ${firebaseInitializationError.message}. Não é possível buscar dados.`);
+      if (currentFirebaseError) {
+          console.error("Firebase initialization error:", currentFirebaseError);
+          setError(`Erro de configuração do Firebase: ${currentFirebaseError.message}. Não é possível buscar dados.`);
           setIsLoading(false);
           return;
       }
@@ -84,7 +91,7 @@ export default function PlantPage({ params }: PlantPageProps) {
     };
 
     fetchPlantData();
-  }, [plantId]); // Dependency array includes plantId
+  }, [plantId, currentFirebaseError]); // Dependency array includes plantId and currentFirebaseError
 
   // --- Handle Status Update ---
   const handleStatusChange = useCallback(async (newStatus: string) => {
@@ -93,7 +100,7 @@ export default function PlantPage({ params }: PlantPageProps) {
      }
 
       // Check for Firebase initialization errors before proceeding
-     if (firebaseInitializationError) {
+     if (currentFirebaseError) {
          toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Não é possível atualizar o status devido a erro do Firebase.' });
          return;
      }
@@ -123,7 +130,7 @@ export default function PlantPage({ params }: PlantPageProps) {
      } finally {
        setIsUpdatingStatus(false);
      }
-   }, [plant, currentStatus, isUpdatingStatus, toast]);
+   }, [plant, currentStatus, isUpdatingStatus, toast, currentFirebaseError]);
 
 
   // --- Loading State ---
@@ -219,7 +226,7 @@ export default function PlantPage({ params }: PlantPageProps) {
                         <Select
                             value={currentStatus}
                             onValueChange={handleStatusChange}
-                            disabled={isUpdatingStatus || !!firebaseInitializationError}
+                            disabled={isUpdatingStatus || !!currentFirebaseError}
                         >
                             <SelectTrigger
                                 className="w-auto h-9 px-2 py-1 text-xs shadow-sm button focus:ring-offset-0 focus:ring-primary/50"

@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LogIn, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider, getRedirectResult } from 'firebase/auth';
 // Import firebaseInitializationError along with auth
-import { auth, firebaseInitializationError } from '@/lib/firebase/config';
+import { auth, firebaseInitializationError } from '@/lib/firebase/config'; // firebaseInitializationError is now an Error object or null
 // Use standard img tag
 import Image from 'next/image';
 import { useAuth } from '@/context/auth-context';
@@ -38,8 +38,12 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoginLoading, setSocialLoginLoading] = useState<string | null>(null); // Loading state for specific provider
   const [loginError, setLoginError] = useState<string | null>(null);
-  const { user, loading: authLoading } = useAuth(); // Use auth context
+  const { user, loading: authLoading, authError: contextAuthError } = useAuth(); // Use auth context, get authError
   const isAuthEnabled = true; // Keep auth enabled
+
+  // Prioritize firebaseInitializationError from config, then contextAuthError
+  const currentFirebaseError = firebaseInitializationError || contextAuthError;
+
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
@@ -133,10 +137,10 @@ export default function LoginPage() {
         return;
       }
        // Check for critical Firebase initialization error
-       if (firebaseInitializationError) {
+       if (currentFirebaseError) {
            console.error("Email login failed: Firebase initialization error.");
-           setLoginError(`Erro de Configuração: ${firebaseInitializationError.message}`);
-           toast({ variant: "destructive", title: "Erro de Configuração", description: firebaseInitializationError.message });
+           setLoginError(`Erro de Configuração: ${currentFirebaseError.message}`);
+           toast({ variant: "destructive", title: "Erro de Configuração", description: currentFirebaseError.message });
            return;
        }
 
@@ -170,10 +174,10 @@ export default function LoginPage() {
            return;
        }
        // Check for critical Firebase initialization error
-        if (firebaseInitializationError) {
+        if (currentFirebaseError) {
             console.error(`${providerType} login failed: Firebase initialization error.`);
-            setLoginError(`Erro de Configuração: ${firebaseInitializationError.message}`);
-            toast({ variant: "destructive", title: "Erro de Configuração", description: firebaseInitializationError.message });
+            setLoginError(`Erro de Configuração: ${currentFirebaseError.message}`);
+            toast({ variant: "destructive", title: "Erro de Configuração", description: currentFirebaseError.message });
             return;
         }
 
@@ -263,30 +267,27 @@ export default function LoginPage() {
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
       <Card className="w-full max-w-md shadow-xl border-primary/20 card">
         <CardHeader className="text-center">
-            {/* Standard img tag for easier debugging */}
-             <img
+             <Image
                  src="/buddyscan-logo.png" // Direct path to public folder
                  alt="BuddyScan Logo"
                  width={180} // Adjust width as needed
                  height={66} // Adjust height based on aspect ratio
                  className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
-                 // Check network tab for 404s if the image doesn't load.
+                 priority // Prioritize loading the logo
                  onError={(e) => {
                      console.error('Standard <img> load error (Login):', (e.target as HTMLImageElement).src);
-                     // Optionally set a fallback or hide the image on error
-                     // (e.target as HTMLImageElement).style.display = 'none';
                  }}
              />
           <CardTitle className="text-2xl font-bold text-primary">Bem-vindo de volta!</CardTitle>
           <CardDescription>Faça login para acessar seu painel BuddyScan.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-            {firebaseInitializationError && (
+            {currentFirebaseError && (
                  <Alert variant="destructive">
                      <AlertCircle className="h-4 w-4" />
                      <AlertTitle>Erro Crítico de Configuração</AlertTitle>
                      <AlertDescription>
-                         {firebaseInitializationError.message}. A autenticação pode não funcionar. Verifique as variáveis de ambiente (API Key, Auth Domain, etc.).
+                         {currentFirebaseError.message}. A autenticação pode não funcionar. Verifique as variáveis de ambiente (API Key, Auth Domain, etc.) ou contate o suporte.
                      </AlertDescription>
                  </Alert>
              )}
@@ -300,7 +301,7 @@ export default function LoginPage() {
                     type="email"
                     placeholder="seuemail@exemplo.com"
                     {...register('email')}
-                    disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth is disabled
+                    disabled={isLoading || !!currentFirebaseError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth is disabled
                     className={`input ${errors.email ? 'border-destructive focus:ring-destructive' : ''}`}
                     aria-invalid={errors.email ? "true" : "false"}
                   />
@@ -313,7 +314,7 @@ export default function LoginPage() {
                     type="password"
                     placeholder="Sua senha"
                     {...register('password')}
-                    disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth is disabled
+                    disabled={isLoading || !!currentFirebaseError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth is disabled
                     className={`input ${errors.password ? 'border-destructive focus:ring-destructive' : ''}`}
                      aria-invalid={errors.password ? "true" : "false"}
                   />
@@ -328,7 +329,7 @@ export default function LoginPage() {
                    </Alert>
                 )}
 
-                <Button type="submit" className="w-full font-semibold button" disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading || !isAuthEnabled}>
+                <Button type="submit" className="w-full font-semibold button" disabled={isLoading || !!currentFirebaseError || !!socialLoginLoading || !isAuthEnabled}>
                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
                    {isLoading ? 'Entrando...' : 'Entrar'}
                 </Button>
@@ -356,7 +357,7 @@ export default function LoginPage() {
                        <Button
                          variant="outline"
                          onClick={() => handleSocialLogin('google')}
-                         disabled={isLoading || !!firebaseInitializationError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
+                         disabled={isLoading || !!currentFirebaseError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
                          className="button justify-center gap-2 w-full"
                        >
                           {socialLoginLoading === 'Google' ? <Loader2 className="h-5 w-5 animate-spin"/> : <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.36 1.67-4.06 1.67-3.4 0-6.33-2.83-6.33-6.33s2.93-6.33 6.33-6.33c1.9 0 3.21.73 4.18 1.69l2.6-2.6C16.84 3.18 14.91 2 12.48 2 7.48 2 3.11 6.33 3.11 11.33s4.37 9.33 9.37 9.33c3.19 0 5.64-1.18 7.57-3.01 2-1.9 2.6-4.5 2.6-6.66 0-.58-.05-1.14-.13-1.67z"></path></svg>}
@@ -369,7 +370,7 @@ export default function LoginPage() {
                       <p>Login está temporariamente desabilitado.</p>
                     </TooltipContent>
                  )}
-            </Tooltip>
+             </Tooltip>
 
             {/* Placeholder for other social logins */}
              <Button

@@ -14,12 +14,14 @@ import {
 import { Badge } from '@/components/ui/badge';
 import type { DiaryEntry } from '@/types/diary-entry';
 // Import Firestore functions for diary entries
-import { loadDiaryEntriesPaginated, addDiaryEntryToFirestore } from '@/types/diary-entry'; // Use paginated load function
+import { loadDiaryEntriesPaginated, addDiaryEntryToFirestore, getDiaryEntriesCollectionRef } from '@/types/diary-entry'; // Use paginated load function
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert components
 import { Button } from '@/components/ui/button'; // Import Button for refresh
-import { firebaseInitializationError } from '@/lib/firebase/config'; // Import Firebase error state
+import { firebaseInitializationError } from '@/lib/firebase/config'; // firebaseInitializationError is now an Error object or null
 import { useAuth } from '@/context/auth-context'; // Import useAuth to potentially map author IDs later
-import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore'; // Import Firestore types
+import type { QueryDocumentSnapshot, DocumentData, Timestamp } from 'firebase/firestore'; // Import Firestore types
+import { query, orderBy, limit as firestoreLimit, startAfter, getDocs } from 'firebase/firestore';
+
 
 interface PlantDiaryProps {
   plantId: string;
@@ -34,13 +36,16 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
   const [error, setError] = useState<string | null>(null);
   const [lastVisibleEntry, setLastVisibleEntry] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMoreEntries, setHasMoreEntries] = useState(true);
-  const { user: currentUser } = useAuth(); // Get current user for display purposes if needed
+  const { user: currentUser, authError } = useAuth(); // Get current user for display purposes if needed
+
+  // Determine the current Firebase error state
+  const currentFirebaseError = firebaseInitializationError || authError;
 
   // Use useCallback to memoize the load function
   const loadEntries = useCallback(async (loadMore = false) => {
     // Check Firebase availability before loading
-    if (firebaseInitializationError) {
-        setError(`Firebase não inicializado: ${firebaseInitializationError.message}`);
+    if (currentFirebaseError) {
+        setError(`Firebase não inicializado: ${currentFirebaseError.message}`);
         setIsLoading(false);
         setIsFetchingMore(false);
         return;
@@ -68,18 +73,19 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
       const diaryEntriesCollection = getDiaryEntriesCollectionRef(plantId);
       let q = query(diaryEntriesCollection, orderBy('timestamp', 'desc'), firestoreLimit(ENTRIES_PER_PAGE)); // Order by Firestore timestamp
 
-      if (lastVisibleEntry) {
+      if (lastVisibleEntry && loadMore) { // Ensure lastVisibleEntry is used only for loadMore
           q = query(q, startAfter(lastVisibleEntry));
       }
 
       const querySnapshot = await getDocs(q);
 
-      const entries: DiaryEntry[] = [];
+      const fetchedEntries: DiaryEntry[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         // Convert Firestore Timestamp back to ISO string
-        const timestamp = (data.timestamp instanceof Timestamp) ? data.timestamp.toDate().toISOString() : data.timestamp;
-        entries.push({
+        const timestamp = (data.timestamp as Timestamp)?.toDate?.().toISOString() || data.timestamp;
+
+        fetchedEntries.push({
           ...data,
           id: doc.id,
           timestamp: timestamp,
@@ -87,11 +93,11 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
       });
 
       const newLastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
-      console.log(`Carregadas ${entries.length} entradas do diário. Próxima página começa após: ${newLastVisible?.id}`);
+      console.log(`Carregadas ${fetchedEntries.length} entradas do diário. Próxima página começa após: ${newLastVisible?.id}`);
 
-      setEntries(prevEntries => loadMore ? [...prevEntries, ...entries] : entries);
+      setEntries(prevEntries => loadMore ? [...prevEntries, ...fetchedEntries] : fetchedEntries);
       setLastVisibleEntry(newLastVisible);
-      setHasMoreEntries(entries.length === ENTRIES_PER_PAGE);
+      setHasMoreEntries(fetchedEntries.length === ENTRIES_PER_PAGE);
 
     } catch (err: any) {
       console.error('Falha ao buscar entradas do diário no Firestore:', err);
@@ -100,13 +106,18 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
       setIsLoading(false);
       setIsFetchingMore(false);
     }
-  }, [plantId]); // Dependency array includes plantId and the pagination cursor
+  }, [plantId, lastVisibleEntry, currentFirebaseError]); // Dependency array includes plantId and the pagination cursor and firebase error state
 
   // Load initial entries on mount or when plantId changes
   useEffect(() => {
     console.log("PlantDiary useEffect triggered for initial load, plantId:", plantId);
-    loadEntries(false);
-  }, [loadEntries, plantId]); // Only re-run initial load if plantId changes or loadEntries changes
+    if (plantId && !currentFirebaseError) { // Only load if plantId is valid and no Firebase error
+        loadEntries(false);
+    } else if (currentFirebaseError) {
+        setIsLoading(false); // Stop loading if there's a Firebase error
+        setError(`Firebase não inicializado: ${currentFirebaseError.message}`);
+    }
+  }, [plantId, currentFirebaseError, loadEntries]); // Re-run if plantId or firebase error state changes
 
 
    // Handler for when DiaryEntryForm submits a new entry
@@ -140,7 +151,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
         plantId={plantId}
         onNewEntry={handleNewEntry}
         // Pass disabled state based on Firebase init error (prop needs to be added to form)
-        // disabled={!!firebaseInitializationError}
+        // disabled={!!currentFirebaseError}
       />
 
 
@@ -151,23 +162,23 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                 <CardTitle className="text-2xl flex items-center gap-2"><History className="h-6 w-6 text-primary"/>Histórico do Diário</CardTitle>
                 <CardDescription>Registro cronológico de observações e ações.</CardDescription>
             </div>
-             <Button variant="outline" size="sm" onClick={() => loadEntries(false)} disabled={isLoading || isFetchingMore || !!firebaseInitializationError} className="button">
+             <Button variant="outline" size="sm" onClick={() => loadEntries(false)} disabled={isLoading || isFetchingMore || !!currentFirebaseError} className="button">
                  {isLoading && !isFetchingMore ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                  {isLoading && !isFetchingMore ? 'Atualizando...' : 'Atualizar'}
              </Button>
         </CardHeader>
         <CardContent className="space-y-6 pt-6 px-4 md:px-6">
           {/* Display Firebase Init Error */}
-           {firebaseInitializationError && (
+           {currentFirebaseError && (
               <Alert variant="destructive" className="mt-4">
                  <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Erro de Configuração do Firebase</AlertTitle>
-                <AlertDescription>{firebaseInitializationError.message}. Não é possível carregar ou salvar entradas.</AlertDescription>
+                <AlertTitle>Erro Crítico de Configuração</AlertTitle>
+                <AlertDescription>{currentFirebaseError.message}. Não é possível carregar ou salvar entradas.</AlertDescription>
               </Alert>
            )}
 
            {/* Loading Skeletons for initial load */}
-           {isLoading && !isFetchingMore && (
+           {isLoading && !isFetchingMore && !currentFirebaseError &&(
               <div className="space-y-6 pt-4">
                 {[...Array(3)].map((_, i) => ( // Show 3 skeletons
                     <Skeleton key={i} className="h-56 w-full rounded-lg" />
@@ -176,7 +187,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
            )}
 
            {/* Error Message */}
-           {error && !isLoading && (
+           {error && !isLoading && !currentFirebaseError &&(
               <Alert variant="destructive" className="mt-4">
                  <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Erro ao Carregar Diário</AlertTitle>
@@ -188,7 +199,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
            )}
 
           {/* No Entries Message */}
-          {!isLoading && !error && !firebaseInitializationError && entries.length === 0 && (
+          {!isLoading && !error && !currentFirebaseError && entries.length === 0 && (
             <div className="text-center py-10 text-muted-foreground border border-dashed rounded-lg mt-4">
                 <ClipboardList className="h-12 w-12 mx-auto mb-3 text-secondary/50"/>
                 <p className="font-medium">Nenhuma entrada no diário ainda.</p>
@@ -197,7 +208,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
           )}
 
           {/* Entries List - Only show if no errors and not loading initially */}
-          {!isLoading && !error && !firebaseInitializationError && entries.length > 0 && (
+          {!isLoading && !error && !currentFirebaseError && entries.length > 0 && (
             <div className="space-y-6 mt-4">
                 {entries.map((entry) => (
                   <Card key={entry.id} className="border shadow-md overflow-hidden bg-card/80 hover:shadow-lg transition-shadow card">
@@ -284,11 +295,11 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
           )}
 
             {/* Load More Button */}
-             {!isLoading && entries.length > 0 && hasMoreEntries && (
+             {!isLoading && entries.length > 0 && hasMoreEntries && !currentFirebaseError && (
                <div className="text-center mt-6 py-4 border-t">
                    <Button
                        onClick={() => loadEntries(true)}
-                       disabled={isFetchingMore || !!firebaseInitializationError}
+                       disabled={isFetchingMore || !!currentFirebaseError}
                        variant="secondary"
                        className="button"
                    >
@@ -304,7 +315,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
              )}
 
              {/* End of List Indicator */}
-             {!isLoading && !hasMoreEntries && entries.length > 0 && (
+             {!isLoading && !hasMoreEntries && entries.length > 0 && !currentFirebaseError && (
                  <p className="text-center text-muted-foreground text-sm mt-6 py-4 border-t">Fim do histórico.</p>
              )}
 

@@ -28,8 +28,9 @@ import type { Plant } from '@/services/plant-id'; // Import Plant type
 import { getRecentPlants, getAttentionPlants, getPlantById } from '@/services/plant-id'; // Import Firestore fetch functions
 import Image from 'next/image'; // Import Image component
 import { cn } from '@/lib/utils'; // Import cn utility
-import { firebaseInitializationError } from '@/lib/firebase/config'; // Import firebase error state
+import { firebaseInitializationError } from '@/lib/firebase/config'; // firebaseInitializationError is now an Error object or null
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; // Import Tooltip components
+import { useAuth } from '@/context/auth-context'; // Import useAuth
 
 
 // Define states for camera/scanner
@@ -38,6 +39,8 @@ type ScannerStatus = 'idle' | 'permission-pending' | 'permission-denied' | 'init
 export default function DashboardPage() { // Renamed component to DashboardPage
   const router = useRouter();
   const { toast } = useToast();
+  const { user, loading: authLoading, authError } = useAuth(); // Get user and auth status
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [scannerStatus, setScannerStatus] = useState<ScannerStatus>('idle');
   const [scannerError, setScannerError] = useState<string | null>(null);
@@ -54,6 +57,9 @@ export default function DashboardPage() { // Renamed component to DashboardPage
   const [isLoadingPlants, setIsLoadingPlants] = useState(true);
   // State for general error display
   const [error, setError] = useState<string | null>(null);
+
+  // Determine the current Firebase error state, prioritizing the direct import, then context
+  const currentFirebaseError = firebaseInitializationError || authError;
 
 
   // Track mount state and check scanner support
@@ -86,9 +92,9 @@ export default function DashboardPage() { // Renamed component to DashboardPage
      setError(null); // Reset error state
 
      // Check for Firebase initialization errors before proceeding
-     if (firebaseInitializationError) {
-         console.error("Firebase initialization error:", firebaseInitializationError);
-         setError(`Erro de configuração do Firebase: ${firebaseInitializationError.message}. Não é possível buscar dados.`);
+     if (currentFirebaseError) {
+         console.error("Firebase initialization error:", currentFirebaseError);
+         setError(`Erro de configuração do Firebase: ${currentFirebaseError.message}. Não é possível buscar dados.`);
          setIsLoadingPlants(false);
          return;
      }
@@ -117,7 +123,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
        setIsLoadingPlants(false);
         console.log("Finished fetching plant data.");
      }
-   }, [toast]); // Dependency: toast
+   }, [toast, currentFirebaseError]); // Dependency: toast and currentFirebaseError
 
 
    // --- Effect to fetch plant data on mount and when dialog closes ---
@@ -179,9 +185,6 @@ export default function DashboardPage() { // Renamed component to DashboardPage
 
     try {
        // Try to get the environment-facing camera first.
-       // Note: The browser determines which camera fulfills 'environment'. On some devices,
-       // this might be the ultra-wide camera instead of the main wide-angle camera.
-       // Controlling the specific camera beyond 'facingMode' is complex and unreliable across devices.
        console.log("Requesting environment camera...");
        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
        console.log("Camera permission granted (environment facing). Stream tracks:", stream.getTracks());
@@ -341,8 +344,8 @@ export default function DashboardPage() { // Renamed component to DashboardPage
            toast({ title: 'QR Code Detectado!', description: `Verificando planta ${qrCodeData}...` });
 
            // Check for Firebase initialization errors before Firestore check
-           if (firebaseInitializationError) {
-               console.error("Firebase initialization error during QR verification:", firebaseInitializationError);
+           if (currentFirebaseError) {
+               console.error("Firebase initialization error during QR verification:", currentFirebaseError);
                toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Não foi possível verificar a planta devido a erro do Firebase.' });
                setScannerStatus('error');
                setScannerError('Erro de configuração ao verificar planta.');
@@ -406,7 +409,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
        }
      }, 500); // Interval duration (adjust if needed, e.g., 300ms for faster scans)
      console.log("Scan interval setup complete.");
-   }, [stopScanInterval, stopMediaStream, toast, isDialogOpen, scannerStatus]); // Added isDialogOpen and scannerStatus
+   }, [stopScanInterval, stopMediaStream, toast, isDialogOpen, scannerStatus, currentFirebaseError]); // Added isDialogOpen and scannerStatus, currentFirebaseError
 
 
   // --- Dialog Open/Close Handlers ---
@@ -604,17 +607,17 @@ export default function DashboardPage() { // Renamed component to DashboardPage
        </header>
 
        {/* Display Global Error if Firebase Failed */}
-        {firebaseInitializationError && (
+        {currentFirebaseError && (
           <Alert variant="destructive" className="mb-6">
             <AlertCircleIcon className="h-4 w-4" />
             <AlertTitle>Erro Crítico de Configuração</AlertTitle>
             <AlertDescription>
-              {firebaseInitializationError.message}. Algumas funcionalidades podem estar indisponíveis. Verifique o console para mais detalhes.
+              {currentFirebaseError.message}. Algumas funcionalidades podem estar indisponíveis. Verifique o console para mais detalhes.
             </AlertDescription>
           </Alert>
         )}
         {/* Display General Fetch Error */}
-        {error && !firebaseInitializationError && (
+        {error && !currentFirebaseError && (
            <Alert variant="destructive" className="mb-6">
               <AlertCircleIcon className="h-4 w-4" />
               <AlertTitle>Erro ao Carregar Dados</AlertTitle>
@@ -647,7 +650,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                    className="w-full text-base font-medium button justify-start"
                    onClick={handleRegister}
                    aria-label="Cadastrar Nova Planta"
-                   disabled={isDialogOpen || !!firebaseInitializationError} // Disable if dialog open or Firebase error
+                   disabled={isDialogOpen || !!currentFirebaseError} // Disable if dialog open or Firebase error
                  >
                    <PlusCircle className="mr-3 h-5 w-5" />
                    Cadastrar Nova Planta
@@ -656,14 +659,14 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                  <Tooltip>
                      <TooltipTrigger asChild>
                          {/* Wrap the button that might be disabled in a span for the tooltip to work */}
-                         <span tabIndex={0} className={cn(!isScannerSupported && 'cursor-not-allowed')}>
+                         <span tabIndex={0} className={cn(!isAuthEnabled && 'cursor-not-allowed')}>
                              <Button
                                 size="lg"
                                 variant="secondary"
                                 className="w-full text-base font-medium button justify-start"
                                 onClick={handleScanClick}
                                 aria-label="Escanear QR Code da Planta"
-                                disabled={isDialogOpen || !!firebaseInitializationError || !isScannerSupported} // Disable if dialog open, Firebase error, or scanner not supported
+                                disabled={isDialogOpen || !!currentFirebaseError || !isScannerSupported} // Disable if dialog open, Firebase error, or scanner not supported
                              >
                                <ScanLine className="mr-3 h-5 w-5" />
                                Escanear QR Code
@@ -684,7 +687,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                    className="w-full text-base font-medium button justify-start"
                    onClick={() => router.push('/plants')}
                    aria-label="Ver todas as plantas"
-                   disabled={isDialogOpen || !!firebaseInitializationError} // Disable if dialog open or Firebase error
+                   disabled={isDialogOpen || !!currentFirebaseError} // Disable if dialog open or Firebase error
                  >
                    <Package className="mr-3 h-5 w-5" />
                    Ver Todas as Plantas

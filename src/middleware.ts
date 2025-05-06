@@ -2,32 +2,27 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-// Removed import: import { firebaseInitializationError } from './lib/firebase/config'; // Auth is not needed here directly
+// Removed import of firebaseInitializationError as it's not available/reliable in middleware edge environment
+// import { auth } from './lib/firebase/config'; // Auth instance might also not be directly usable here
 
 export function middleware(req: NextRequest) {
-  // Removed Firebase initialization check block
-  /*
-  if (firebaseInitializationError) {
-     console.error("Middleware: Firebase Initialization Error Detected.", firebaseInitializationError);
-    return new NextResponse(
-      `🚨 Erro na Configuração do Servidor: ${firebaseInitializationError.message}. Por favor, contate o suporte.`,
-      { status: 500 }
-    );
-  }
-  */
-
   // Authentication check example (if you re-enable auth):
   const requiresAuth = ['/dashboard', '/plant', '/register-plant', '/plants']; // Add protected routes
   const requiresNoAuth = ['/login', '/signup']; // Routes for non-logged-in users
   const { pathname } = req.nextUrl;
-  const authToken = req.cookies.get('firebaseAuthToken')?.value; // Example cookie name - Ensure you set this cookie on login
 
-  if (requiresAuth.some(path => pathname.startsWith(path)) && !authToken) {
+  // Use a generic cookie name, actual validation should happen server-side or via Firebase SDK on client
+  const authTokenCookie = req.cookies.get('firebaseAuthToken'); // Example cookie name
+  const hasAuthToken = !!authTokenCookie; // Check if the cookie exists
+
+  if (requiresAuth.some(path => pathname.startsWith(path)) && !hasAuthToken) {
     console.log(`Middleware: No auth token, redirecting from ${pathname} to /login`);
-    return NextResponse.redirect(new URL('/login', req.url));
+    const loginUrl = new URL('/login', req.url);
+    // loginUrl.searchParams.set('redirect', pathname); // Optional: redirect back after login
+    return NextResponse.redirect(loginUrl);
   }
 
-  if (requiresNoAuth.some(path => pathname.startsWith(path)) && authToken) {
+  if (requiresNoAuth.some(path => pathname.startsWith(path)) && hasAuthToken) {
     console.log(`Middleware: Auth token present, redirecting from ${pathname} to /dashboard`);
      return NextResponse.redirect(new URL('/dashboard', req.url));
   }

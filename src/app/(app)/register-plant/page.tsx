@@ -25,7 +25,8 @@ import { generateUniqueId } from '@/lib/utils';
 // import { QrCode as QrCodeIcon } from 'lucide-react'; // Already imported from lucide-icons
 import { toDataURL } from 'qrcode'; // Import QR code generation function
 import Image from 'next/image'; // Import Next Image component
-import { firebaseInitializationError } from '@/lib/firebase/config'; // Import Firebase error state
+import { firebaseInitializationError } from '@/lib/firebase/config'; // firebaseInitializationError is now an Error object or null
+import { useAuth } from '@/context/auth-context'; // Import useAuth
 
 
 // Define the schema for plant registration, updated fields
@@ -44,10 +45,15 @@ type RegisterPlantFormData = z.infer<typeof registerPlantSchema>;
 export default function RegisterPlantPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const { user, loading: authLoading, authError } = useAuth(); // Get user and auth status
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [generatedQrCode, setGeneratedQrCode] = useState<string | null>(null);
   const [qrCodeImageDataUrl, setQrCodeImageDataUrl] = useState<string | null>(null);
+
+  // Determine the current Firebase error state
+  const currentFirebaseError = firebaseInitializationError || authError;
 
 
   const form = useForm<RegisterPlantFormData>({
@@ -84,9 +90,9 @@ export default function RegisterPlantPage() {
     setQrCodeImageDataUrl(null);
 
     // Check for Firebase initialization errors before proceeding
-    if (firebaseInitializationError) {
-        console.error("Firebase initialization error:", firebaseInitializationError);
-        setSubmitError(`Erro de configuração do Firebase: ${firebaseInitializationError.message}. Não é possível salvar.`);
+    if (currentFirebaseError) {
+        console.error("Firebase initialization error:", currentFirebaseError);
+        setSubmitError(`Erro de configuração do Firebase: ${currentFirebaseError.message}. Não é possível salvar.`);
         toast({
             variant: 'destructive',
             title: 'Erro de Configuração',
@@ -256,7 +262,7 @@ export default function RegisterPlantPage() {
                             <Leaf className="h-4 w-4 text-secondary" /> Variedade (Strain)
                         </FormLabel>
                         <FormControl>
-                            <Input placeholder="Ex: Northern Lights, Purple Haze..." {...field} disabled={isSubmitting || !!firebaseInitializationError} className="input"/>
+                            <Input placeholder="Ex: Northern Lights, Purple Haze..." {...field} disabled={isSubmitting || !!currentFirebaseError} className="input"/>
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -273,7 +279,7 @@ export default function RegisterPlantPage() {
                             <Archive className="h-4 w-4 text-secondary" /> Nome do Lote/Grupo
                           </FormLabel>
                           <FormControl>
-                            <Input placeholder="Ex: Lote Verão 24, Grupo A" {...field} disabled={isSubmitting || !!firebaseInitializationError} className="input"/>
+                            <Input placeholder="Ex: Lote Verão 24, Grupo A" {...field} disabled={isSubmitting || !!currentFirebaseError} className="input"/>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -291,7 +297,7 @@ export default function RegisterPlantPage() {
                             <CalendarDays className="h-4 w-4 text-secondary" /> Data de Nascimento / Plantio
                         </FormLabel>
                         <FormControl>
-                            <Input type="date" {...field} disabled={isSubmitting || !!firebaseInitializationError} className="input appearance-none"/>
+                            <Input type="date" {...field} disabled={isSubmitting || !!currentFirebaseError} className="input appearance-none"/>
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -309,7 +315,7 @@ export default function RegisterPlantPage() {
                           </FormLabel>
                           <FormControl>
                             {/* Use field.value and handle empty string for optional date */}
-                            <Input type="date" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value || null)} disabled={isSubmitting || !!firebaseInitializationError} className="input appearance-none"/>
+                            <Input type="date" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value || null)} disabled={isSubmitting || !!currentFirebaseError} className="input appearance-none"/>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -327,7 +333,7 @@ export default function RegisterPlantPage() {
                             <Warehouse className="h-4 w-4 text-secondary" /> ID da Sala de Cultivo
                         </FormLabel>
                         <FormControl>
-                            <Input placeholder="Ex: Tenda Veg, Sala Flora 1" {...field} disabled={isSubmitting || !!firebaseInitializationError} className="input"/>
+                            <Input placeholder="Ex: Tenda Veg, Sala Flora 1" {...field} disabled={isSubmitting || !!currentFirebaseError} className="input"/>
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -343,14 +349,14 @@ export default function RegisterPlantPage() {
                         {submitError}
                         </div>
                     )}
-                     {firebaseInitializationError && !submitError && (
+                     {currentFirebaseError && !submitError && (
                          <div className="text-sm font-medium text-destructive text-center bg-destructive/10 p-3 rounded-md">
-                             Erro de Configuração: {firebaseInitializationError.message}. Não é possível salvar.
+                             Erro de Configuração: {currentFirebaseError.message}. Não é possível salvar.
                          </div>
                      )}
 
                     {/* Submit Button */}
-                <Button type="submit" size="lg" className="w-full font-semibold button" disabled={isSubmitting || !!firebaseInitializationError}>
+                <Button type="submit" size="lg" className="w-full font-semibold button" disabled={isSubmitting || !!currentFirebaseError}>
                     {isSubmitting ? (
                     <>
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Cadastrando...

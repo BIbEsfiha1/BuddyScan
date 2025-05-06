@@ -31,7 +31,7 @@ import { addDiaryEntryToFirestore } from '@/types/diary-entry';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { firebaseInitializationError } from '@/lib/firebase/config'; // Import Firebase error state
+import { firebaseInitializationError } from '@/lib/firebase/config'; // firebaseInitializationError is now an Error object or null
 import { useAuth } from '@/context/auth-context'; // Import useAuth
 import { cn } from '@/lib/utils'; // Import cn
 
@@ -51,11 +51,11 @@ const diaryEntrySchema = z.object({
         z.number({ invalid_type_error: 'pH deve ser um número' }).min(0).max(14, "pH deve estar entre 0 e 14").optional().nullable()
    ),
   temp: z.preprocess(
-         (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
+         (val) => (val === "" || val === undefined ? undefined : Number(val)),
          z.number({ invalid_type_error: 'Temperatura deve ser um número' }).optional().nullable()
    ),
   humidity: z.preprocess(
-         (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
+         (val) => (val === "" || val === undefined ? undefined : Number(val)),
           z.number({ invalid_type_error: 'Umidade não pode ser negativa' }).min(0, "Umidade não pode ser negativa").max(100, "Umidade não pode ser maior que 100").optional().nullable()
    ),
 });
@@ -78,7 +78,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const { toast } = useToast();
-  const { user, loading: authLoading } = useAuth(); // Get user and auth loading state
+  const { user, loading: authLoading, authError } = useAuth(); // Get user and auth loading state
 
   // Camera related state
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle');
@@ -89,8 +89,11 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null); // Ref for file input
 
+  // Determine the current Firebase error state
+  const currentFirebaseError = firebaseInitializationError || authError;
+
   // Determine if the form should be globally disabled
-  const isDisabled = isSubmitting || isAnalyzing || showCameraView || !!firebaseInitializationError || authLoading || !user; // Disable if no user or loading auth
+  const isDisabled = isSubmitting || isAnalyzing || showCameraView || !!currentFirebaseError || authLoading || !user; // Disable if no user or loading auth
 
 
   const form = useForm<DiaryEntryFormData>({
@@ -325,7 +328,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
         });
         return;
     }
-     if (firebaseInitializationError) {
+     if (currentFirebaseError) {
         toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Serviço de análise indisponível devido a erro do Firebase.' });
         return;
      }
@@ -368,9 +371,9 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
      setSubmitError(null);
 
      // Check for Firebase initialization errors before proceeding
-     if (firebaseInitializationError) {
-         console.error("Firebase initialization error:", firebaseInitializationError);
-         setSubmitError(`Erro de configuração do Firebase: ${firebaseInitializationError.message}. Não é possível salvar.`);
+     if (currentFirebaseError) {
+         console.error("Firebase initialization error:", currentFirebaseError);
+         setSubmitError(`Erro de configuração do Firebase: ${currentFirebaseError.message}. Não é possível salvar.`);
          toast({
              variant: 'destructive',
              title: 'Erro de Configuração',
@@ -459,23 +462,23 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
 
              {/* Firebase Init Error Display */}
-              {firebaseInitializationError && (
+              {currentFirebaseError && (
                  <Alert variant="destructive" className="p-3">
                    <AlertCircle className="h-4 w-4"/>
-                   <AlertTitle>Erro de Configuração do Firebase</AlertTitle>
-                   <AlertDescription className="text-sm">{firebaseInitializationError.message}. Não é possível salvar entradas.</AlertDescription>
+                   <AlertTitle>Erro Crítico de Configuração</AlertTitle>
+                   <AlertDescription className="text-sm">{currentFirebaseError.message}. Não é possível salvar entradas.</AlertDescription>
                  </Alert>
               )}
 
              {/* Auth Loading/Not Logged In Message */}
-             {authLoading && !isDisabled && (
+             {authLoading && !isDisabled && !currentFirebaseError && (
                   <Alert variant="default" className="p-3 border-blue-500/50 bg-blue-500/10">
                       <Loader2 className="h-4 w-4 animate-spin text-blue-600"/>
                       <AlertTitle>Verificando Autenticação...</AlertTitle>
                       <AlertDescription className="text-sm text-blue-700">Aguarde enquanto verificamos seu login.</AlertDescription>
                   </Alert>
              )}
-             {!authLoading && !user && !firebaseInitializationError && (
+             {!authLoading && !user && !currentFirebaseError && (
                   <Alert variant="destructive" className="p-3">
                       <AlertCircle className="h-4 w-4"/>
                       <AlertTitle>Login Necessário</AlertTitle>
@@ -515,7 +518,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                          <FormItem>
                            <FormLabel className="flex items-center gap-1.5"><Layers className="h-4 w-4 text-secondary"/>Estágio</FormLabel>
                            <FormControl>
-                             <Input placeholder="ex: Floração S3" {...field} disabled={isDisabled} className="input"/>
+                             <Input placeholder="ex: Floração S3" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value || null)} disabled={isDisabled} className="input"/>
                            </FormControl>
                            <FormMessage />
                          </FormItem>
@@ -528,7 +531,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                            <FormItem>
                              <FormLabel className="flex items-center gap-1.5"><Ruler className="h-4 w-4 text-secondary"/>Altura (cm)</FormLabel>
                              <FormControl>
-                                <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isDisabled} className="input"/>
+                                <Input type="number" step="0.1" placeholder="ex: 45.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isDisabled} className="input"/>
                              </FormControl>
                              <FormMessage />
                            </FormItem>
@@ -541,7 +544,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                              <FormItem>
                                  <FormLabel className="flex items-center gap-1.5"><Gauge className="h-4 w-4 text-secondary"/>EC</FormLabel>
                                  <FormControl>
-                                     <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isDisabled} className="input"/>
+                                     <Input type="number" step="0.1" placeholder="ex: 1.6" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isDisabled} className="input"/>
                                  </FormControl>
                                  <FormMessage />
                              </FormItem>
@@ -554,7 +557,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                              <FormItem>
                                  <FormLabel className="flex items-center gap-1.5"><FlaskConical className="h-4 w-4 text-secondary"/>pH</FormLabel>
                                  <FormControl>
-                                     <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isDisabled} className="input"/>
+                                     <Input type="number" step="0.1" placeholder="ex: 6.0" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isDisabled} className="input"/>
                                  </FormControl>
                                  <FormMessage />
                              </FormItem>
@@ -567,7 +570,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                              <FormItem>
                                  <FormLabel className="flex items-center gap-1.5"><Thermometer className="h-4 w-4 text-secondary"/>Temp (°C)</FormLabel>
                                  <FormControl>
-                                     <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isDisabled} className="input"/>
+                                     <Input type="number" step="0.1" placeholder="ex: 24.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isDisabled} className="input"/>
                                  </FormControl>
                                  <FormMessage />
                              </FormItem>
@@ -580,7 +583,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                              <FormItem>
                                  <FormLabel className="flex items-center gap-1.5"><Droplet className="h-4 w-4 text-secondary"/>Umidade (%)</FormLabel>
                                  <FormControl>
-                                     <Input type="number" step="1" placeholder="ex: 55" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} disabled={isDisabled} className="input"/>
+                                     <Input type="number" step="1" placeholder="ex: 55" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} disabled={isDisabled} className="input"/>
                                  </FormControl>
                                  <FormMessage />
                              </FormItem>
@@ -756,7 +759,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
                           {analysisResult && (
                             <Card className="bg-accent/10 border-accent p-3 shadow-sm">
                               <CardHeader className="p-0 mb-1">
-                                <CardTitle className="text-sm font-semibold flex items-center gap-1.5 text-accent-foreground">
+                                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-accent-foreground">
                                   <Bot className="h-4 w-4"/> Resultado da Análise IA
                                 </CardTitle>
                               </CardHeader>
@@ -779,7 +782,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
 
             {/* Submission Area */}
             <div className="pt-4 space-y-3">
-                 {submitError && !firebaseInitializationError && ( // Only show submit error if no init error
+                 {submitError && !currentFirebaseError && ( // Only show submit error if no init error
                     <Alert variant="destructive" className="p-3">
                       <AlertCircle className="h-4 w-4"/>
                       <AlertTitle>Erro ao Salvar</AlertTitle>
