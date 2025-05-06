@@ -2,36 +2,35 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { firebaseInitializationError } from './lib/firebase/config'; // Auth is not needed here directly
+// Removed import: import { firebaseInitializationError } from './lib/firebase/config'; // Auth is not needed here directly
 
 export function middleware(req: NextRequest) {
-  // Se o Firebase não inicializou, bota 500
+  // Removed Firebase initialization check block
+  /*
   if (firebaseInitializationError) {
      console.error("Middleware: Firebase Initialization Error Detected.", firebaseInitializationError);
-    // Return a more user-friendly error page or response
-    // For simplicity, returning a plain text response here.
-    // In a real app, you might redirect to an error page.
     return new NextResponse(
       `🚨 Erro na Configuração do Servidor: ${firebaseInitializationError.message}. Por favor, contate o suporte.`,
       { status: 500 }
     );
   }
+  */
 
   // Authentication check example (if you re-enable auth):
-  // const requiresAuth = ['/dashboard', '/plant', '/register-plant', '/plants']; // Add protected routes
-  // const requiresNoAuth = ['/login', '/signup']; // Routes for non-logged-in users
-  // const { pathname } = req.nextUrl;
-  // const authToken = req.cookies.get('firebaseAuthToken')?.value; // Example cookie name
+  const requiresAuth = ['/dashboard', '/plant', '/register-plant', '/plants']; // Add protected routes
+  const requiresNoAuth = ['/login', '/signup']; // Routes for non-logged-in users
+  const { pathname } = req.nextUrl;
+  const authToken = req.cookies.get('firebaseAuthToken')?.value; // Example cookie name - Ensure you set this cookie on login
 
-  // if (requiresAuth.some(path => pathname.startsWith(path)) && !authToken) {
-  //   console.log(`Middleware: No auth token, redirecting from ${pathname} to /login`);
-  //   return NextResponse.redirect(new URL('/login', req.url));
-  // }
+  if (requiresAuth.some(path => pathname.startsWith(path)) && !authToken) {
+    console.log(`Middleware: No auth token, redirecting from ${pathname} to /login`);
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
 
-  // if (requiresNoAuth.some(path => pathname.startsWith(path)) && authToken) {
-  //   console.log(`Middleware: Auth token present, redirecting from ${pathname} to /dashboard`);
-  //    return NextResponse.redirect(new URL('/dashboard', req.url));
-  // }
+  if (requiresNoAuth.some(path => pathname.startsWith(path)) && authToken) {
+    console.log(`Middleware: Auth token present, redirecting from ${pathname} to /dashboard`);
+     return NextResponse.redirect(new URL('/dashboard', req.url));
+  }
 
 
   // If no issues, continue to the requested page
