@@ -31,14 +31,14 @@ let firebaseInitializationError: Error | null = null;
 
 if (missingEnvVars.length > 0) {
     const errorMessage = `🚨 Falta configuração crítica do Firebase. Variáveis ausentes: ${missingEnvVars.join(', ')}. Confira seu .env.local`;
-    console.error(errorMessage);
+    console.error(errorMessage); // Log the error
     // Set the error object to be checked elsewhere
     firebaseInitializationError = new Error(errorMessage);
 }
 
 // --- Firebase Configuration Object ---
 // Construct config directly from environment variables
-// Use "!" to assert they are defined (checked above)
+// Use "!" to assert they are defined (checked above, but helps TS)
 const firebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
     authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
@@ -53,6 +53,7 @@ let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 
+// Only attempt initialization if required env vars were present
 if (!firebaseInitializationError) {
   try {
     // Initialize (or get) the Firebase App
@@ -67,19 +68,19 @@ if (!firebaseInitializationError) {
         auth = initializeAuth(app, { persistence: browserLocalPersistence });
         console.log('Firebase Auth inicializado com persistência local do navegador.');
     } else {
-        // Initialize without persistence for server environments
+        // Initialize without persistence for server environments (like middleware)
         auth = getAuth(app);
         console.log('Firebase Auth inicializado (sem persistência).');
     }
 
-    // Debug log for authDomain mismatch check
+    // Debug log for authDomain mismatch check - Crucial for social login errors
     if (auth && auth.config?.authDomain !== firebaseConfig.authDomain) {
-        console.error(`[CRITICAL DEBUG] Discrepância de authDomain detectada! Config Inicial: "${firebaseConfig.authDomain}", Instância Auth: "${auth.config.authDomain}". Verifique as variáveis de ambiente e o build.`);
+        console.error(`[CRITICAL DEBUG] Mismatch detected! Initial config authDomain: "${firebaseConfig.authDomain}", Auth instance authDomain: "${auth.config.authDomain}". Check environment variables and build process.`);
         // Optionally set the initialization error if this mismatch is critical
         // firebaseInitializationError = new Error("Firebase authDomain mismatch detected.");
         // auth = null; // Consider nullifying if this is a fatal error
     } else if (auth) {
-         console.log(`[DEBUG] authDomain verificado: ${auth.config.authDomain}`);
+         console.log(`[DEBUG] authDomain verificado e correto: ${auth.config.authDomain}`);
     } else {
         console.warn("[DEBUG] Instância Auth não está disponível para verificação do authDomain.");
     }
@@ -89,19 +90,18 @@ if (!firebaseInitializationError) {
     db = getFirestore(app);
     console.log('Firebase Firestore inicializado.');
 
-    // Conditionally connect to emulators if enabled and in dev environment
+    // --- Emulator Connection ---
+    // Conditionally connect to emulators if NEXT_PUBLIC_USE_FIREBASE_EMULATORS is 'true'
     const useEmulator = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true';
-    const host = process.env.NEXT_PUBLIC_FIREBASE_EMULATOR_HOST || 'localhost'; // Default to localhost
+    const host = process.env.NEXT_PUBLIC_FIREBASE_EMULATOR_HOST || 'localhost'; // Default host
 
-    // Connect emulators only if explicitly enabled, in browser, and host is defined
-    if (useEmulator && typeof window !== 'undefined' && process.env.NEXT_PUBLIC_FIREBASE_EMULATOR_HOST) {
+    if (useEmulator && typeof window !== 'undefined') { // Connect only in browser for emulators
         console.log(`[DEV] Conectando emuladores Firebase em ${host}`);
         try {
-            // Default ports unless overridden by specific env vars (not currently set)
-            const authEmulatorPort = 9099;
-            const firestoreEmulatorPort = 8080;
             // Ensure auth and db are not null before connecting emulators
             if (auth && db) {
+                const authEmulatorPort = 9099;
+                const firestoreEmulatorPort = 8080;
                 connectAuthEmulator(auth, `http://${host}:${authEmulatorPort}`, { disableWarnings: true });
                 console.log(`Conectado ao emulador Auth em http://${host}:${authEmulatorPort}`);
                 connectFirestoreEmulator(db, host, firestoreEmulatorPort);
@@ -111,14 +111,15 @@ if (!firebaseInitializationError) {
             }
         } catch (emulatorError: any) {
             console.error(`Erro ao conectar aos emuladores Firebase:`, emulatorError);
-            // You might want to set firebaseInitializationError here too if emulators are critical for dev
+            // Set initialization error if emulators are critical for dev
             firebaseInitializationError = new Error(`Falha ao conectar aos emuladores: ${emulatorError.message}`);
             auth = null; // Nullify on error
             db = null;
         }
     } else if (process.env.NODE_ENV === 'development') {
-         console.log(`[DEV] Emuladores não habilitados (NEXT_PUBLIC_USE_FIREBASE_EMULATORS=${process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS}) ou host não definido (NEXT_PUBLIC_FIREBASE_EMULATOR_HOST=${process.env.NEXT_PUBLIC_FIREBASE_EMULATOR_HOST}). Conectando ao Firebase de produção/nuvem.`);
+         console.log(`[DEV] Emuladores não habilitados (NEXT_PUBLIC_USE_FIREBASE_EMULATORS=${process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS}) ou não está no browser. Conectando ao Firebase de produção/nuvem.`);
     }
+    // --- End Emulator Connection ---
 
 
   } catch (error: any) {
@@ -129,6 +130,7 @@ if (!firebaseInitializationError) {
     db = null;
   }
 } else {
+  // Log confirms that initialization was skipped due to missing variables
   console.error('Inicialização do Firebase ignorada devido a variáveis de ambiente ausentes.');
 }
 
