@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -57,6 +58,15 @@ export default function AllPlantsPage() {
          setIsFetchingMore(false);
          return;
      }
+     if (!user) {
+        setError("Usuário não autenticado. Faça login para visualizar as plantas.");
+        setIsLoading(false);
+        setIsFetchingMore(false);
+        setAllPlants([]);
+        setDisplayedPlants([]);
+        return;
+     }
+
      if (!loadMore) {
          setIsLoading(true);
          setAllPlants([]); // Reset plants on initial load/filter change
@@ -99,43 +109,52 @@ export default function AllPlantsPage() {
        setIsLoading(false);
        setIsFetchingMore(false);
      }
-   }, [filters.status, filters.growRoom, lastVisible, toast, currentFirebaseError]); // Dependencies for fetching based on server filters
+   }, [filters.status, filters.growRoom, lastVisible, toast, currentFirebaseError, user]); // Dependencies for fetching based on server filters
 
-    // Initial fetch on component mount
+    // Initial fetch on component mount and when user/auth status changes
     useEffect(() => {
-        fetchPlants(false);
-        // Fetch all unique grow rooms once for the filter dropdown
-        const fetchAllGrowRooms = async () => {
-            // Check Firestore availability
-            if (currentFirebaseError || !db) {
-                console.warn("Firestore not available, cannot fetch grow rooms.");
-                return;
-            }
-            try {
-                const plantsCol = collection(db, 'plants');
-                const q = query(plantsCol); // No filters needed here
-                const snapshot = await getDocs(q);
-                const rooms = new Set<string>();
-                snapshot.forEach(doc => {
-                    const growRoomId = doc.data().growRoomId;
-                    if (growRoomId) rooms.add(growRoomId);
-                });
-                setAllUniqueGrowRooms(Array.from(rooms).sort());
-            } catch (e) {
-                console.error("Failed to fetch all grow rooms:", e);
-                // Don't block the UI for this, just log it.
-            }
-        };
-        fetchAllGrowRooms();
+        if(user && !authLoading && !currentFirebaseError) {
+            fetchPlants(false);
+            // Fetch all unique grow rooms once for the filter dropdown
+            const fetchAllGrowRooms = async () => {
+                if (!db) { // db might be null if firebase init failed despite currentFirebaseError being null (edge case)
+                    console.warn("Firestore DB instance not available, cannot fetch grow rooms.");
+                    return;
+                }
+                try {
+                    const plantsCol = collection(db, 'plants');
+                    const q = query(plantsCol); 
+                    const snapshot = await getDocs(q);
+                    const rooms = new Set<string>();
+                    snapshot.forEach(doc => {
+                        const growRoomId = doc.data().growRoomId;
+                        if (growRoomId) rooms.add(growRoomId);
+                    });
+                    setAllUniqueGrowRooms(Array.from(rooms).sort());
+                } catch (e) {
+                    console.error("Failed to fetch all grow rooms:", e);
+                }
+            };
+            fetchAllGrowRooms();
+        } else if (currentFirebaseError) {
+            setIsLoading(false); // Stop loading if Firebase error
+            setError(`Firebase não inicializado: ${currentFirebaseError.message}. Não é possível buscar plantas.`);
+        } else if (!authLoading && !user) {
+            setIsLoading(false);
+            setError("Usuário não autenticado. Faça login para visualizar as plantas.");
+            setAllPlants([]);
+            setDisplayedPlants([]);
+        }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentFirebaseError]); // Run only on mount or if firebase error state changes
+    }, [currentFirebaseError, user, authLoading]); // Run on mount or if firebase/auth state changes
 
     // Fetch when server-side filters change (status, growRoom)
     useEffect(() => {
-        // Debounce filter changes if needed
-        console.log("Server filters changed, fetching new data:", filters.status, filters.growRoom);
-        fetchPlants(false); // Fetch from the beginning with new server filters
-    }, [filters.status, filters.growRoom, fetchPlants]); // Depend on fetchPlants as well
+        if(user && !authLoading && !currentFirebaseError) {
+            console.log("Server filters changed, fetching new data:", filters.status, filters.growRoom);
+            fetchPlants(false); 
+        }
+    }, [filters.status, filters.growRoom, fetchPlants, user, authLoading, currentFirebaseError]); 
 
     // Apply client-side search filter whenever allPlants or search term changes
     useEffect(() => {
@@ -149,7 +168,7 @@ export default function AllPlantsPage() {
         } else {
         setDisplayedPlants(allPlants); // Show all loaded plants if search is empty
         }
-    }, [filters.search, allPlants]); // Depend on search term and the loaded plants
+    }, [filters.search, allPlants]);
 
 
   const handleFilterChange = (filterName: keyof Filters, value: string) => {
@@ -157,13 +176,13 @@ export default function AllPlantsPage() {
         ...prevFilters,
         [filterName]: value,
      }));
-     // Fetching is handled by the useEffect hook listening to filter changes
   };
 
   const clearFilters = () => {
     setFilters({ search: '', status: ALL_STATUSES_VALUE, growRoom: ALL_ROOMS_VALUE });
-    // Fetching is handled by the useEffect hook listening to filter changes
   };
+
+  const generalDisabled = isLoading || !!currentFirebaseError || authLoading || !user;
 
 
   return (
@@ -205,7 +224,7 @@ export default function AllPlantsPage() {
               value={filters.search}
               onChange={(e) => handleFilterChange('search', e.target.value)}
               className="input"
-              disabled={isLoading || !!currentFirebaseError} // Disable while loading or if Firebase error
+              disabled={generalDisabled}
             />
           </div>
 
@@ -215,7 +234,7 @@ export default function AllPlantsPage() {
             <Select
                 value={filters.status}
                 onValueChange={(value) => handleFilterChange('status', value)}
-                disabled={isLoading || !!currentFirebaseError} // Disable while loading or if Firebase error
+                disabled={generalDisabled}
             >
               <SelectTrigger id="status-filter" className="input">
                 <SelectValue placeholder="Todos os Status" />
@@ -235,7 +254,7 @@ export default function AllPlantsPage() {
              <Select
                 value={filters.growRoom}
                 onValueChange={(value) => handleFilterChange('growRoom', value)}
-                disabled={isLoading || allUniqueGrowRooms.length === 0 || !!currentFirebaseError} // Disable while loading, if no rooms, or if Firebase error
+                disabled={generalDisabled || allUniqueGrowRooms.length === 0}
              >
                <SelectTrigger id="room-filter" className="input">
                  <SelectValue placeholder="Todas as Salas" />
@@ -256,7 +275,7 @@ export default function AllPlantsPage() {
                 onClick={clearFilters}
                 className="w-full lg:w-auto button"
                 disabled={
-                    isLoading || !!currentFirebaseError || // Disable while loading or firebase error
+                    generalDisabled || 
                     (!filters.search &&
                     filters.status === ALL_STATUSES_VALUE &&
                     filters.growRoom === ALL_ROOMS_VALUE)
@@ -272,10 +291,10 @@ export default function AllPlantsPage() {
       {/* Plants List */}
       <Card className="shadow-md card">
         <CardHeader>
-          <CardTitle>Resultados ({displayedPlants.length}{hasMore && !isLoading ? '+' : ''})</CardTitle> {/* Indicate if more might be available */}
+          <CardTitle>Resultados ({displayedPlants.length}{hasMore && !isLoading && !authLoading && user && !currentFirebaseError ? '+' : ''})</CardTitle>
         </CardHeader>
         <CardContent>
-           {/* Firebase Init Error */}
+           {/* Firebase Init Error or Auth Loading/Error */}
             {currentFirebaseError && (
                  <Alert variant="destructive" className="mb-4">
                      <AlertCircleIcon className="h-4 w-4" />
@@ -283,13 +302,27 @@ export default function AllPlantsPage() {
                      <AlertDescription>{currentFirebaseError.message}. Não é possível buscar plantas.</AlertDescription>
                  </Alert>
             )}
-           {/* Loading State */}
-           {isLoading ? (
+            {authLoading && !currentFirebaseError && (
+                 <Alert variant="default" className="mb-4 border-blue-500/50 bg-blue-500/10">
+                     <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                     <AlertTitle>Autenticando...</AlertTitle>
+                     <AlertDescription>Aguarde enquanto verificamos sua sessão.</AlertDescription>
+                 </Alert>
+            )}
+            {!authLoading && !user && !currentFirebaseError && (
+                 <Alert variant="destructive" className="mb-4">
+                     <AlertCircleIcon className="h-4 w-4" />
+                     <AlertTitle>Não Autenticado</AlertTitle>
+                     <AlertDescription>Faça login para visualizar as plantas.</AlertDescription>
+                 </Alert>
+            )}
+
+           {/* Loading State for plants */}
+           {isLoading && !authLoading && user && !currentFirebaseError ? (
                 <div className="flex justify-center items-center py-10">
                    <Loader2 className="h-12 w-12 text-primary animate-spin" />
                 </div>
-           ) : error && !currentFirebaseError ? ( // Only show general error if no critical firebase error
-                // Error State
+           ) : error && !currentFirebaseError && user ? ( 
                 <Alert variant="destructive" className="mb-4">
                     <AlertCircleIcon className="h-4 w-4" />
                     <AlertTitle>Erro ao Buscar Plantas</AlertTitle>
@@ -298,16 +331,14 @@ export default function AllPlantsPage() {
                          Tentar Novamente
                      </Button>
                  </Alert>
-           ) : displayedPlants.length === 0 && !hasMore && !currentFirebaseError ? ( // Show no results only if no critical error
-                // No Results State (after loading and filtering)
+           ) : displayedPlants.length === 0 && !hasMore && !currentFirebaseError && user ? ( 
                 <p className="text-center text-muted-foreground py-10">
                     {filters.search || filters.status !== ALL_STATUSES_VALUE || filters.growRoom !== ALL_ROOMS_VALUE
                         ? 'Nenhuma planta encontrada com os filtros aplicados.'
                         : 'Nenhuma planta cadastrada ainda.'
                     }
                 </p>
-           ) : !currentFirebaseError ? ( // Only render list if no critical firebase error
-                // Results List
+           ) : !currentFirebaseError && user ? ( 
                 <>
                     <ul className="divide-y divide-border -mx-6">
                     {displayedPlants.map((plant, index) => (
@@ -340,11 +371,11 @@ export default function AllPlantsPage() {
                     </ul>
 
                      {/* Load More Button */}
-                     {hasMore && (
+                     {hasMore && user && !currentFirebaseError && (
                        <div className="text-center mt-6 py-4">
                            <Button
                                onClick={() => fetchPlants(true)}
-                               disabled={isFetchingMore || !!currentFirebaseError}
+                               disabled={isFetchingMore || generalDisabled}
                                variant="secondary"
                                className="button"
                            >
@@ -359,7 +390,7 @@ export default function AllPlantsPage() {
                        </div>
                      )}
                      {/* Indicate end of list */}
-                      {!hasMore && displayedPlants.length > 0 && (
+                      {!hasMore && displayedPlants.length > 0 && user && !currentFirebaseError && (
                         <p className="text-center text-muted-foreground text-sm mt-6 py-4 border-t">Fim da lista.</p>
                       )}
                 </>
@@ -369,3 +400,4 @@ export default function AllPlantsPage() {
     </div>
   );
 }
+

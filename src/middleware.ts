@@ -1,11 +1,19 @@
+
 // src/middleware.ts
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-// Removed import of firebaseInitializationError as it's not available/reliable in middleware edge environment
-// import { auth } from './lib/firebase/config'; // Auth instance might also not be directly usable here
+import { firebaseInitializationError } from '@/lib/firebase/config'; // Auth is not needed here directly
 
 export function middleware(req: NextRequest) {
+  // Se o Firebase não inicializou, bota 500
+  if (firebaseInitializationError) {
+    console.error("Middleware: Firebase initialization error, returning 500.", firebaseInitializationError);
+    // Retorna uma resposta de erro genérica. Não é ideal mostrar detalhes do erro aqui.
+    return new NextResponse('Erro interno do servidor. Falha na configuração.', { status: 500 });
+  }
+
+
   // Authentication check example (if you re-enable auth):
   const requiresAuth = ['/dashboard', '/plant', '/register-plant', '/plants']; // Add protected routes
   const requiresNoAuth = ['/login', '/signup']; // Routes for non-logged-in users

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useCallback } from 'react';
@@ -16,7 +17,7 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Leaf, CalendarDays, Warehouse, Loader2, ArrowLeft, Sprout, CheckCircle, Download, Layers, Home as HomeIcon, PackagePlus, QrCode as QrCodeIcon, Archive } from '@/components/ui/lucide-icons'; // Use centralized icons, added PackagePlus, Archive
+import { Leaf, CalendarDays, Warehouse, Loader2, ArrowLeft, Sprout, CheckCircle, Download, Layers, Home as HomeIcon, PackagePlus, QrCode as QrCodeIcon, Archive, AlertCircle as AlertCircleIcon } from '@/components/ui/lucide-icons'; // Use centralized icons, added PackagePlus, Archive
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { addPlant, type Plant } from '@/services/plant-id'; // Import Firestore function
@@ -27,6 +28,7 @@ import { toDataURL } from 'qrcode'; // Import QR code generation function
 import Image from 'next/image'; // Import Next Image component
 import { firebaseInitializationError } from '@/lib/firebase/config'; // firebaseInitializationError is now an Error object or null
 import { useAuth } from '@/context/auth-context'; // Import useAuth
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert
 
 
 // Define the schema for plant registration, updated fields
@@ -54,6 +56,7 @@ export default function RegisterPlantPage() {
 
   // Determine the current Firebase error state
   const currentFirebaseError = firebaseInitializationError || authError;
+  const generalDisabled = isSubmitting || !!currentFirebaseError || authLoading || !user;
 
 
   const form = useForm<RegisterPlantFormData>({
@@ -98,6 +101,13 @@ export default function RegisterPlantPage() {
             title: 'Erro de Configuração',
             description: 'Não foi possível conectar ao banco de dados. Verifique as configurações do Firebase.',
         });
+        setIsSubmitting(false);
+        return;
+    }
+    // Check if user is logged in
+    if (!user) {
+        setSubmitError('Usuário não autenticado. Faça login para salvar.');
+        toast({ variant: 'destructive', title: 'Não Autenticado', description: 'Faça login para registrar plantas.' });
         setIsSubmitting(false);
         return;
     }
@@ -197,6 +207,31 @@ export default function RegisterPlantPage() {
            </div>
          </CardHeader>
          <CardContent className="pt-6">
+             {/* Global Error/Auth Messages */}
+             {currentFirebaseError && (
+                <Alert variant="destructive" className="mb-4">
+                    <AlertCircleIcon className="h-4 w-4" />
+                    <AlertTitle>Erro Crítico de Configuração</AlertTitle>
+                    <AlertDescription>{currentFirebaseError.message}. Não é possível salvar.</AlertDescription>
+                </Alert>
+             )}
+             {authLoading && !currentFirebaseError && (
+                <Alert variant="default" className="mb-4 border-blue-500/50 bg-blue-500/10">
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                    <AlertTitle>Autenticando...</AlertTitle>
+                    <AlertDescription>Aguarde enquanto verificamos sua sessão.</AlertDescription>
+                </Alert>
+             )}
+             {!authLoading && !user && !currentFirebaseError && (
+                <Alert variant="destructive" className="mb-4">
+                    <AlertCircleIcon className="h-4 w-4" />
+                    <AlertTitle>Não Autenticado</AlertTitle>
+                    <AlertDescription>
+                        Você precisa estar logado para cadastrar plantas. Por favor, <Link href="/login" className="font-semibold underline hover:text-destructive-foreground">faça login</Link>.
+                    </AlertDescription>
+                </Alert>
+             )}
+
            {/* Display generated QR code if available */}
            {generatedQrCode && qrCodeImageDataUrl && !isSubmitting && (
              <Card className="mb-6 border-green-500 bg-green-50 dark:bg-green-900/30 p-4 text-center card">
@@ -262,7 +297,7 @@ export default function RegisterPlantPage() {
                             <Leaf className="h-4 w-4 text-secondary" /> Variedade (Strain)
                         </FormLabel>
                         <FormControl>
-                            <Input placeholder="Ex: Northern Lights, Purple Haze..." {...field} disabled={isSubmitting || !!currentFirebaseError} className="input"/>
+                            <Input placeholder="Ex: Northern Lights, Purple Haze..." {...field} disabled={generalDisabled} className="input"/>
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -279,7 +314,7 @@ export default function RegisterPlantPage() {
                             <Archive className="h-4 w-4 text-secondary" /> Nome do Lote/Grupo
                           </FormLabel>
                           <FormControl>
-                            <Input placeholder="Ex: Lote Verão 24, Grupo A" {...field} disabled={isSubmitting || !!currentFirebaseError} className="input"/>
+                            <Input placeholder="Ex: Lote Verão 24, Grupo A" {...field} disabled={generalDisabled} className="input"/>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -297,7 +332,7 @@ export default function RegisterPlantPage() {
                             <CalendarDays className="h-4 w-4 text-secondary" /> Data de Nascimento / Plantio
                         </FormLabel>
                         <FormControl>
-                            <Input type="date" {...field} disabled={isSubmitting || !!currentFirebaseError} className="input appearance-none"/>
+                            <Input type="date" {...field} disabled={generalDisabled} className="input appearance-none"/>
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -315,7 +350,7 @@ export default function RegisterPlantPage() {
                           </FormLabel>
                           <FormControl>
                             {/* Use field.value and handle empty string for optional date */}
-                            <Input type="date" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value || null)} disabled={isSubmitting || !!currentFirebaseError} className="input appearance-none"/>
+                            <Input type="date" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value || null)} disabled={generalDisabled} className="input appearance-none"/>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -333,7 +368,7 @@ export default function RegisterPlantPage() {
                             <Warehouse className="h-4 w-4 text-secondary" /> ID da Sala de Cultivo
                         </FormLabel>
                         <FormControl>
-                            <Input placeholder="Ex: Tenda Veg, Sala Flora 1" {...field} disabled={isSubmitting || !!currentFirebaseError} className="input"/>
+                            <Input placeholder="Ex: Tenda Veg, Sala Flora 1" {...field} disabled={generalDisabled} className="input"/>
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -344,19 +379,14 @@ export default function RegisterPlantPage() {
 
 
                     {/* Submit Error Display */}
-                    {submitError && (
+                    {submitError && !currentFirebaseError && (
                         <div className="text-sm font-medium text-destructive text-center bg-destructive/10 p-3 rounded-md">
                         {submitError}
                         </div>
                     )}
-                     {currentFirebaseError && !submitError && (
-                         <div className="text-sm font-medium text-destructive text-center bg-destructive/10 p-3 rounded-md">
-                             Erro de Configuração: {currentFirebaseError.message}. Não é possível salvar.
-                         </div>
-                     )}
-
+                    
                     {/* Submit Button */}
-                <Button type="submit" size="lg" className="w-full font-semibold button" disabled={isSubmitting || !!currentFirebaseError}>
+                <Button type="submit" size="lg" className="w-full font-semibold button" disabled={generalDisabled}>
                     {isSubmitting ? (
                     <>
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Cadastrando...
@@ -375,3 +405,4 @@ export default function RegisterPlantPage() {
     </div>
   );
 }
+

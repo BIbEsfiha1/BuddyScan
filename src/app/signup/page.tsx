@@ -14,8 +14,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from '@/hooks/use-toast';
 import { UserPlus, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
-import { auth, firebaseInitializationError } from '@/lib/firebase/config'; // firebaseInitializationError is now an Error object or null
-// Using standard img tag now
+// Import auth and the error object
+import { auth, firebaseInitializationError } from '@/lib/firebase/config';
+// Use Next.js Image component
 import Image from 'next/image';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
@@ -44,8 +45,14 @@ export default function SignupPage() {
   const { user, loading: authLoading, authError: contextAuthError } = useAuth(); // Use auth context, get authError
   const isAuthEnabled = true; // Keep auth enabled
 
-  // Prioritize firebaseInitializationError from config, then contextAuthError
-  const currentFirebaseError = firebaseInitializationError || contextAuthError;
+  // Determine the current Firebase initialization error message string
+  let currentFirebaseInitErrorMessage: string | null = null;
+  if (firebaseInitializationError) {
+    currentFirebaseInitErrorMessage = firebaseInitializationError.message;
+  } else if (contextAuthError) { // contextAuthError is from AuthProvider, which might also reflect the init error
+    currentFirebaseInitErrorMessage = contextAuthError.message;
+  }
+
 
   const { register, handleSubmit, formState: { errors } } = useForm<SignupFormInputs>({
     resolver: zodResolver(signupSchema),
@@ -137,10 +144,10 @@ export default function SignupPage() {
            return;
        }
        // Check for critical Firebase initialization error
-       if (currentFirebaseError) {
-           console.error("Email signup failed due to Firebase initialization error:", currentFirebaseError.message);
-           setSignupError(`Erro de Configuração: ${currentFirebaseError.message}`);
-           toast({ variant: "destructive", title: "Erro de Configuração", description: currentFirebaseError.message });
+       if (currentFirebaseInitErrorMessage) {
+           console.error("Email signup failed due to Firebase initialization error:", currentFirebaseInitErrorMessage);
+           setSignupError(`Erro de Configuração: ${currentFirebaseInitErrorMessage}`);
+           toast({ variant: "destructive", title: "Erro de Configuração", description: currentFirebaseInitErrorMessage });
            return;
        }
 
@@ -175,10 +182,10 @@ export default function SignupPage() {
             return;
         }
         // Check for critical Firebase initialization error
-        if (currentFirebaseError) {
+        if (currentFirebaseInitErrorMessage) {
             console.error(`${providerType} login failed: Firebase initialization error.`);
-            setSignupError(`Erro de Configuração: ${currentFirebaseError.message}`);
-            toast({ variant: "destructive", title: "Erro de Configuração", description: currentFirebaseError.message });
+            setSignupError(`Erro de Configuração: ${currentFirebaseInitErrorMessage}`);
+            toast({ variant: "destructive", title: "Erro de Configuração", description: currentFirebaseInitErrorMessage });
             return;
         }
 
@@ -213,7 +220,7 @@ export default function SignupPage() {
              }
              // Log the specific config details of the auth instance being used RIGHT BEFORE the call
              console.log("[DEBUG] Auth Config Used by Instance (Signup):");
-              console.log(" auth.config:", auth.config);
+             console.log(" auth.config:", auth.config); 
              console.log("  apiKey:", auth.config.apiKey ? 'Present' : 'MISSING!');
              console.log("  authDomain:", auth.config.authDomain || 'MISSING! (Likely cause of auth/argument-error)');
              console.log("  projectId:", auth.config.projectId || 'MISSING!');
@@ -263,26 +270,26 @@ export default function SignupPage() {
       <Card className="w-full max-w-md shadow-xl border-primary/20 card">
         <CardHeader className="text-center">
              <Image
-                 src="/buddyscan-logo.png" // Direct path to public folder
-                 alt="BuddyScan Logo"
-                 width={180} // Adjust width as needed
-                 height={66} // Adjust height based on aspect ratio
-                 className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
-                 priority
-                 onError={(e) => {
-                     console.error('Standard <img> load error (Signup):', (e.target as HTMLImageElement).src);
-                 }}
-             />
+                  src="/buddyscan-logo.png" // Direct path to public folder
+                  alt="BuddyScan Logo"
+                  width={180} // Adjust width as needed
+                  height={66} // Adjust height based on aspect ratio
+                  className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
+                  priority
+                  onError={(e) => {
+                      console.error('Standard <img> load error (Signup):', (e.target as HTMLImageElement).src);
+                  }}
+              />
           <CardTitle className="text-2xl font-bold text-primary">Crie sua Conta BuddyScan</CardTitle>
           <CardDescription>Cadastre-se para começar a monitorar suas plantas.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-             {currentFirebaseError && (
+             {currentFirebaseInitErrorMessage && (
                  <Alert variant="destructive">
                      <AlertCircle className="h-4 w-4" />
                      <AlertTitle>Erro Crítico de Configuração</AlertTitle>
                      <AlertDescription>
-                         {currentFirebaseError.message}. A autenticação pode não funcionar. Verifique as variáveis de ambiente (API Key, Auth Domain, etc.) ou contate o suporte.
+                         {currentFirebaseInitErrorMessage}. A autenticação pode não funcionar. Verifique as variáveis de ambiente (API Key, Auth Domain, etc.) ou contate o suporte.
                      </AlertDescription>
                  </Alert>
              )}
@@ -296,7 +303,7 @@ export default function SignupPage() {
                   type="email"
                   placeholder="seuemail@exemplo.com"
                   {...register('email')}
-                  disabled={isLoading || !!currentFirebaseError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
+                  disabled={isLoading || !!currentFirebaseInitErrorMessage || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
                   className={`input ${errors.email ? 'border-destructive focus:ring-destructive' : ''}`}
                   aria-invalid={errors.email ? "true" : "false"}
                 />
@@ -309,7 +316,7 @@ export default function SignupPage() {
                   type="password"
                   placeholder="Mínimo 6 caracteres"
                   {...register('password')}
-                   disabled={isLoading || !!currentFirebaseError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
+                   disabled={isLoading || !!currentFirebaseInitErrorMessage || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
                   className={`input ${errors.password ? 'border-destructive focus:ring-destructive' : ''}`}
                   aria-invalid={errors.password ? "true" : "false"}
                 />
@@ -322,14 +329,14 @@ export default function SignupPage() {
                   type="password"
                   placeholder="Repita a senha"
                   {...register('confirmPassword')}
-                   disabled={isLoading || !!currentFirebaseError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
+                   disabled={isLoading || !!currentFirebaseInitErrorMessage || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
                   className={`input ${errors.confirmPassword ? 'border-destructive focus:ring-destructive' : ''}`}
                   aria-invalid={errors.confirmPassword ? "true" : "false"}
                 />
                  {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
               </div>
 
-               {signupError && (
+               {signupError && !currentFirebaseInitErrorMessage && (
                  <Alert variant="destructive" className="p-3">
                     <AlertCircle className="h-4 w-4"/>
                     <AlertTitle>Erro de Cadastro</AlertTitle>
@@ -337,7 +344,7 @@ export default function SignupPage() {
                   </Alert>
                )}
 
-              <Button type="submit" className="w-full font-semibold button" disabled={isLoading || !!currentFirebaseError || !!socialLoginLoading || !isAuthEnabled}>
+              <Button type="submit" className="w-full font-semibold button" disabled={isLoading || !!currentFirebaseInitErrorMessage || !!socialLoginLoading || !isAuthEnabled}>
                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
                  {isLoading ? 'Cadastrando...' : ('Cadastrar com Email')}
               </Button>
@@ -365,7 +372,7 @@ export default function SignupPage() {
                         <Button
                          variant="outline"
                          onClick={() => handleSocialLogin('google')}
-                         disabled={isLoading || !!currentFirebaseError || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
+                         disabled={isLoading || !!currentFirebaseInitErrorMessage || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
                          className="button justify-center gap-2 w-full"
                        >
                           {socialLoginLoading === 'Google' ? <Loader2 className="h-5 w-5 animate-spin"/> : <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.36 1.67-4.06 1.67-3.4 0-6.33-2.83-6.33-6.33s2.93-6.33 6.33-6.33c1.9 0 3.21.73 4.18 1.69l2.6-2.6C16.84 3.18 14.91 2 12.48 2 7.48 2 3.11 6.33 3.11 11.33s4.37 9.33 9.37 9.33c3.19 0 5.64-1.18 7.57-3.01 2-1.9 2.6-4.5 2.6-6.66 0-.58-.05-1.14-.13-1.67z"></path></svg>}
@@ -412,3 +419,4 @@ export default function SignupPage() {
     </TooltipProvider>
   );
 }
+

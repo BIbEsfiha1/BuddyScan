@@ -1,3 +1,4 @@
+
  // src/components/app-header.tsx
  'use client';
 
@@ -57,19 +58,15 @@
        <div className="container flex h-16 items-center justify-between"> {/* Increased height */}
          {/* Logo/Brand */}
           <Link href={isAuthEnabled && user ? "/dashboard" : "/"} className="flex items-center gap-2 mr-6"> {/* Link to dashboard if logged in, else landing */}
-             {/* Standard img tag for easier debugging */}
              {/* Verify path: '/buddyscan-logo.png' assumes the file is directly in /public */}
-              <img
+              <Image
                  src="/buddyscan-logo.png" // Path relative to the public folder
                  alt="BuddyScan Logo"
-                 width="140" // Set width directly
-                 height="51" // Set height based on aspect ratio (2048/742 * 140 ≈ 51)
+                 width={140} // Set width directly
+                 height={51} // Set height based on aspect ratio (2048/742 * 140 ≈ 51)
                  className="object-contain h-[51px]" // Use explicit height class if needed
-                 // Add error logging for the standard img tag
-                  onError={(e) => {
-                     console.error('Standard <img> load error (Header):', (e.target as HTMLImageElement).src);
-                     // Optionally set a fallback or hide the image on error
-                 }}
+                 priority // Prioritize loading logo
+                 // Removed onError handler
               />
           </Link>
 
@@ -174,9 +171,9 @@
                       </DropdownMenu>
                  ) : (
                     // User is not logged in - Show Login Button
-                     // Correct usage: Button asChild wraps Link, no legacyBehavior
+                     // Correct usage: Button directly wraps Link, asChild passes props
                      <Button asChild className="button">
-                       <Link href="/login">Login</Link>
+                         <Link href="/login">Login</Link>
                      </Button>
 
                  )}

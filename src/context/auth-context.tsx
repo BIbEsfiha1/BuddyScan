@@ -1,3 +1,4 @@
+
 // src/context/auth-context.tsx
 'use client';
 
@@ -19,21 +20,26 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState<Error | null>(firebaseInitializationError); // Initialize with firebase init error
+  // Initialize with the error object from firebase/config
+  const [authError, setAuthError] = useState<Error | null>(firebaseInitializationError); 
 
   useEffect(() => {
+    // If firebaseInitializationError already exists from config.ts, use it.
     if (firebaseInitializationError) {
-      console.error("Auth Provider: Firebase initialization failed.", firebaseInitializationError);
+      console.error("Auth Provider: Firebase initialization failed (detected from config.ts).", firebaseInitializationError);
       setLoading(false);
-      // No need to set authError again here, it's initialized with it.
-      return; // Stop further auth operations if Firebase didn't initialize
+      // authError is already set via useState's initial value
+      return; // Stop further auth operations
     }
 
     console.log("Auth Provider: Setting up Firebase auth state listener...");
     // Ensure auth instance is valid before trying to use it
     if (!auth) {
         console.error("Auth Provider: Firebase Auth instance is not available. Cannot set up listener.");
-        setAuthError(new Error("Serviço de autenticação indisponível. Configuração do Firebase falhou."));
+        // Set authError if auth is null and no prior init error
+        if (!authError) {
+          setAuthError(new Error("Serviço de autenticação indisponível. Configuração do Firebase falhou."));
+        }
         setLoading(false);
         return;
     }
@@ -50,7 +56,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }, (error) => {
         console.error("Auth Provider: Error in onAuthStateChanged listener:", error);
         setUser(null);
-        setAuthError(error);
+        setAuthError(error); // Set specific auth listener error
         setLoading(false);
     });
 
@@ -59,14 +65,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("Auth Provider: Cleaning up Firebase auth state listener.");
         unsubscribe();
     };
-  }, []); // Run only once on mount
+  }, [authError]); // Re-run effect if authError (from initial state) changes to null
 
   const logout = async () => {
     if (auth) {
       return signOut(auth);
     }
     console.warn("Logout called but auth instance is null.");
-    setAuthError(new Error("Serviço de autenticação indisponível para logout."));
+    // Set authError if logout is attempted with no auth and no prior error
+    if (!authError) {
+       setAuthError(new Error("Serviço de autenticação indisponível para logout."));
+    }
     return Promise.resolve(); // Or reject if preferred for consistency
   };
 
@@ -123,3 +132,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

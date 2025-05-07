@@ -1,3 +1,4 @@
+
 'use client'; // Add 'use client' directive
 
 import React, { useState, useEffect, useCallback, use } from 'react'; // Import hooks including 'use'
@@ -90,8 +91,16 @@ export default function PlantPage({ params }: PlantPageProps) {
       }
     };
 
-    fetchPlantData();
-  }, [plantId, currentFirebaseError]); // Dependency array includes plantId and currentFirebaseError
+    // Only fetch if user is available and no critical errors
+    if (user && !authLoading && !currentFirebaseError) {
+      fetchPlantData();
+    } else if (currentFirebaseError) {
+      setIsLoading(false); // Don't attempt to load if Firebase is not okay
+    } else if (!authLoading && !user) {
+      setError("Usuário não autenticado. Faça login para ver os detalhes da planta.");
+      setIsLoading(false);
+    }
+  }, [plantId, currentFirebaseError, user, authLoading]); // Add user and authLoading dependencies
 
   // --- Handle Status Update ---
   const handleStatusChange = useCallback(async (newStatus: string) => {
@@ -102,6 +111,11 @@ export default function PlantPage({ params }: PlantPageProps) {
       // Check for Firebase initialization errors before proceeding
      if (currentFirebaseError) {
          toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Não é possível atualizar o status devido a erro do Firebase.' });
+         return;
+     }
+     // Check if user is logged in
+     if (!user) {
+         toast({ variant: 'destructive', title: 'Não Autenticado', description: 'Faça login para alterar o status.' });
          return;
      }
 
@@ -130,27 +144,30 @@ export default function PlantPage({ params }: PlantPageProps) {
      } finally {
        setIsUpdatingStatus(false);
      }
-   }, [plant, currentStatus, isUpdatingStatus, toast, currentFirebaseError]);
+   }, [plant, currentStatus, isUpdatingStatus, toast, currentFirebaseError, user]);
 
 
   // --- Loading State ---
-  if (isLoading) {
+  if (isLoading || authLoading) { // Show loading if either data or auth is loading
      return (
         <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background to-primary/10">
           <Card className="w-full max-w-md text-center shadow-lg card p-6">
              <Loader2 className="h-16 w-16 text-primary animate-spin mx-auto mb-4" />
-             <CardTitle className="text-xl text-muted-foreground">Carregando Dados da Planta...</CardTitle>
+             <CardTitle className="text-xl text-muted-foreground">
+                {authLoading ? "Verificando autenticação..." : `Carregando dados para ${plantId}...`}
+             </CardTitle>
              <CardDescription className="text-muted-foreground mt-2">
-                 Buscando informações para o ID: {plantId}
+                 Buscando informações...
              </CardDescription>
           </Card>
         </div>
       );
   }
 
-  // --- Error State ---
-  if (error) {
-    console.error(`Rendering error state: ${error}`);
+  // --- Error State (including auth errors or general errors) ---
+  if (error || currentFirebaseError || (!authLoading && !user && !currentFirebaseError)) {
+    const displayError = error || currentFirebaseError?.message || "Usuário não autenticado. Faça login para ver os detalhes da planta.";
+    console.error(`Rendering error state: ${displayError}`);
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background via-muted/50 to-destructive/10">
         <Card className="w-full max-w-md text-center shadow-xl border-destructive/50 card">
@@ -161,7 +178,7 @@ export default function PlantPage({ params }: PlantPageProps) {
              <CardTitle className="text-destructive text-2xl">Erro ao Carregar Planta</CardTitle>
            </CardHeader>
            <CardContent className="space-y-4">
-             <p className="text-muted-foreground">{error}</p>
+             <p className="text-muted-foreground">{displayError}</p>
               <Button asChild variant="secondary" className="button">
                   <Link href="/dashboard">Voltar ao Painel</Link> {/* Link to dashboard */}
               </Button>
@@ -172,7 +189,7 @@ export default function PlantPage({ params }: PlantPageProps) {
   }
 
   // --- Not Found State ---
-  if (!plant) {
+  if (!plant) { // This should only be reached if loading is done, no error, but plant is null
      console.log(`Rendering 'not found' state for Plant ID: ${plantId} after loading.`);
      return (
         <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background to-secondary/10">
@@ -226,7 +243,7 @@ export default function PlantPage({ params }: PlantPageProps) {
                         <Select
                             value={currentStatus}
                             onValueChange={handleStatusChange}
-                            disabled={isUpdatingStatus || !!currentFirebaseError}
+                            disabled={isUpdatingStatus || !!currentFirebaseError || !user} // Also disable if no user
                         >
                             <SelectTrigger
                                 className="w-auto h-9 px-2 py-1 text-xs shadow-sm button focus:ring-offset-0 focus:ring-primary/50"
@@ -286,3 +303,4 @@ export default function PlantPage({ params }: PlantPageProps) {
     </div>
   );
 }
+

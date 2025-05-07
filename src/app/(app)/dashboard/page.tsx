@@ -27,7 +27,7 @@ import { Separator } from '@/components/ui/separator';
 import type { Plant } from '@/services/plant-id'; // Import Plant type
 import { getRecentPlants, getAttentionPlants, getPlantById } from '@/services/plant-id'; // Import Firestore fetch functions
 import Image from 'next/image'; // Import Image component
-import { cn } from '@/lib/utils'; // Import cn utility
+import { cn } from '@/lib/utils'; // Import cn
 import { firebaseInitializationError } from '@/lib/firebase/config'; // firebaseInitializationError is now an Error object or null
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; // Import Tooltip components
 import { useAuth } from '@/context/auth-context'; // Import useAuth
@@ -593,6 +593,9 @@ export default function DashboardPage() { // Renamed component to DashboardPage
      router.push('/register-plant');
   };
 
+  // Determine if buttons should be disabled based on auth and Firebase status
+  const generalDisabled = isDialogOpen || !!currentFirebaseError || !user || authLoading;
+
 
   return (
     <TooltipProvider>
@@ -606,7 +609,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
          <p className="text-lg text-muted-foreground">Seu centro de controle de cultivo inteligente.</p>
        </header>
 
-       {/* Display Global Error if Firebase Failed */}
+       {/* Display Global Error if Firebase Failed or Auth Failed */}
         {currentFirebaseError && (
           <Alert variant="destructive" className="mb-6">
             <AlertCircleIcon className="h-4 w-4" />
@@ -629,6 +632,23 @@ export default function DashboardPage() { // Renamed component to DashboardPage
               </AlertDescription>
            </Alert>
         )}
+         {/* Auth Loading or No User Message (if auth is enabled) */}
+         {authLoading && (
+             <Alert variant="default" className="mb-6 border-blue-500/50 bg-blue-500/10">
+                <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                <AlertTitle>Autenticando...</AlertTitle>
+                <AlertDescription>Verificando sua sessão, um momento.</AlertDescription>
+             </Alert>
+         )}
+         {!authLoading && !user && !currentFirebaseError && ( // Show if not loading, no user, and no critical Firebase error
+             <Alert variant="destructive" className="mb-6">
+                 <AlertCircleIcon className="h-4 w-4" />
+                 <AlertTitle>Sessão Expirada ou Inválida</AlertTitle>
+                 <AlertDescription>
+                    Você não está autenticado. Por favor, <Link href="/login" className="font-semibold underline hover:text-destructive-foreground">faça login</Link> para continuar.
+                 </AlertDescription>
+             </Alert>
+         )}
 
 
       {/* Main Content Area - Grid Layout */}
@@ -650,7 +670,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                    className="w-full text-base font-medium button justify-start"
                    onClick={handleRegister}
                    aria-label="Cadastrar Nova Planta"
-                   disabled={isDialogOpen || !!currentFirebaseError} // Disable if dialog open or Firebase error
+                   disabled={generalDisabled}
                  >
                    <PlusCircle className="mr-3 h-5 w-5" />
                    Cadastrar Nova Planta
@@ -659,14 +679,14 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                  <Tooltip>
                      <TooltipTrigger asChild>
                          {/* Wrap the button that might be disabled in a span for the tooltip to work */}
-                         <span tabIndex={0} className={cn(!isAuthEnabled && 'cursor-not-allowed')}>
+                         <span tabIndex={0} className={cn(!isScannerSupported && 'cursor-not-allowed')}>
                              <Button
                                 size="lg"
                                 variant="secondary"
                                 className="w-full text-base font-medium button justify-start"
                                 onClick={handleScanClick}
                                 aria-label="Escanear QR Code da Planta"
-                                disabled={isDialogOpen || !!currentFirebaseError || !isScannerSupported} // Disable if dialog open, Firebase error, or scanner not supported
+                                disabled={generalDisabled || !isScannerSupported}
                              >
                                <ScanLine className="mr-3 h-5 w-5" />
                                Escanear QR Code
@@ -678,6 +698,11 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                              <p>Leitura de QR Code não suportada neste navegador.</p>
                           </TooltipContent>
                       )}
+                      {generalDisabled && isScannerSupported && (
+                         <TooltipContent side="bottom">
+                            <p>{currentFirebaseError ? 'Funcionalidade indisponível devido a erro.' : !user ? 'Faça login para escanear.' : 'Aguarde...'}</p>
+                         </TooltipContent>
+                      )}
                  </Tooltip>
 
 
@@ -687,7 +712,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                    className="w-full text-base font-medium button justify-start"
                    onClick={() => router.push('/plants')}
                    aria-label="Ver todas as plantas"
-                   disabled={isDialogOpen || !!currentFirebaseError} // Disable if dialog open or Firebase error
+                   disabled={generalDisabled}
                  >
                    <Package className="mr-3 h-5 w-5" />
                    Ver Todas as Plantas
@@ -696,7 +721,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
              </Card>
 
               {/* Plants Needing Attention Card */}
-              {isLoadingPlants ? (
+              {isLoadingPlants && !currentFirebaseError ? (
                 <Card className="shadow-md card border-destructive/30 p-6">
                    <div className="flex items-center gap-2 mb-4">
                       <AlertTriangle className="h-5 w-5 text-destructive" />
@@ -707,7 +732,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                        <p className="text-center text-muted-foreground text-sm">Carregando plantas...</p>
                    </div>
                 </Card>
-               ) : error ? ( // Show error state within the card if loading failed
+               ) : error && !currentFirebaseError ? ( // Show error state within the card if loading failed (and no Firebase error)
                  <Card className="shadow-md card border-destructive/30 p-6">
                     <div className="flex items-center gap-2 mb-4">
                        <AlertTriangle className="h-5 w-5 text-destructive" />
@@ -719,16 +744,16 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                         <AlertDescription>Não foi possível carregar.</AlertDescription>
                     </Alert>
                  </Card>
-                ) : ( // Show AttentionPlants only if no error and not loading
+                ) : !currentFirebaseError && user ? ( // Show AttentionPlants only if no error, no Firebase error, and user is logged in
                  <AttentionPlants plants={attentionPlants} />
-               )}
+               ) : null /* Hide if Firebase error or no user */}
 
 
           </div>
 
            {/* Right Column (Recent Plants) */}
            <div className="lg:col-span-2">
-              {isLoadingPlants ? (
+              {isLoadingPlants && !currentFirebaseError ? (
                  <Card className="shadow-md card h-full flex flex-col p-6">
                     <div className="flex items-center gap-2 mb-4">
                         <History className="h-5 w-5 text-primary" />
@@ -739,7 +764,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                          <p className="text-center text-muted-foreground">Carregando plantas recentes...</p>
                      </div>
                  </Card>
-              ) : error ? ( // Show error state within the card if loading failed
+              ) : error && !currentFirebaseError ? ( // Show error state within the card if loading failed (and no Firebase error)
                   <Card className="shadow-md card h-full flex flex-col p-6">
                      <div className="flex items-center gap-2 mb-4">
                          <History className="h-5 w-5 text-primary" />
@@ -753,9 +778,9 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                           </Alert>
                      </div>
                   </Card>
-               ) : ( // Show RecentPlants only if no error and not loading
+               ) : !currentFirebaseError && user ? ( // Show RecentPlants only if no error, no Firebase error, and user is logged in
                  <RecentPlants plants={recentPlants} />
-              )}
+              ) : null /* Hide if Firebase error or no user */}
            </div>
 
        </main>
@@ -884,3 +909,4 @@ export default function DashboardPage() { // Renamed component to DashboardPage
 }
 
     
+
