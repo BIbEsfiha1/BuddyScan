@@ -16,9 +16,8 @@ import { UserPlus, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
 // Import auth instance directly from the client config
 import { auth } from '@/lib/firebase/client';
-// Use standard img tag
-// eslint-disable-next-line @next/next/no-img-element
-import Image from 'next/image'; // Reverted back to next/image
+// Use Next.js Image component
+import Image from 'next/image';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -59,7 +58,6 @@ export default function SignupPage() {
   });
 
   // --- Redirect Effect ---
-  // Use useEffect to redirect AFTER component mounts and auth state is confirmed
   useEffect(() => {
     if (!authLoading && user) {
       console.log("User logged in (useEffect check), redirecting from signup to /dashboard...");
@@ -189,12 +187,14 @@ export default function SignupPage() {
             throw new Error("Auth instance became null before signInWithPopup call.");
         }
 
+        // Log the specific config details of the auth instance being used RIGHT BEFORE the call
         console.log("[DEBUG] Auth Config Used by Instance (Signup):");
+        console.log(" auth.config:", auth.config);
         console.log("  apiKey:", auth.config.apiKey ? 'Present' : 'MISSING!');
         console.log("  authDomain:", auth.config.authDomain || 'MISSING! (Likely cause of auth/argument-error)');
         console.log("  projectId:", auth.config.projectId || 'MISSING!');
         // Compare with direct env var access
-        if (typeof window !== 'undefined' && auth.config.authDomain !== process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) {
+        if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN && auth.config.authDomain !== process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) {
             console.error(`[CRITICAL DEBUG] Mismatch detected! Env var authDomain: "${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}", Auth instance authDomain: "${auth.config.authDomain}". Check .env.local and Firebase Console -> Authorized domains.`);
         }
 
@@ -248,13 +248,11 @@ export default function SignupPage() {
               <Image
                   src="/buddyscan-logo.png"
                   alt="BuddyScan Logo"
-                  width={180}
-                  height={66} // Adjust height based on aspect ratio
+                  width={180} // Use appropriate width
+                  height={66} // Adjusted height based on 2048x742 aspect ratio for width 180
                   className="mx-auto mb-4 object-contain h-[66px]" // Explicit height
                   priority
-                  onError={(e) => {
-                     console.error('Standard <img> load error (Signup):', (e.target as HTMLImageElement).src);
-                  }}
+                  // Removed onError handler
               />
             <CardTitle className="text-2xl font-bold text-primary">Crie sua Conta BuddyScan</CardTitle>
             <CardDescription>Cadastre-se para começar a monitorar suas plantas.</CardDescription>
@@ -393,3 +391,4 @@ export default function SignupPage() {
     </TooltipProvider>
   );
 }
+
