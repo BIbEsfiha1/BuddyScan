@@ -46,7 +46,8 @@ export default function SignupPage() {
   const isAuthEnabled = true; // Keep auth enabled
 
   // Determine if there's a critical initialization error
-  const isAuthUnavailable = !auth || !!contextAuthError;
+  const isAuthUnavailable = !!contextAuthError && !authLoading;
+
 
   const { register, handleSubmit, formState: { errors } } = useForm<SignupFormInputs>({
     resolver: zodResolver(signupSchema),
@@ -58,12 +59,13 @@ export default function SignupPage() {
   });
 
   // --- Redirect Effect ---
+  // Redirect logged-in users away from the signup page *after* auth state is confirmed
   useEffect(() => {
     if (!authLoading && user) {
-      console.log("User logged in (useEffect check), redirecting from signup to /dashboard...");
+      console.log("User logged in (useEffect check on signup page), redirecting to /dashboard...");
       router.replace('/dashboard'); // Use replace
     }
-  }, [user, authLoading, router]); // Add router
+  }, [user, authLoading, router]);
 
 
   // --- Handle Firebase Errors ---
@@ -129,7 +131,7 @@ export default function SignupPage() {
 
   // --- Email/Password Signup Handler ---
   const onEmailSubmit = async (data: SignupFormInputs) => {
-    if (!isAuthEnabled || isAuthUnavailable || !auth) { // Add !auth check
+    if (!isAuthEnabled || !auth) {
       setSignupError("Serviço de autenticação indisponível.");
       toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível." });
       return;
@@ -144,7 +146,6 @@ export default function SignupPage() {
       console.log('Email signup successful for:', signedUpUser.email, 'UID:', signedUpUser.uid);
       toast({ title: "Cadastro realizado!", description: `Bem-vindo ao BuddyScan, ${signedUpUser.email}!` });
       // Redirection is handled by the useEffect hook
-      // router.push('/dashboard'); // REMOVED
     } catch (error: any) {
       handleAuthError(error, 'Email');
     } finally {
@@ -154,7 +155,7 @@ export default function SignupPage() {
 
   // --- Social Login/Signup Handler ---
   const handleSocialLogin = async (providerType: 'google' | 'facebook' | 'twitter') => {
-    if (!isAuthEnabled || isAuthUnavailable || !auth) { // Add !auth check
+    if (!isAuthEnabled || !auth) {
       setSignupError("Serviço de autenticação indisponível.");
       toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível." });
       return;
@@ -189,31 +190,37 @@ export default function SignupPage() {
 
         // Log the specific config details of the auth instance being used RIGHT BEFORE the call
         console.log("[DEBUG] Auth Config Used by Instance (Signup):");
-        console.log(" auth.config:", auth.config);
+        console.log(" auth.config:", auth.config); // Log actual config
         console.log("  apiKey:", auth.config.apiKey ? 'Present' : 'MISSING!');
         console.log("  authDomain:", auth.config.authDomain || 'MISSING! (Likely cause of auth/argument-error)');
         console.log("  projectId:", auth.config.projectId || 'MISSING!');
         // Compare with direct env var access
-        if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN && auth.config.authDomain !== process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) {
-            console.error(`[CRITICAL DEBUG] Mismatch detected! Env var authDomain: "${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}", Auth instance authDomain: "${auth.config.authDomain}". Check .env.local and Firebase Console -> Authorized domains.`);
+        if (typeof window !== 'undefined') {
+          const envAuthDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+          if (envAuthDomain && auth.config.authDomain !== envAuthDomain) {
+              console.error(`[CRITICAL DEBUG] Mismatch detected! Env var authDomain: "${envAuthDomain}", Auth instance authDomain: "${auth.config.authDomain}". Check .env.local and Firebase Console -> Authorized domains.`);
+          } else if (!envAuthDomain) {
+              console.warn("[DEBUG] NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN env var not accessible on client for comparison.");
+          } else {
+              console.log("[DEBUG] Auth instance authDomain matches env var:", auth.config.authDomain);
+          }
         }
 
-      const result = await signInWithPopup(auth, provider);
-      const signedUpUser = result.user;
-      console.log(`${providerName} login/signup successful. User:`, signedUpUser.email, signedUpUser.uid);
-      toast({ title: "Conectado!", description: `Bem-vindo ao BuddyScan via ${providerName}.` });
-      // Redirection is handled by the useEffect hook
-      // router.push('/dashboard'); // REMOVED
-    } catch (error: any) {
-      console.error(`Error during ${providerName} signInWithPopup (Signup):`, error);
-      handleAuthError(error, providerName);
-    } finally {
-      setSocialLoginLoading(null);
-    }
+       const result = await signInWithPopup(auth, provider);
+       const signedUpUser = result.user;
+       console.log(`${providerName} login/signup successful. User:`, signedUpUser.email, signedUpUser.uid);
+       toast({ title: "Conectado!", description: `Bem-vindo ao BuddyScan via ${providerName}.` });
+       // Redirection is handled by the useEffect hook
+     } catch (error: any) {
+       console.error(`Error during ${providerName} signInWithPopup (Signup):`, error);
+       handleAuthError(error, providerName);
+     } finally {
+       setSocialLoginLoading(null);
+     }
   };
 
-   // Show loading skeleton or message if auth is still loading
-   if (authLoading) {
+   // Show loading skeleton or message if auth is still loading OR if user is defined but redirect hasn't happened yet
+   if (authLoading || (!authLoading && user)) {
        return (
             <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
                 <Card className="w-full max-w-md text-center shadow-lg card p-6">
@@ -237,8 +244,7 @@ export default function SignupPage() {
        );
    }
 
-   // If user is already logged in, the useEffect hook will handle redirection.
-
+   // Render the signup form only if auth has finished loading and there is no user
   return (
     <TooltipProvider>
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
@@ -252,19 +258,21 @@ export default function SignupPage() {
                   height={66} // Adjusted height based on 2048x742 aspect ratio for width 180
                   className="mx-auto mb-4 object-contain h-[66px]" // Explicit height
                   priority
-                  // Removed onError handler
+                   onError={(e) => {
+                      console.error('Standard <img> load error (Signup):', (e.target as HTMLImageElement).src);
+                  }}
               />
             <CardTitle className="text-2xl font-bold text-primary">Crie sua Conta BuddyScan</CardTitle>
             <CardDescription>Cadastre-se para começar a monitorar suas plantas.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
              {/* Display critical Firebase init error */}
-            {isAuthUnavailable && contextAuthError && (
+            {isAuthUnavailable && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Erro Crítico de Autenticação</AlertTitle>
                 <AlertDescription>
-                  {contextAuthError.message}. A autenticação pode não funcionar.
+                  {contextAuthError?.message || 'Serviço de autenticação indisponível.'} A autenticação pode não funcionar.
                 </AlertDescription>
               </Alert>
             )}
@@ -278,7 +286,7 @@ export default function SignupPage() {
                   placeholder="seuemail@exemplo.com"
                   {...register('email')}
                   disabled={isLoading || isAuthUnavailable || !!socialLoginLoading || !isAuthEnabled}
-                  className={`input ${errors.email ? 'border-destructive focus:ring-destructive' : ''}`}
+                  className={cn('input', errors.email && 'border-destructive focus:ring-destructive')}
                   aria-invalid={errors.email ? "true" : "false"}
                 />
                 {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
@@ -291,7 +299,7 @@ export default function SignupPage() {
                   placeholder="Mínimo 6 caracteres"
                   {...register('password')}
                   disabled={isLoading || isAuthUnavailable || !!socialLoginLoading || !isAuthEnabled}
-                  className={`input ${errors.password ? 'border-destructive focus:ring-destructive' : ''}`}
+                  className={cn('input', errors.password && 'border-destructive focus:ring-destructive')}
                   aria-invalid={errors.password ? "true" : "false"}
                 />
                 {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
@@ -304,7 +312,7 @@ export default function SignupPage() {
                   placeholder="Repita a senha"
                   {...register('confirmPassword')}
                   disabled={isLoading || isAuthUnavailable || !!socialLoginLoading || !isAuthEnabled}
-                  className={`input ${errors.confirmPassword ? 'border-destructive focus:ring-destructive' : ''}`}
+                  className={cn('input', errors.confirmPassword && 'border-destructive focus:ring-destructive')}
                   aria-invalid={errors.confirmPassword ? "true" : "false"}
                 />
                 {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
@@ -341,43 +349,61 @@ export default function SignupPage() {
             <div className="grid grid-cols-1 gap-3">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className={cn((!isAuthEnabled || isAuthUnavailable) && 'cursor-not-allowed')}>
+                 <span className={cn((!isAuthEnabled || isAuthUnavailable || isLoading || !!socialLoginLoading) && 'cursor-not-allowed')}>
                     <Button
                       variant="outline"
                       onClick={() => handleSocialLogin('google')}
-                      disabled={isLoading || isAuthUnavailable || !!socialLoginLoading || !isAuthEnabled}
+                      disabled={!isAuthEnabled || isAuthUnavailable || isLoading || !!socialLoginLoading}
                       className="button justify-center gap-2 w-full"
-                      aria-disabled={isLoading || isAuthUnavailable || !!socialLoginLoading || !isAuthEnabled}
+                      aria-disabled={!isAuthEnabled || isAuthUnavailable || isLoading || !!socialLoginLoading}
                     >
                       {socialLoginLoading === 'Google' ? <Loader2 className="h-5 w-5 animate-spin" /> : <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.36 1.67-4.06 1.67-3.4 0-6.33-2.83-6.33-6.33s2.93-6.33 6.33-6.33c1.9 0 3.21.73 4.18 1.69l2.6-2.6C16.84 3.18 14.91 2 12.48 2 7.48 2 3.11 6.33 3.11 11.33s4.37 9.33 9.37 9.33c3.19 0 5.64-1.18 7.57-3.01 2-1.9 2.6-4.5 2.6-6.66 0-.58-.05-1.14-.13-1.67z"></path></svg>}
                       {socialLoginLoading === 'Google' ? 'Conectando...' : ('Cadastrar com Google')}
                     </Button>
                   </span>
                 </TooltipTrigger>
-                {(!isAuthEnabled || isAuthUnavailable) && (
+                 {(!isAuthEnabled || isAuthUnavailable || isLoading || !!socialLoginLoading) && (
                   <TooltipContent>
-                    <p>Cadastro com Google está temporariamente indisponível.</p>
+                    <p>{isAuthUnavailable ? 'Autenticação Indisponível' : 'Aguarde ou desabilitado'}</p>
                   </TooltipContent>
                 )}
               </Tooltip>
 
               {/* Placeholders */}
-              <Button
-                variant="outline"
-                disabled={true} // Keep disabled
-                className="button justify-center gap-2 opacity-50 cursor-not-allowed"
-              >
-                 <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M18.77 7.46H14.5v-1.9c0-.9.6-1.1 1-1.1h3V.5h-4.33C10.24.5 9.5 3.14 9.5 5.35V7.46H6.11v4.05H9.5v10h5V11.51h3.27l.59-4.05z"></path></svg>
-                 Facebook (Em Breve)
-              </Button>
-               <Button
-                 variant="outline"
-                 disabled={true} // Keep disabled
-                 className="button justify-center gap-2 opacity-50 cursor-not-allowed"
-               >
-                 <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>
-                 Twitter/X (Em Breve)
-               </Button>
+              <Tooltip>
+                 <TooltipTrigger asChild>
+                   <span className="cursor-not-allowed">
+                      <Button
+                        variant="outline"
+                        disabled={true} // Keep disabled
+                        className="button justify-center gap-2 opacity-50 cursor-not-allowed w-full"
+                      >
+                        <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M18.77 7.46H14.5v-1.9c0-.9.6-1.1 1-1.1h3V.5h-4.33C10.24.5 9.5 3.14 9.5 5.35V7.46H6.11v4.05H9.5v10h5V11.51h3.27l.59-4.05z"></path></svg>
+                        Facebook (Em Breve)
+                      </Button>
+                   </span>
+                 </TooltipTrigger>
+                 <TooltipContent>
+                    <p>Login com Facebook ainda não disponível.</p>
+                 </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                 <TooltipTrigger asChild>
+                   <span className="cursor-not-allowed">
+                      <Button
+                        variant="outline"
+                        disabled={true} // Keep disabled
+                        className="button justify-center gap-2 opacity-50 cursor-not-allowed w-full"
+                      >
+                        <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>
+                        Twitter/X (Em Breve)
+                      </Button>
+                    </span>
+                 </TooltipTrigger>
+                 <TooltipContent>
+                    <p>Login com Twitter/X ainda não disponível.</p>
+                 </TooltipContent>
+              </Tooltip>
             </div>
           </CardContent>
           <CardFooter className="text-center text-sm text-muted-foreground justify-center">
@@ -391,4 +417,3 @@ export default function SignupPage() {
     </TooltipProvider>
   );
 }
-
