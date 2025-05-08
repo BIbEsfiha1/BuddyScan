@@ -1,4 +1,5 @@
-import { db } from '@/lib/firebase/client'; // Import CLIENT-SIDE Firestore db instance
+// src/services/plant-id.ts
+import { db, auth } from '@/lib/firebase/client'; // Import CLIENT-SIDE Firestore/Auth
 import {
     collection,
     doc,
@@ -16,6 +17,7 @@ import {
     DocumentData,
     QueryDocumentSnapshot,
     startAfter,
+    serverTimestamp, // Use serverTimestamp for consistency
 } from 'firebase/firestore';
 
 /**
@@ -47,9 +49,9 @@ export interface Plant {
    */
   birthDate: string; // Store as ISO string in object, convert to Timestamp for Firestore
   /**
-   * O ID da sala de cultivo onde a planta está localizada.
+   * O ID do ambiente (Environment) onde a planta está localizada.
    */
-  growRoomId: string;
+  growRoomId: string; // Changed from 'Sala de Cultivo' to 'Environment ID' for clarity
   /**
    * O status atual da planta (ex: Ativa, Em tratamento, Colhida).
    */
@@ -61,7 +63,7 @@ export interface Plant {
    /**
    * ID do usuário (Firebase UID) proprietário desta planta.
    */
-  // ownerId: string; // Uncomment and use if implementing user-specific data
+  ownerId: string; // Added ownerId field
 }
 
 // Define os estados recomendados para uma planta individual
@@ -94,7 +96,7 @@ function ensureDbAvailable() {
   // We rely on the client db instance. If it's null, something went wrong during its init.
   if (!db || !plantsCollectionRef) {
       console.error("Firestore DB instance (client) or collection ref is not available.");
-      throw new Error('Instância do Firestore (client) ou referência da coleção não está disponível.');
+      throw new Error('Instância do Firestore (client) ou referência da coleção de plantas não está disponível.');
   }
 }
 
@@ -120,11 +122,11 @@ export async function getPlantById(plantId: string, ownerId?: string): Promise<P
       const data = plantSnap.data();
       console.log(`Planta encontrada:`, data);
 
-      // Uncomment and adapt if ownerId is implemented
-      // if (ownerId && data.ownerId !== ownerId) {
-      //     console.warn(`Plant ${plantId} found, but owner mismatch. Requested by ${ownerId}, owned by ${data.ownerId}.`);
-      //     return null; // Or throw an authorization error
-      // }
+      // Enforce owner check if ownerId is provided
+      if (ownerId && data.ownerId !== ownerId) {
+          console.warn(`Plant ${plantId} found, but owner mismatch. Requested by ${ownerId}, owned by ${data.ownerId}.`);
+          return null; // Return null if owner doesn't match
+      }
 
       // Convert Timestamps back to ISO strings if needed
       const birthDate = (data.birthDate instanceof Timestamp) ? data.birthDate.toDate().toISOString() : data.birthDate;
@@ -150,7 +152,7 @@ export const getPlantByQrCode = getPlantById;
 /**
  * Adiciona uma nova planta ao Firestore using the client SDK.
  * O ID e o QR Code são passados como parte do objeto plantData.
- * O status inicial é definido internamente. Owner ID should be included in plantData.
+ * O status inicial é definido internamente. Owner ID MUST be included in plantData.
  *
  * @param plantData Os dados da nova planta a ser adicionada, incluindo id, qrCode, lotName, ownerId etc. O campo 'status' será sobrescrito.
  * @returns Uma promessa que resolve com o objeto Plant completo (incluindo status e createdAt) quando a planta é adicionada. Rejeita se o ID já existir ou em caso de erro.
@@ -159,10 +161,10 @@ export async function addPlant(plantData: Omit<Plant, 'status' | 'createdAt'> & 
   ensureDbAvailable();
   console.log(`Adicionando planta com ID: ${plantData.id} ao Firestore (Client).`);
 
-   // Uncomment and enforce if ownerId is mandatory
-   // if (!plantData.ownerId) {
-   //     throw new Error("Owner ID é obrigatório para adicionar uma planta.");
-   // }
+   // Enforce ownerId presence
+   if (!plantData.ownerId) {
+       throw new Error("Owner ID é obrigatório para adicionar uma planta.");
+   }
 
   try {
     const plantDocRef = doc(db!, 'plants', plantData.id); // Use client db
@@ -174,32 +176,39 @@ export async function addPlant(plantData: Omit<Plant, 'status' | 'createdAt'> & 
       throw new Error(`O ID da planta '${plantData.id}' já está em uso.`);
     }
 
-    const now = new Date();
+    // Convert dates to Timestamps for Firestore storage
+    const birthDateTimestamp = Timestamp.fromDate(new Date(plantData.birthDate));
+    const estimatedHarvestDateTimestamp = plantData.estimatedHarvestDate ? Timestamp.fromDate(new Date(plantData.estimatedHarvestDate)) : null;
+    const createdAtTimestamp = serverTimestamp(); // Use server timestamp
+
     const dataToSave = {
       ...plantData,
       status: PLANT_STATES[0], // Set initial status to 'Ativa'
-      birthDate: Timestamp.fromDate(new Date(plantData.birthDate)), // Convert ISO string to Timestamp
-      createdAt: Timestamp.fromDate(now), // Add creation timestamp
-      estimatedHarvestDate: plantData.estimatedHarvestDate ? Timestamp.fromDate(new Date(plantData.estimatedHarvestDate)) : null,
-      // Ensure ownerId is included if using it:
-      // ownerId: plantData.ownerId,
+      birthDate: birthDateTimestamp,
+      createdAt: createdAtTimestamp,
+      estimatedHarvestDate: estimatedHarvestDateTimestamp,
+      ownerId: plantData.ownerId, // Ensure ownerId is saved
     };
-
-    // Remove id from the data object itself, as it's the document ID
-    // delete (dataToSave as any).id; // This might not be needed depending on how setDoc handles it, but safer to remove.
 
     await setDoc(plantDocRef, dataToSave);
     console.log(`Planta '${plantData.strain}' adicionada com sucesso com ID: ${plantData.id}.`);
 
-    // Return the full object as it was saved (converting Timestamps back to ISO strings)
+    // Fetch the doc again to get the actual server timestamp
+    const savedDocSnap = await getDoc(plantDocRef);
+    if (!savedDocSnap.exists()) {
+        throw new Error("Failed to fetch the newly saved plant document.");
+    }
+    const savedData = savedDocSnap.data();
+    const createdAtISO = (savedData.createdAt instanceof Timestamp)
+        ? savedData.createdAt.toDate().toISOString()
+        : new Date().toISOString(); // Fallback just in case
+
+    // Return the full object as it exists in the application state (ISO dates)
     const savedPlant: Plant = {
-      ...plantData,
-      id: plantData.id, // Add the id back
+      ...plantData, // Includes id, qrCode, strain, lotName, birthDate (ISO), growRoomId, ownerId, estimatedHarvestDate (ISO or null)
+      id: plantData.id, // Ensure ID is present
       status: PLANT_STATES[0],
-      createdAt: now.toISOString(),
-      birthDate: plantData.birthDate, // Keep original ISO string format
-      estimatedHarvestDate: plantData.estimatedHarvestDate, // Keep original format or null
-      // ownerId: plantData.ownerId, // Include ownerId
+      createdAt: createdAtISO,
     };
     return savedPlant;
 
@@ -211,16 +220,20 @@ export async function addPlant(plantData: Omit<Plant, 'status' | 'createdAt'> & 
 
 /**
  * Updates the status of an existing plant in Firestore using the client SDK.
- * Optionally checks ownership before updating.
+ * Ensures the plant belongs to the provided ownerId.
  *
  * @param plantId The ID of the plant to update.
  * @param newStatus The new status string (should be one of PLANT_STATES).
- * @param ownerId Optional: The UID of the user attempting the update. If provided, checks ownership.
+ * @param ownerId The UID of the user attempting the update. Checks ownership.
  * @returns A promise that resolves when the plant status is updated. Rejects if the plant ID is not found, owner doesn't match, or on error.
  */
-export async function updatePlantStatus(plantId: string, newStatus: string, ownerId?: string): Promise<void> {
+export async function updatePlantStatus(plantId: string, newStatus: string, ownerId: string): Promise<void> {
   ensureDbAvailable();
-  console.log(`Atualizando status da planta ID: ${plantId} para "${newStatus}" no Firestore (Client). Owner check: ${ownerId ? 'Yes' : 'No'}`);
+  console.log(`Atualizando status da planta ID: ${plantId} para "${newStatus}" no Firestore (Client). Owner check: Yes`);
+
+  if (!ownerId) {
+      throw new Error("Autenticação necessária para atualizar status.");
+  }
 
   if (!PLANT_STATES.includes(newStatus)) {
        console.warn(`Status "${newStatus}" não é um estado de planta válido. Salvando mesmo assim, mas pode causar inconsistências.`);
@@ -229,29 +242,23 @@ export async function updatePlantStatus(plantId: string, newStatus: string, owne
   try {
     const plantDocRef = doc(db!, 'plants', plantId); // Use client db
 
-    // Uncomment and adapt if ownerId is implemented
-    // if (ownerId) {
-    //     const plantSnap = await getDoc(plantDocRef);
-    //     if (!plantSnap.exists()) {
-    //         throw new Error(`Planta com ID '${plantId}' não encontrada para atualização.`);
-    //     }
-    //     if (plantSnap.data().ownerId !== ownerId) {
-    //         console.warn(`Update denied for plant ${plantId}. User ${ownerId} does not own it.`);
-    //         throw new Error("Você não tem permissão para atualizar esta planta.");
-    //     }
-    // }
+    // Verify ownership before updating
+    const plantSnap = await getDoc(plantDocRef);
+    if (!plantSnap.exists()) {
+        throw new Error(`Planta com ID '${plantId}' não encontrada para atualização.`);
+    }
+    if (plantSnap.data().ownerId !== ownerId) {
+        console.warn(`Update denied for plant ${plantId}. User ${ownerId} does not own it.`);
+        throw new Error("Você não tem permissão para atualizar esta planta.");
+    }
 
     await updateDoc(plantDocRef, {
       status: newStatus,
-      // lastUpdatedAt: Timestamp.now(), // Optional
+      // lastUpdatedAt: serverTimestamp(), // Optional: track last update time
     });
     console.log(`Status da planta (ID: ${plantId}) atualizado para "${newStatus}".`);
   } catch (error) {
     console.error(`Erro ao atualizar status da planta ${plantId} no Firestore (Client):`, error);
-    // Check if the error is due to the document not existing (if owner check wasn't performed)
-    if (!ownerId && (error as any).code === 'not-found') {
-      throw new Error(`Planta com ID '${plantId}' não encontrada para atualização.`);
-    }
      throw new Error(`Falha ao atualizar status da planta: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
   }
 }
@@ -259,24 +266,27 @@ export async function updatePlantStatus(plantId: string, newStatus: string, owne
 
 /**
  * Recupera uma lista de plantas recentes do Firestore usando o client SDK.
- * Ordena por data de criação (createdAt). Optionally filters by ownerId.
+ * Filters by ownerId.
  *
+ * @param ownerId The UID of the owner to filter by.
  * @param count O número máximo de plantas recentes a serem retornadas.
- * @param ownerId Optional: The UID of the owner to filter by.
  * @returns Uma promessa que resolve para um array de objetos Plant.
  */
-export async function getRecentPlants(count: number = 3, ownerId?: string): Promise<Plant[]> {
+export async function getRecentPlants(ownerId: string, count: number = 3): Promise<Plant[]> {
   ensureDbAvailable();
-  console.log(`Buscando ${count} plantas recentes do Firestore (Client). Owner filter: ${ownerId ? 'Yes' : 'No'}`);
+  console.log(`Buscando ${count} plantas recentes do Firestore (Client) para owner ${ownerId}.`);
+  if (!ownerId) {
+      throw new Error("Owner ID é necessário para buscar plantas recentes.");
+  }
   try {
     if (!plantsCollectionRef) throw new Error("plantsCollectionRef is null");
 
-    let q = query(plantsCollectionRef, orderBy('createdAt', 'desc'), firestoreLimit(count));
-
-    // Uncomment and adapt if ownerId is implemented
-    // if (ownerId) {
-    //     q = query(q, where('ownerId', '==', ownerId));
-    // }
+    const q = query(
+        plantsCollectionRef,
+        where('ownerId', '==', ownerId), // Filter by owner
+        orderBy('createdAt', 'desc'),
+        firestoreLimit(count)
+    );
 
     const querySnapshot = await getDocs(q);
 
@@ -300,34 +310,30 @@ export async function getRecentPlants(count: number = 3, ownerId?: string): Prom
 
 /**
  * Recupera uma lista de plantas que precisam de atenção do Firestore usando o client SDK.
- * Optionally filters by ownerId.
+ * Filters by ownerId.
  *
+ * @param ownerId The UID of the owner to filter by.
  * @param count O número máximo de plantas a serem retornadas.
- * @param ownerId Optional: The UID of the owner to filter by.
  * @returns Uma promessa que resolve para um array de objetos Plant.
  */
- export async function getAttentionPlants(count: number = 3, ownerId?: string): Promise<Plant[]> {
+ export async function getAttentionPlants(ownerId: string, count: number = 3): Promise<Plant[]> {
     ensureDbAvailable();
-    console.log(`Buscando ${count} plantas que precisam de atenção no Firestore (Client). Owner filter: ${ownerId ? 'Yes' : 'No'}`);
+    console.log(`Buscando ${count} plantas que precisam de atenção no Firestore (Client) para owner ${ownerId}.`);
+     if (!ownerId) {
+         throw new Error("Owner ID é necessário para buscar plantas com atenção.");
+     }
     try {
       if (!plantsCollectionRef) throw new Error("plantsCollectionRef is null");
 
       const attentionStatuses = ['Em tratamento', 'Diagnóstico Pendente'];
-      let q = query(
+      // Composite index required: (ownerId ==, status IN, createdAt DESC)
+      const q = query(
           plantsCollectionRef,
+          where('ownerId', '==', ownerId), // Add owner filter
           where('status', 'in', attentionStatuses),
           orderBy('createdAt', 'desc'),
           firestoreLimit(count)
       );
-
-      // Uncomment and adapt if ownerId is implemented
-      // if (ownerId) {
-      //     q = query(q, where('ownerId', '==', ownerId)); // Add owner filter
-      //     // Note: Firestore requires an index for queries with inequality/IN filters on one field
-      //     // and orderBy/equality on another. You might need to create a composite index:
-      //     // (ownerId ==, status IN, createdAt DESC)
-      // }
-
 
       const querySnapshot = await getDocs(q);
 
@@ -345,52 +351,58 @@ export async function getRecentPlants(count: number = 3, ownerId?: string): Prom
       return plants;
     } catch (error) {
         console.error('Erro ao buscar plantas que precisam de atenção no Firestore (Client):', error);
+        // Check for missing index error
+         if (error instanceof Error && error.message.includes("index")) {
+             console.error("Firestore Index Error: Ensure the required composite index (ownerId ==, status IN, createdAt DESC) exists in your Firebase console.");
+             throw new Error(`Falha ao buscar: índice Firestore ausente. Verifique o console do Firebase.`);
+         }
         throw new Error(`Falha ao buscar plantas com atenção: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
  }
 
 
  /**
-  * Retrieves a paginated list of plants from Firestore using the client SDK, optionally filtered.
+  * Retrieves a paginated list of plants from Firestore using the client SDK, filtered by owner.
   * Orders alphabetically by strain name.
   *
   * @param options - Options for filtering and pagination.
-  * @param options.filters - Object containing filter criteria (search, status, growRoom, ownerId).
+  * @param options.filters - Object containing filter criteria (search [client-side], status, growRoom, ownerId [REQUIRED]).
   * @param options.limit - The maximum number of plants to return per page.
   * @param options.lastVisible - The last visible document snapshot for pagination.
   * @returns A promise that resolves to an object containing the plants array and the last visible document snapshot.
   */
  export async function getAllPlantsPaginated(options: {
-   filters: { search?: string; status?: string; growRoom?: string; ownerId?: string }; // Added ownerId
+   filters: { search?: string; status?: string; growRoom?: string; ownerId: string }; // Made ownerId mandatory
    limit: number;
    lastVisible?: QueryDocumentSnapshot<DocumentData>;
  }): Promise<{ plants: Plant[]; lastVisible: QueryDocumentSnapshot<DocumentData> | null }> {
    ensureDbAvailable();
    const { filters, limit, lastVisible } = options;
-   console.log(`Buscando plantas paginadas no Firestore (Client) (limit: ${limit}) com filtros:`, filters);
+   console.log(`Buscando plantas paginadas no Firestore (Client) (limit: ${limit}) para owner ${filters.ownerId} com filtros:`, filters);
+
+   if (!filters.ownerId) {
+       throw new Error("Owner ID é obrigatório para buscar plantas paginadas.");
+   }
 
    try {
      if (!plantsCollectionRef) throw new Error("plantsCollectionRef is null");
 
-     // Base query ordered by strain
-     let q: Query<DocumentData> = query(plantsCollectionRef, orderBy('strain', 'asc'));
+     // Base query ordered by strain, filtered by owner
+     let q: Query<DocumentData> = query(
+        plantsCollectionRef,
+        where('ownerId', '==', filters.ownerId),
+        orderBy('strain', 'asc')
+     );
 
-     // Apply owner filter FIRST if provided (often required for security rules and indexing)
-     // Uncomment and adapt if ownerId is implemented
-     // if (filters.ownerId) {
-     //    q = query(q, where('ownerId', '==', filters.ownerId));
-     // } else {
-     //    // Handle case where ownerId is required but not provided?
-     //    // Maybe throw an error or return empty list depending on requirements.
-     //    console.warn("Fetching all plants without owner filter. Ensure security rules are appropriate.");
-     // }
-
-
-     // Apply other filters
+     // Apply other filters (status, growRoom)
+     // Note: Queries with multiple filters might require composite indexes in Firestore
      if (filters.status && filters.status !== "all_statuses") {
+       // Requires index: (ownerId ==, status ==, strain ASC)
        q = query(q, where('status', '==', filters.status));
      }
      if (filters.growRoom && filters.growRoom !== "all_rooms") {
+       // Requires index: (ownerId ==, growRoomId ==, strain ASC)
+       // If filtering by BOTH status and growRoom: (ownerId ==, status ==, growRoomId ==, strain ASC)
        q = query(q, where('growRoomId', '==', filters.growRoom));
      }
 
@@ -423,27 +435,40 @@ export async function getRecentPlants(count: number = 3, ownerId?: string): Prom
 
    } catch (error) {
      console.error('Erro ao buscar plantas paginadas no Firestore (Client):', error);
+      if (error instanceof Error && error.message.includes("index")) {
+           console.error("Firestore Index Error: Ensure the required composite index exists in your Firebase console based on the active filters (e.g., ownerId, status, growRoomId, strain).");
+           throw new Error(`Falha ao buscar: índice Firestore ausente ou incorreto para os filtros aplicados. Verifique o console do Firebase.`);
+      }
      throw new Error(`Falha ao buscar plantas paginadas: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
    }
  }
 
+ // Function to get plants by environment ID (for deletion check, etc.)
+ export async function getPlantsByEnvironment(environmentId: string, ownerId: string): Promise<Plant[]> {
+     ensureDbAvailable();
+     console.log(`Checking plants in environment ${environmentId} for owner ${ownerId}.`);
+     if (!ownerId) throw new Error("Owner ID required.");
+     if (!plantsCollectionRef) throw new Error("plantsCollectionRef is null");
 
-// --- Migration Function (Keep or remove based on need) ---
-// Ensure this function is only callable in a specific context (e.g., admin panel or dev tool)
- export async function migrateLocalStorageToFirestore() {
-    // ... (migration logic - needs careful review and adaptation for client-side execution context)
-    console.warn("migrateLocalStorageToFirestore should be run cautiously from a controlled environment.");
+     try {
+         // Index required: (ownerId ==, growRoomId ==)
+         const q = query(
+             plantsCollectionRef,
+             where('ownerId', '==', ownerId),
+             where('growRoomId', '==', environmentId)
+         );
+         const querySnapshot = await getDocs(q);
+         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plant));
+     } catch (error) {
+         console.error(`Error fetching plants for environment ${environmentId}:`, error);
+          if (error instanceof Error && error.message.includes("index")) {
+              console.error("Firestore Index Error: Ensure the index (ownerId ==, growRoomId ==) exists.");
+              throw new Error(`Falha ao verificar plantas no ambiente: índice Firestore ausente.`);
+          }
+         throw new Error(`Falha ao verificar plantas no ambiente: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+     }
  }
 
+
 // --- Deprecated Local Storage Functions ---
-// These are disabled and should ideally be removed eventually.
-const LOCAL_STORAGE_KEY = 'budscanPlants_DISABLED';
-
-function loadPlantsFromLocalStorage(): Record<string, Plant> {
-    console.warn("loadPlantsFromLocalStorage está desabilitado. Usando Firestore.");
-    return {};
-}
-
-function savePlantsToLocalStorage(plants: Record<string, Plant>): void {
-    console.warn("savePlantsToLocalStorage está desabilitado. Usando Firestore.");
-}
+// Removed as they are no longer relevant with Firestore implementation.

@@ -1,3 +1,4 @@
+// src/app/(app)/dashboard/page.tsx
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -5,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
     ScanLine, PlusCircle, VideoOff, Loader2, Sprout, AlertTriangle, History,
-    AlertCircle as AlertCircleIcon, Camera, Zap, Package, Home as HomeIcon
+    AlertCircle as AlertCircleIcon, Camera, Zap, Package, Home as HomeIcon, Warehouse // Added Warehouse for environments
 } from '@/components/ui/lucide-icons'; // Use centralized icons
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -26,11 +27,11 @@ import type { Plant } from '@/services/plant-id'; // Import Plant type
 import { getRecentPlants, getAttentionPlants, getPlantById } from '@/services/plant-id'; // Import Firestore fetch functions
 import Image from 'next/image'; // Import Image component
 import { cn } from '@/lib/utils'; // Import cn
-// Import client-side db instance
-import { db } from '@/lib/firebase/client';
+import { db } from '@/lib/firebase/client'; // Import client-side db instance
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; // Import Tooltip components
 import { useAuth } from '@/context/auth-context'; // Import useAuth
 import Link from 'next/link'; // Import Link for login redirect
+import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 
 
 // Define states for camera/scanner
@@ -88,34 +89,23 @@ export default function DashboardPage() { // Renamed component to DashboardPage
 
    // --- Fetch Plant Data Function ---
    const fetchPlants = useCallback(async () => {
-     console.log("Fetching plant data from Firestore service...");
+     // Check for DB availability and user authentication first
+     if (isDbUnavailable || !user || authLoading) {
+        setError(isDbUnavailable ? `Erro de Configuração: ${authError?.message || 'Serviço indisponível.'}` : (!user && !authLoading ? "Faça login para ver os dados das plantas." : null));
+        setIsLoadingPlants(false);
+        setRecentPlants([]);
+        setAttentionPlants([]);
+        return;
+     }
+     console.log(`Fetching plant data from Firestore service for user ${user.uid}...`);
      setIsLoadingPlants(true);
      setError(null); // Reset error state
 
-     // Check for DB availability before proceeding
-     if (isDbUnavailable) {
-         const errorMsg = authError?.message || 'Serviço de banco de dados indisponível.';
-         console.error("Firestore DB not available:", errorMsg);
-         setError(`Erro de Configuração: ${errorMsg} Não é possível buscar dados.`);
-         setIsLoadingPlants(false);
-         return;
-     }
-     // Check if user is logged in
-      if (!user) {
-        console.log("User not authenticated, skipping plant fetch.");
-        setError("Faça login para ver os dados das plantas."); // Set error message
-        setIsLoadingPlants(false);
-        setRecentPlants([]); // Clear existing data if any
-        setAttentionPlants([]);
-        return;
-      }
-
      try {
-       // TODO: Add ownerId filter to service functions if necessary
-       // E.g., getRecentPlants(user.uid, 5), getAttentionPlants(user.uid, 5)
+       // Fetch data specific to the logged-in user
        const [fetchedRecent, fetchedAttention] = await Promise.all([
-         getRecentPlants(5), // Fetch 5 recent plants
-         getAttentionPlants(5) // Fetch 5 attention plants
+         getRecentPlants(user.uid, 5), // Fetch 5 recent plants for this user
+         getAttentionPlants(user.uid, 5) // Fetch 5 attention plants for this user
        ]);
        console.log("Fetched recent plants:", fetchedRecent);
        console.log("Fetched attention plants:", fetchedAttention);
@@ -134,27 +124,29 @@ export default function DashboardPage() { // Renamed component to DashboardPage
        setIsLoadingPlants(false);
         console.log("Finished fetching plant data.");
      }
-   }, [toast, isDbUnavailable, user, authError]); // Dependency: toast, db availability, user, authError
+   }, [toast, isDbUnavailable, user, authError, authLoading]); // Added authLoading dependency
 
 
    // --- Effect to fetch plant data on mount and when dialog closes ---
    useEffect(() => {
-      // Only fetch if mounted, dialog is closed, and db/user are available
-     if (isMounted && !isDialogOpen && user && !isDbUnavailable) {
+     if (isMounted && !isDialogOpen && user && !isDbUnavailable && !authLoading) {
         console.log("Component mounted or dialog closed, user logged in, fetching plants.");
         fetchPlants();
      } else if (isDbUnavailable) {
         console.log("Skipping plant fetch: DB unavailable.");
+     } else if (authLoading) {
+         console.log("Skipping plant fetch: Auth is loading.");
+         setIsLoadingPlants(true); // Keep loading state while auth loads
      } else if (!user) {
          console.log("Skipping plant fetch: User not logged in.");
-         setError("Faça login para ver os dados das plantas."); // Set error if user logs out while viewing
+         setError("Faça login para ver os dados das plantas."); // Set error if user logs out
          setIsLoadingPlants(false);
          setRecentPlants([]);
          setAttentionPlants([]);
      } else {
          console.log(`Skipping plant fetch. Mounted: ${isMounted}, Dialog Open: ${isDialogOpen}`);
      }
-   }, [isMounted, isDialogOpen, fetchPlants, user, isDbUnavailable]); // Add user, isDbUnavailable dependencies
+   }, [isMounted, isDialogOpen, fetchPlants, user, authLoading, isDbUnavailable]); // Add authLoading dependency
 
 
     // --- Stop Media Stream ---
@@ -345,9 +337,6 @@ export default function DashboardPage() { // Renamed component to DashboardPage
           // Check if video element is still valid for detection
            if (!videoRef.current || videoRef.current.readyState < videoRef.current.HAVE_METADATA || videoRef.current.videoWidth === 0) {
                console.warn("Video element not ready for detection within interval.");
-               // Optionally stop and reset status
-               // stopScanInterval();
-               // setScannerStatus('initializing');
                return; // Skip this detection attempt
            }
 
@@ -363,28 +352,20 @@ export default function DashboardPage() { // Renamed component to DashboardPage
 
            toast({ title: 'QR Code Detectado!', description: `Verificando planta ${qrCodeData}...` });
 
-           // Check for DB availability before Firestore check
-           if (isDbUnavailable) {
-               console.error("DB unavailable during QR verification:", authError?.message);
-               toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Não foi possível verificar a planta devido a erro do banco de dados.' });
+           // Check for DB availability and user auth before Firestore check
+           if (isDbUnavailable || !user) {
+               console.error("DB unavailable or user not logged in during QR verification:", authError?.message);
+               toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível verificar a planta (configuração ou login).' });
                setScannerStatus('error');
-               setScannerError('Erro de configuração ao verificar planta.');
+               setScannerError('Erro de configuração ou login ao verificar planta.');
                return; // Stop the process
            }
-            // Check if user is logged in
-            if (!user) {
-                toast({ variant: 'destructive', title: 'Não Autenticado', description: 'Faça login para verificar a planta.' });
-                setScannerStatus('error'); // Or back to initializing? Error seems safer.
-                setScannerError('Usuário não autenticado para verificar planta.');
-                return;
-            }
 
            try {
-             // TODO: Add owner check if needed: const plantExists = await getPlantById(qrCodeData, user.uid);
-             const plantExists = await getPlantById(qrCodeData); // Check Firestore
+             // Check Firestore if plant exists AND belongs to the current user
+             const plantExists = await getPlantById(qrCodeData, user.uid); // Pass user.uid
              if (plantExists) {
-                 // TODO: Add owner check: if (plantExists.ownerId === user.uid) { ... } else { /* Not authorized */ }
-                 console.log(`Planta ${qrCodeData} encontrada no Firestore. Redirecionando...`);
+                 console.log(`Planta ${qrCodeData} encontrada para o usuário ${user.uid}. Redirecionando...`);
                  sessionStorage.setItem('pendingNavigationQr', qrCodeData);
                  if (handleOpenChangeCallbackRef.current) {
                    console.log("Triggering dialog close via handleOpenChange(false) after QR verification.");
@@ -394,15 +375,14 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                     setIsDialogOpen(false); // Force close as fallback
                  }
              } else {
-                 console.warn(`Planta ${qrCodeData} não encontrada no Firestore.`);
+                 console.warn(`Planta ${qrCodeData} não encontrada para o usuário ${user.uid} ou não existe.`);
                  toast({
                      variant: 'destructive',
                      title: 'Planta Não Encontrada',
-                     description: `O QR code ${qrCodeData} foi lido, mas a planta não existe no banco de dados.`,
+                     description: `O QR code foi lido (${qrCodeData}), mas esta planta não existe ou não pertence a você.`,
                  });
                  // Keep dialog open, allow rescan
                  setScannerStatus('initializing'); // Go back to initializing to allow manual rescan/close
-                 // Do not restart scanning automatically after not found
              }
            } catch (verificationError) {
                console.error(`Erro ao verificar planta ${qrCodeData}:`, verificationError);
@@ -413,17 +393,14 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                });
                setScannerStatus('error'); // Set to error on verification fail
                setScannerError('Erro ao verificar a planta no banco de dados.');
-               // Do not restart scanning automatically after error
            }
 
          } else if (scannerStatus === 'scanning') {
             // Optional: Log if no barcode found on a scan tick
-            // console.log("No barcode detected in this scan interval.");
          }
        } catch (error: any) {
          if (error instanceof DOMException && (error.name === 'NotSupportedError' || error.name === 'InvalidStateError' || error.name === 'OperationError')) {
              console.warn('DOMException during barcode detection (likely temporary/benign):', error.message);
-             // Don't necessarily stop scanning for these, might be recoverable
          } else if (error.message && error.message.includes("video source is detached")) {
               console.warn("Video source detached error during detection. Stopping scan.", error);
               stopScanInterval();
@@ -438,7 +415,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
        }
      }, 500); // Interval duration (adjust if needed, e.g., 300ms for faster scans)
      console.log("Scan interval setup complete.");
-   }, [stopScanInterval, stopMediaStream, toast, isDialogOpen, scannerStatus, isDbUnavailable, user, authError]); // Added dependencies
+   }, [stopScanInterval, stopMediaStream, toast, isDialogOpen, scannerStatus, isDbUnavailable, user, authError]); // Added user to dependencies
 
 
   // --- Dialog Open/Close Handlers ---
@@ -475,6 +452,11 @@ export default function DashboardPage() { // Renamed component to DashboardPage
              });
              return; // Do not proceed if prerequisites fail
          }
+          // Check if user is logged in
+         if (!user) {
+            toast({ variant: 'destructive', title: 'Login Necessário', description: 'Faça login para escanear.' });
+            return;
+         }
 
         setScannerError(null);
         setScannerStatus('idle'); // Start as idle, camera starts, then initializing
@@ -482,7 +464,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
         startCamera(); // Initiate camera start
         console.log("Dialog state set to open, camera start initiated.");
 
-   }, [startCamera, toast, isScannerSupported]); // Add toast and isScannerSupported dependency
+   }, [startCamera, toast, isScannerSupported, user]); // Add user dependency
 
     const handleOpenChange = useCallback((open: boolean) => {
        console.log(`handleOpenChange called with open: ${open}`);
@@ -611,15 +593,19 @@ export default function DashboardPage() { // Renamed component to DashboardPage
   // --- Button Click Handlers ---
   const handleScanClick = () => {
     console.log("Scan button clicked.");
-    // Prerequisite check moved to handleDialogOpen, called by handleOpenChange
-    // handleOpenChange will now call handleDialogOpen which includes the check
-    handleOpenChange(true);
+    // Prerequisite checks (scanner support, user login) moved to handleDialogOpen
+    handleOpenChange(true); // handleOpenChange calls handleDialogOpen which has the checks
   };
 
   const handleRegister = () => {
     console.log('Navegar para a página de registro...');
      router.push('/register-plant');
   };
+
+   const handleManageEnvironments = () => {
+       console.log('Navegar para a página de gerenciamento de ambientes...');
+       router.push('/environments');
+   };
 
   // Determine if buttons should be disabled based on auth and Firebase status
   const generalDisabled = isDialogOpen || isDbUnavailable || authLoading || !user;
@@ -648,7 +634,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
           </Alert>
         )}
         {/* Display General Fetch Error */}
-        {error && !isDbUnavailable && (
+        {error && !isDbUnavailable && user && ( // Only show fetch errors if logged in and no critical error
            <Alert variant="destructive" className="mb-6">
               <AlertCircleIcon className="h-4 w-4" />
               <AlertTitle>Erro ao Carregar Dados</AlertTitle>
@@ -660,7 +646,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
               </AlertDescription>
            </Alert>
         )}
-         {/* Auth Loading or No User Message (if auth is enabled) */}
+         {/* Auth Loading or No User Message */}
          {authLoading && !isDbUnavailable && (
              <Alert variant="default" className="mb-6 border-blue-500/50 bg-blue-500/10">
                 <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
@@ -728,9 +714,15 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                       )}
                       {generalDisabled && isScannerSupported && (
                          <TooltipContent side="bottom">
-                            <p>{isDbUnavailable ? 'Funcionalidade indisponível devido a erro.' : !user ? 'Faça login para escanear.' : 'Aguarde...'}</p>
+                            <p>{isDbUnavailable ? 'Funcionalidade indisponível (erro DB).' : !user ? 'Faça login para escanear.' : authLoading ? 'Aguardando autenticação...' : 'Aguarde...'}</p>
                          </TooltipContent>
                       )}
+                      {/* Specific tooltip if only auth is loading */}
+                       {authLoading && !isDbUnavailable && isScannerSupported && (
+                           <TooltipContent side="bottom">
+                              <p>Aguardando autenticação...</p>
+                           </TooltipContent>
+                       )}
                  </Tooltip>
 
 
@@ -745,22 +737,36 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                    <Package className="mr-3 h-5 w-5" />
                    Ver Todas as Plantas
                  </Button>
+
+                 {/* Button to Manage Environments */}
+                 <Button
+                   size="lg"
+                   variant="outline"
+                   className="w-full text-base font-medium button justify-start"
+                   onClick={handleManageEnvironments}
+                   aria-label="Gerenciar Ambientes"
+                   disabled={generalDisabled}
+                 >
+                   <Warehouse className="mr-3 h-5 w-5" />
+                   Gerenciar Ambientes
+                 </Button>
                </CardContent>
              </Card>
 
               {/* Plants Needing Attention Card */}
-              {isLoadingPlants && !isDbUnavailable && user ? (
+              {/* Show skeleton only if auth is okay and user exists but plants are loading */}
+              {authLoading || (!user && !authLoading) || isDbUnavailable ? null : isLoadingPlants ? (
                 <Card className="shadow-md card border-destructive/30 p-6">
                    <div className="flex items-center gap-2 mb-4">
                       <AlertTriangle className="h-5 w-5 text-destructive" />
                       <CardTitle className="text-xl">Requer Atenção</CardTitle>
                    </div>
-                   <div className="space-y-4">
-                       <Loader2 className="h-8 w-8 mx-auto text-muted-foreground animate-spin" />
-                       <p className="text-center text-muted-foreground text-sm">Carregando plantas...</p>
-                   </div>
+                    <div className="space-y-4">
+                       <Skeleton className="h-16 w-full" />
+                       <Skeleton className="h-4 w-3/4 mx-auto" />
+                    </div>
                 </Card>
-               ) : error && !isDbUnavailable && user ? ( // Show error state within the card if loading failed (and no critical error)
+               ) : error ? ( // Show error state if loading failed
                  <Card className="shadow-md card border-destructive/30 p-6">
                     <div className="flex items-center gap-2 mb-4">
                        <AlertTriangle className="h-5 w-5 text-destructive" />
@@ -768,31 +774,33 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                     </div>
                     <Alert variant="destructive" className="border-none p-0">
                         <AlertCircleIcon className="h-4 w-4" />
-                        <AlertTitle>Erro</AlertTitle>
-                        <AlertDescription>Não foi possível carregar.</AlertDescription>
+                        <AlertTitle>Erro ao Carregar</AlertTitle>
+                        <AlertDescription>Não foi possível buscar as plantas.</AlertDescription>
                     </Alert>
                  </Card>
-                ) : !isDbUnavailable && user ? ( // Show AttentionPlants only if no error, no critical error, and user is logged in
+                ) : ( // Show AttentionPlants only if loaded successfully
                  <AttentionPlants plants={attentionPlants} />
-               ) : null /* Hide if critical error or no user */}
+               )}
 
 
           </div>
 
            {/* Right Column (Recent Plants) */}
            <div className="lg:col-span-2">
-              {isLoadingPlants && !isDbUnavailable && user ? (
+              {/* Show skeleton only if auth is okay and user exists but plants are loading */}
+              {authLoading || (!user && !authLoading) || isDbUnavailable ? null : isLoadingPlants ? (
                  <Card className="shadow-md card h-full flex flex-col p-6">
                     <div className="flex items-center gap-2 mb-4">
                         <History className="h-5 w-5 text-primary" />
                         <CardTitle className="text-xl">Plantas Recentes</CardTitle>
                     </div>
                      <div className="flex-1 flex flex-col items-center justify-center space-y-4">
-                         <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
-                         <p className="text-center text-muted-foreground">Carregando plantas recentes...</p>
+                         <Skeleton className="h-20 w-full mb-4" />
+                         <Skeleton className="h-20 w-full mb-4" />
+                         <Skeleton className="h-20 w-full" />
                      </div>
                  </Card>
-              ) : error && !isDbUnavailable && user ? ( // Show error state within the card if loading failed (and no critical error)
+              ) : error ? ( // Show error state if loading failed
                   <Card className="shadow-md card h-full flex flex-col p-6">
                      <div className="flex items-center gap-2 mb-4">
                          <History className="h-5 w-5 text-primary" />
@@ -801,14 +809,14 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                      <div className="flex-1 flex flex-col items-center justify-center space-y-4">
                           <Alert variant="destructive" className="w-full">
                               <AlertCircleIcon className="h-4 w-4" />
-                              <AlertTitle>Erro</AlertTitle>
-                              <AlertDescription>Não foi possível carregar as plantas recentes.</AlertDescription>
+                              <AlertTitle>Erro ao Carregar</AlertTitle>
+                              <AlertDescription>Não foi possível buscar as plantas recentes.</AlertDescription>
                           </Alert>
                      </div>
                   </Card>
-               ) : !isDbUnavailable && user ? ( // Show RecentPlants only if no error, no critical error, and user is logged in
+               ) : ( // Show RecentPlants only if loaded successfully
                  <RecentPlants plants={recentPlants} />
-              ) : null /* Hide if critical error or no user */}
+              )}
            </div>
 
        </main>
@@ -856,8 +864,9 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                          <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-accent animate-pulse-corners rounded-bl-md z-20"></div>
                          <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-accent animate-pulse-corners rounded-br-md z-20"></div>
 
-                         {/* Scan Line Animation */}
-                          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/70 to-transparent animate-scan-line-vertical"></div>
+                         {/* Scan Line Animation - Updated Class */}
+                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/70 to-transparent animate-scan-line-vertical-improved"></div>
+
                      </div>
                  </div>
              )}

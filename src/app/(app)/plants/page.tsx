@@ -1,3 +1,4 @@
+// src/app/(app)/plants/page.tsx
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -8,17 +9,19 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Loader2, Filter, X, ArrowRight, Sprout, Warehouse, Search, Package, ArrowLeft, AlertCircle as AlertCircleIcon } from '@/components/ui/lucide-icons'; // Added AlertCircleIcon
+import { Loader2, Filter, X, ArrowRight, Sprout, Warehouse, Search, Package, ArrowLeft, AlertCircle as AlertCircleIcon, Home } from '@/components/ui/lucide-icons'; // Added Home icon
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-// Import client-side db instance
-import { db } from '@/lib/firebase/client';
+import { db, auth } from '@/lib/firebase/client'; // Import auth as well
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { collection, getDocs, query } from 'firebase/firestore'; // Import Firestore functions for getting rooms
+import { collection, getDocs, query, where } from 'firebase/firestore'; // Import Firestore functions for getting rooms
 import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore'; // Import Firestore types
+import type { Environment } from '@/types/environment'; // Import Environment type
+import { getEnvironmentsByOwner } from '@/services/environment-service'; // Import function to get environments
 import { useRouter } from 'next/navigation'; // Import useRouter
 import { useAuth } from '@/context/auth-context'; // Import useAuth
+import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 
 const ALL_STATUSES_VALUE = "all_statuses";
 const ALL_ROOMS_VALUE = "all_rooms";
@@ -27,7 +30,7 @@ const PLANTS_PER_PAGE = 15; // Number of plants to load per page
 interface Filters {
   search: string;
   status: string;
-  growRoom: string;
+  environmentId: string; // Changed from growRoom to environmentId
 }
 
 export default function AllPlantsPage() {
@@ -37,43 +40,55 @@ export default function AllPlantsPage() {
 
   const [allPlants, setAllPlants] = useState<Plant[]>([]); // Stores all currently loaded plants
   const [displayedPlants, setDisplayedPlants] = useState<Plant[]>([]); // Plants to display after client-side search filter
-  const [filters, setFilters] = useState<Filters>({ search: '', status: ALL_STATUSES_VALUE, growRoom: ALL_ROOMS_VALUE });
+  const [filters, setFilters] = useState<Filters>({ search: '', status: ALL_STATUSES_VALUE, environmentId: ALL_ROOMS_VALUE });
   const [isLoading, setIsLoading] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMore, setHasMore] = useState(true); // Assume there might be more initially
-  const [allUniqueGrowRooms, setAllUniqueGrowRooms] = useState<string[]>([]); // Store all unique rooms fetched
+  const [availableEnvironments, setAvailableEnvironments] = useState<Environment[]>([]); // Store fetched environments
+  const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(true); // Loading state for environments
 
   // Determine if there's a critical initialization error
   const isDbUnavailable = !db || !!authError;
 
 
-   // Function to fetch plants (paginated)
+   // --- Fetch Environments ---
+   const fetchEnvironments = useCallback(async () => {
+      if (!user || isDbUnavailable || authLoading) {
+           setIsLoadingEnvironments(false);
+           return; // Don't fetch if not ready
+       }
+      setIsLoadingEnvironments(true);
+      try {
+        const envs = await getEnvironmentsByOwner(); // Fetches environments for the current user
+        setAvailableEnvironments(envs);
+      } catch (e: any) {
+        console.error("Failed to fetch environments for filter:", e);
+        toast({ variant: 'destructive', title: 'Erro ao Carregar Filtros', description: 'Não foi possível buscar os ambientes.' });
+      } finally {
+        setIsLoadingEnvironments(false);
+      }
+   }, [user, isDbUnavailable, authLoading, toast]);
+
+
+   // --- Fetch Plants (Paginated) ---
    const fetchPlants = useCallback(async (loadMore = false) => {
-      // Check for DB availability first
-     if (isDbUnavailable) {
-         const errorMsg = authError?.message || 'Serviço de banco de dados indisponível.';
-         setError(`Erro de Configuração: ${errorMsg} Não é possível buscar plantas.`);
-         setIsLoading(false);
-         setIsFetchingMore(false);
-         return;
-     }
-     // Check if user is logged in
-     if (!user) {
-        setError("Usuário não autenticado. Faça login para visualizar as plantas.");
-        setIsLoading(false);
-        setIsFetchingMore(false);
-        setAllPlants([]);
-        setDisplayedPlants([]);
-        return;
+     // Check for DB availability and user authentication
+     if (isDbUnavailable || !user || authLoading) {
+       setError(isDbUnavailable ? `Erro de Configuração: ${authError?.message || 'Serviço indisponível.'}` : "Faça login para ver as plantas.");
+       setIsLoading(false);
+       setIsFetchingMore(false);
+       setAllPlants([]);
+       setDisplayedPlants([]);
+       return;
      }
 
      if (!loadMore) {
          setIsLoading(true);
          setAllPlants([]); // Reset plants on initial load/filter change
          setLastVisible(null); // Reset pagination cursor
-         setHasMore(true); // Assume more plants available on new filter/initial load
+         setHasMore(true); // Assume more plants available
      } else {
          setIsFetchingMore(true);
      }
@@ -81,14 +96,13 @@ export default function AllPlantsPage() {
 
      try {
        console.log(`Fetching plants... Load More: ${loadMore}, Last Visible:`, lastVisible?.id);
-       // TODO: Add ownerId filter if necessary: filters.ownerId = user.uid;
        const result = await getAllPlantsPaginated({
          filters: {
-            // Pass only status and growRoom for server-side filtering
+            // Pass status and environmentId for server-side filtering
             status: filters.status === ALL_STATUSES_VALUE ? undefined : filters.status,
-            growRoom: filters.growRoom === ALL_ROOMS_VALUE ? undefined : filters.growRoom,
-            search: undefined, // Search is client-side for now
-            // ownerId: user.uid // Filter by current user
+            growRoom: filters.environmentId === ALL_ROOMS_VALUE ? undefined : filters.environmentId, // Map environmentId to growRoom for the service function
+            search: undefined, // Search is client-side
+            ownerId: user.uid // Filter by current user
          },
          limit: PLANTS_PER_PAGE,
          lastVisible: loadMore ? lastVisible : undefined,
@@ -113,56 +127,35 @@ export default function AllPlantsPage() {
        setIsLoading(false);
        setIsFetchingMore(false);
      }
-   }, [filters.status, filters.growRoom, lastVisible, toast, isDbUnavailable, user, authError]); // Added dependencies
+   }, [filters.status, filters.environmentId, lastVisible, toast, isDbUnavailable, user, authLoading, authError]); // Depend on environmentId
 
 
-    // Initial fetch on component mount and when user/auth status changes
+    // Fetch environments and initial plants on mount or auth change
     useEffect(() => {
-        // Only fetch if DB is available, user logged in, and auth not loading
-        if(user && !authLoading && !isDbUnavailable) {
-            fetchPlants(false);
-            // Fetch all unique grow rooms once for the filter dropdown
-            const fetchAllGrowRooms = async () => {
-                if (!db) { // db might be null if firebase init failed
-                    console.warn("Firestore DB instance not available, cannot fetch grow rooms.");
-                    return;
-                }
-                try {
-                    // TODO: Add ownerId filter if needed: query(plantsCol, where('ownerId', '==', user.uid));
-                    const plantsCol = collection(db, 'plants');
-                    const q = query(plantsCol);
-                    const snapshot = await getDocs(q);
-                    const rooms = new Set<string>();
-                    snapshot.forEach(doc => {
-                        const growRoomId = doc.data().growRoomId;
-                        if (growRoomId) rooms.add(growRoomId);
-                    });
-                    setAllUniqueGrowRooms(Array.from(rooms).sort());
-                } catch (e) {
-                    console.error("Failed to fetch all grow rooms:", e);
-                }
-            };
-            fetchAllGrowRooms();
-        } else if (isDbUnavailable) {
-            setIsLoading(false); // Stop loading if DB error
-            setError(`Erro de Configuração: ${authError?.message || 'Serviço de banco de dados indisponível.'} Não é possível buscar plantas.`);
-        } else if (!authLoading && !user) {
-            setIsLoading(false);
-            setError("Usuário não autenticado. Faça login para visualizar as plantas.");
+        if (user && !authLoading && !isDbUnavailable) {
+            fetchEnvironments(); // Fetch environments first
+            // fetchPlants will be triggered by the filter change effect below
+        } else {
+            setIsLoading(false); // Stop loading if conditions aren't met
+            setIsLoadingEnvironments(false);
+            setError(isDbUnavailable ? `Erro de Configuração: ${authError?.message || 'Serviço indisponível.'}` : (!authLoading && !user ? "Faça login para ver as plantas." : null));
             setAllPlants([]);
             setDisplayedPlants([]);
+            setAvailableEnvironments([]);
+        }
+    }, [user, authLoading, isDbUnavailable, fetchEnvironments, authError]);
+
+
+    // Fetch plants when server-side filters (status, environmentId) change
+    useEffect(() => {
+        // Only fetch if user is logged in and no critical errors
+        if (user && !authLoading && !isDbUnavailable) {
+            console.log("Server filters changed, fetching new data:", filters.status, filters.environmentId);
+            fetchPlants(false); // Fetch initial page with new filters
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isDbUnavailable, user, authLoading, authError]); // Run on mount or if db/auth state changes
+    }, [filters.status, filters.environmentId, user, authLoading, isDbUnavailable]); // Removed fetchPlants from deps to avoid loop
 
-    // Fetch when server-side filters change (status, growRoom)
-    useEffect(() => {
-        // Only fetch if DB available, user logged in, and auth not loading
-        if(user && !authLoading && !isDbUnavailable) {
-            console.log("Server filters changed, fetching new data:", filters.status, filters.growRoom);
-            fetchPlants(false);
-        }
-    }, [filters.status, filters.growRoom, fetchPlants, user, authLoading, isDbUnavailable]);
 
     // Apply client-side search filter whenever allPlants or search term changes
     useEffect(() => {
@@ -188,10 +181,16 @@ export default function AllPlantsPage() {
   };
 
   const clearFilters = () => {
-    setFilters({ search: '', status: ALL_STATUSES_VALUE, growRoom: ALL_ROOMS_VALUE });
+    setFilters({ search: '', status: ALL_STATUSES_VALUE, environmentId: ALL_ROOMS_VALUE });
   };
 
-  const generalDisabled = isLoading || isDbUnavailable || authLoading || !user;
+  const generalDisabled = isLoading || isDbUnavailable || authLoading || !user || isLoadingEnvironments;
+
+  // Find environment name for display
+  const getEnvironmentName = (envId: string) => {
+      const env = availableEnvironments.find(e => e.id === envId);
+      return env ? env.name : envId; // Fallback to ID if name not found
+  };
 
 
   return (
@@ -207,9 +206,9 @@ export default function AllPlantsPage() {
                     <CardDescription>Visualize e filtre todas as suas plantas cadastradas.</CardDescription>
                  </div>
              </div>
-              <Button variant="outline" onClick={() => router.back()} className="button self-start sm:self-center"> {/* Use router.back() */}
-                <ArrowLeft className="mr-2 h-4 w-4"/> {/* Icon */}
-                Voltar
+              <Button variant="outline" onClick={() => router.push('/dashboard')} className="button self-start sm:self-center"> {/* Changed to dashboard link */}
+                <Home className="mr-2 h-4 w-4"/> {/* Icon */}
+                Painel
              </Button>
           </div>
         </CardHeader>
@@ -257,24 +256,39 @@ export default function AllPlantsPage() {
             </Select>
           </div>
 
-          {/* Grow Room Select */}
+          {/* Environment (Grow Room) Select */}
           <div className="space-y-1.5">
-              <label htmlFor="room-filter" className="text-sm font-medium text-muted-foreground flex items-center gap-1.5"><Warehouse className="h-4 w-4"/> Filtrar por Sala</label>
+              <label htmlFor="room-filter" className="text-sm font-medium text-muted-foreground flex items-center gap-1.5"><Warehouse className="h-4 w-4"/> Filtrar por Ambiente</label>
              <Select
-                value={filters.growRoom}
-                onValueChange={(value) => handleFilterChange('growRoom', value)}
-                disabled={generalDisabled || allUniqueGrowRooms.length === 0}
+                value={filters.environmentId}
+                onValueChange={(value) => handleFilterChange('environmentId', value)}
+                disabled={generalDisabled || isLoadingEnvironments || availableEnvironments.length === 0}
              >
                <SelectTrigger id="room-filter" className="input">
-                 <SelectValue placeholder="Todas as Salas" />
+                 <SelectValue placeholder={isLoadingEnvironments ? "Carregando..." : "Todos os Ambientes"} />
                </SelectTrigger>
                <SelectContent>
-                 <SelectItem value={ALL_ROOMS_VALUE}>Todas as Salas</SelectItem>
-                 {allUniqueGrowRooms.map((room, index) => (
-                   <SelectItem key={index} value={room}>{room}</SelectItem>
-                 ))}
+                 <SelectItem value={ALL_ROOMS_VALUE}>Todos os Ambientes</SelectItem>
+                 {isLoadingEnvironments ? (
+                    <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                 ) : availableEnvironments.length === 0 ? (
+                    <SelectItem value="no-envs" disabled>Nenhum ambiente cadastrado</SelectItem>
+                 ) : (
+                    availableEnvironments.map((env) => (
+                        <SelectItem key={env.id} value={env.id}>{env.name}</SelectItem>
+                    ))
+                 )}
                </SelectContent>
              </Select>
+              {/* Link to create environment page if none exist */}
+              {availableEnvironments.length === 0 && !isLoadingEnvironments && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                      Nenhum ambiente encontrado.{" "}
+                      <Link href="/environments" className="underline text-primary hover:text-primary/80">
+                         Cadastre um ambiente
+                      </Link>.
+                  </p>
+               )}
           </div>
 
           {/* Clear Button */}
@@ -287,7 +301,7 @@ export default function AllPlantsPage() {
                     generalDisabled ||
                     (!filters.search &&
                     filters.status === ALL_STATUSES_VALUE &&
-                    filters.growRoom === ALL_ROOMS_VALUE)
+                    filters.environmentId === ALL_ROOMS_VALUE)
                 }
             >
               <X className="mr-2 h-4 w-4" />
@@ -342,7 +356,7 @@ export default function AllPlantsPage() {
                  </Alert>
            ) : displayedPlants.length === 0 && !hasMore && !isDbUnavailable && user ? (
                 <p className="text-center text-muted-foreground py-10">
-                    {filters.search || filters.status !== ALL_STATUSES_VALUE || filters.growRoom !== ALL_ROOMS_VALUE
+                    {filters.search || filters.status !== ALL_STATUSES_VALUE || filters.environmentId !== ALL_ROOMS_VALUE
                         ? 'Nenhuma planta encontrada com os filtros aplicados.'
                         : 'Nenhuma planta cadastrada ainda.'
                     }
@@ -370,7 +384,8 @@ export default function AllPlantsPage() {
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground mt-1">
                                     {/* Use destructive badge for attention states */}
                                     <Badge variant={plant.status === 'Em tratamento' || plant.status === 'Diagnóstico Pendente' ? 'destructive' : 'secondary'} className="text-xs px-1.5 py-0.5 whitespace-nowrap"><Sprout className="inline mr-1 h-3 w-3"/>{plant.status}</Badge>
-                                    <span className="flex items-center gap-1 whitespace-nowrap"><Warehouse className="h-3.5 w-3.5"/> Sala: {plant.growRoomId || 'N/A'}</span>
+                                    {/* Display Environment Name */}
+                                    <span className="flex items-center gap-1 whitespace-nowrap"><Warehouse className="h-3.5 w-3.5"/> Ambiente: {getEnvironmentName(plant.growRoomId) || 'N/A'}</span>
                                     <span className="flex items-center gap-1 whitespace-nowrap"><Sprout className="h-3.5 w-3.5"/>{`Plantada: ${plant.birthDate ? new Date(plant.birthDate).toLocaleDateString('pt-BR') : 'N/A'}`}</span>
                                 </div>
                             </div>

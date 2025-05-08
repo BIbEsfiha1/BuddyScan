@@ -1,6 +1,7 @@
+// src/app/(app)/register-plant/page.tsx
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -16,30 +17,31 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Leaf, CalendarDays, Warehouse, Loader2, ArrowLeft, Sprout, CheckCircle, Download, Layers, Home as HomeIcon, PackagePlus, QrCode as QrCodeIcon, Archive, AlertCircle as AlertCircleIcon } from '@/components/ui/lucide-icons'; // Use centralized icons, added PackagePlus, Archive
+import { Leaf, CalendarDays, Warehouse, Loader2, ArrowLeft, Sprout, CheckCircle, Download, Layers, Home as HomeIcon, PackagePlus, QrCode as QrCodeIcon, Archive, AlertCircle as AlertCircleIcon } from '@/components/ui/lucide-icons';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { addPlant, type Plant } from '@/services/plant-id'; // Import Firestore function
 import Link from 'next/link';
 import { generateUniqueId } from '@/lib/utils';
-// import { QrCode as QrCodeIcon } from 'lucide-react'; // Already imported from lucide-icons
 import { toDataURL } from 'qrcode'; // Import QR code generation function
 import Image from 'next/image'; // Import Next Image component
-// Import client-side db instance
-import { db } from '@/lib/firebase/client';
+import { db, auth } from '@/lib/firebase/client'; // Import client-side db and auth
 import { useAuth } from '@/context/auth-context'; // Import useAuth
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Import Select
+import { getEnvironmentsByOwner } from '@/services/environment-service'; // Import function to get environments
+import type { Environment } from '@/types/environment'; // Import Environment type
+import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 
-
-// Define the schema for plant registration, updated fields
+// Update schema to use environmentId from Select
 const registerPlantSchema = z.object({
   strain: z.string().min(1, 'O nome da variedade é obrigatório.').max(100, 'Nome da variedade muito longo.'),
-  lotName: z.string().min(1, 'O nome do lote é obrigatório.').max(50, 'Nome do lote muito longo.'), // Added lotName
+  lotName: z.string().min(1, 'O nome do lote é obrigatório.').max(50, 'Nome do lote muito longo.'),
   birthDate: z.string().refine((date) => !isNaN(Date.parse(date)), {
     message: 'Data de nascimento inválida.',
   }),
-  growRoomId: z.string().min(1, 'O ID da sala de cultivo é obrigatório.').max(50, 'ID da sala muito longo.'),
-  estimatedHarvestDate: z.string().optional().nullable(), // Added optional harvest date
+  environmentId: z.string().min(1, 'Selecione um ambiente de cultivo.'), // Changed from growRoomId
+  estimatedHarvestDate: z.string().optional().nullable(),
 });
 
 type RegisterPlantFormData = z.infer<typeof registerPlantSchema>;
@@ -53,21 +55,73 @@ export default function RegisterPlantPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [generatedQrCode, setGeneratedQrCode] = useState<string | null>(null);
   const [qrCodeImageDataUrl, setQrCodeImageDataUrl] = useState<string | null>(null);
+  const [environments, setEnvironments] = useState<Environment[]>([]);
+  const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(true);
+  const [envFetchError, setEnvFetchError] = useState<string | null>(null);
 
-  // Determine if there's a critical initialization error (db instance unavailable)
+  // Determine if there's a critical initialization error
   const isDbUnavailable = !db || !!authError; // db might be null if client.ts failed, or auth context has error
 
-  const generalDisabled = isSubmitting || isDbUnavailable || authLoading || !user;
+  const generalDisabled = isSubmitting || isDbUnavailable || authLoading || !user || isLoadingEnvironments;
 
+
+  // --- Fetch Environments ---
+  useEffect(() => {
+    const fetchEnvs = async () => {
+       if (!user) {
+           setIsLoadingEnvironments(false);
+           setEnvFetchError("Faça login para selecionar um ambiente.");
+           return; // Don't fetch if not logged in
+       }
+       if (isDbUnavailable) {
+           setIsLoadingEnvironments(false);
+           setEnvFetchError("Serviço de banco de dados indisponível.");
+           return;
+       }
+
+      setIsLoadingEnvironments(true);
+      setEnvFetchError(null);
+      try {
+        const userEnvironments = await getEnvironmentsByOwner();
+        setEnvironments(userEnvironments);
+        if (userEnvironments.length === 0) {
+          setEnvFetchError("Nenhum ambiente encontrado. Crie um ambiente primeiro.");
+          toast({
+            variant: "destructive",
+            title: "Nenhum Ambiente Encontrado",
+            description: (
+              <span>
+                Você precisa {" "}
+                <Link href="/environments" className="underline font-semibold hover:text-destructive-foreground">
+                  cadastrar um ambiente
+                </Link>{" "}
+                antes de registrar plantas.
+              </span>
+            ),
+            duration: 10000,
+          });
+        }
+      } catch (error: any) {
+        console.error("Failed to fetch environments:", error);
+        setEnvFetchError(`Erro ao carregar ambientes: ${error.message}`);
+      } finally {
+        setIsLoadingEnvironments(false);
+      }
+    };
+
+    if (!authLoading) { // Fetch only when auth state is resolved
+        fetchEnvs();
+    }
+  }, [user, authLoading, isDbUnavailable, toast]);
 
   const form = useForm<RegisterPlantFormData>({
     resolver: zodResolver(registerPlantSchema),
     defaultValues: {
       strain: '',
-      lotName: '', // Initialize lotName
+      lotName: '',
       birthDate: '',
-      growRoomId: '',
-      estimatedHarvestDate: '', // Initialize harvest date
+      environmentId: '', // Initialize environmentId
+      estimatedHarvestDate: '',
     },
   });
 
@@ -113,23 +167,30 @@ export default function RegisterPlantPage() {
         setIsSubmitting(false);
         return;
     }
+    // Check if an environment was selected
+     if (!data.environmentId) {
+       setSubmitError('Selecione um ambiente de cultivo.');
+       toast({ variant: 'destructive', title: 'Erro de Validação', description: 'É necessário selecionar um ambiente de cultivo.' });
+       setIsSubmitting(false);
+       return;
+     }
 
 
     try {
       // Generate a unique ID for the plant, which will also be the QR code content
       const uniqueId = generateUniqueId(); // Use the existing utility
 
-      // Construct the new plant object for Firestore (without status and createdAt)
-      // Add ownerId field
+      // Construct the new plant object for Firestore
+      // Rename environmentId to growRoomId to match Plant interface
       const newPlantData: Omit<Plant, 'status' | 'createdAt'> = {
-        id: uniqueId, // Use generated ID as Firestore document ID
-        qrCode: uniqueId, // QR Code content is the same as the ID
+        id: uniqueId,
+        qrCode: uniqueId,
         strain: data.strain,
-        lotName: data.lotName, // Added lotName
-        estimatedHarvestDate: data.estimatedHarvestDate || null, // Added harvest date
-        birthDate: data.birthDate, // Store as ISO string temporarily, service converts to Timestamp
-        growRoomId: data.growRoomId,
-        // ownerId: user.uid, // Associate plant with the logged-in user
+        lotName: data.lotName,
+        estimatedHarvestDate: data.estimatedHarvestDate || null,
+        birthDate: data.birthDate,
+        growRoomId: data.environmentId, // Map environmentId to growRoomId
+        ownerId: user.uid, // Associate plant with the logged-in user
       };
 
       console.log('Tentando cadastrar planta no Firestore:', newPlantData);
@@ -152,7 +213,6 @@ export default function RegisterPlantPage() {
 
 
       // Call the service function to add the plant to Firestore
-      // addPlant now handles setting the default status and createdAt
       const savedPlant = await addPlant(newPlantData);
 
       console.log('Planta cadastrada com sucesso no Firestore:', savedPlant);
@@ -172,7 +232,13 @@ export default function RegisterPlantPage() {
       });
 
       // Keep form data for potentially adding another plant quickly
-       form.reset();
+       form.reset({
+         strain: '', // Clear fields after successful submission
+         lotName: '',
+         birthDate: '',
+         environmentId: '',
+         estimatedHarvestDate: '',
+       });
 
 
     } catch (error: any) {
@@ -343,6 +409,55 @@ export default function RegisterPlantPage() {
                     )}
                     />
 
+                    {/* Environment (Grow Room) Select */}
+                    <FormField
+                      control={form.control}
+                      name="environmentId" // Use environmentId from schema
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2">
+                            <Warehouse className="h-4 w-4 text-secondary" /> Ambiente de Cultivo
+                          </FormLabel>
+                          <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                              disabled={generalDisabled || isLoadingEnvironments || environments.length === 0}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="input">
+                                <SelectValue placeholder={isLoadingEnvironments ? "Carregando ambientes..." : (envFetchError || "Selecione um ambiente")} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {isLoadingEnvironments ? (
+                                  <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                              ) : envFetchError ? (
+                                 <SelectItem value="error" disabled>{envFetchError}</SelectItem>
+                              ) : environments.length === 0 ? (
+                                 <SelectItem value="no-env" disabled>Nenhum ambiente cadastrado</SelectItem>
+                              ) : (
+                                environments.map((env) => (
+                                  <SelectItem key={env.id} value={env.id}>
+                                    {env.name} ({env.type})
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                           {/* Link to create environment page if none exist */}
+                           {environments.length === 0 && !isLoadingEnvironments && !envFetchError && (
+                              <FormDescription className="text-xs">
+                                  Nenhum ambiente encontrado.{" "}
+                                  <Link href="/environments" className="underline text-primary hover:text-primary/80">
+                                    Crie um ambiente aqui
+                                  </Link>.
+                              </FormDescription>
+                            )}
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
                     {/* Estimated Harvest Date */}
                     <FormField
                       control={form.control}
@@ -353,33 +468,12 @@ export default function RegisterPlantPage() {
                             <CalendarDays className="h-4 w-4 text-secondary" /> Data Estimada da Colheita (Opcional)
                           </FormLabel>
                           <FormControl>
-                            {/* Use field.value and handle empty string for optional date */}
                             <Input type="date" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value || null)} disabled={generalDisabled} className="input appearance-none"/>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-
-
-                    {/* Grow Room ID */}
-                    <FormField
-                    control={form.control}
-                    name="growRoomId"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel className="flex items-center gap-2">
-                            <Warehouse className="h-4 w-4 text-secondary" /> ID da Sala de Cultivo
-                        </FormLabel>
-                        <FormControl>
-                            <Input placeholder="Ex: Tenda Veg, Sala Flora 1" {...field} disabled={generalDisabled} className="input"/>
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
-
-                   {/* Initial Status field removed */}
 
 
                     {/* Submit Error Display */}
@@ -390,7 +484,12 @@ export default function RegisterPlantPage() {
                     )}
 
                     {/* Submit Button */}
-                <Button type="submit" size="lg" className="w-full font-semibold button" disabled={generalDisabled}>
+                <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full font-semibold button"
+                    disabled={generalDisabled || environments.length === 0 || !!envFetchError} // Also disable if no envs or fetch error
+                 >
                     {isSubmitting ? (
                     <>
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Cadastrando...

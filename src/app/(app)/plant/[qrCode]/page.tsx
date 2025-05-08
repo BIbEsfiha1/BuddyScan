@@ -1,3 +1,4 @@
+// src/app/(app)/plant/[qrCode]/page.tsx
 'use client'; // Add 'use client' directive
 
 import React, { useState, useEffect, useCallback, use } from 'react'; // Import hooks including 'use'
@@ -6,7 +7,7 @@ import type { Plant } from '@/services/plant-id';
 import PlantDiary from '@/components/plant/plant-diary';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
-  Leaf, QrCode, CalendarDays, Warehouse, Loader2, AlertCircle, Sprout, Pencil, Home as HomeIcon, Archive, Clock // Added Archive and Clock icons
+  Leaf, QrCode, CalendarDays, Warehouse, Loader2, AlertCircle, Sprout, Pencil, Home as HomeIcon, Archive, Clock, Info // Added Info icon
 } from '@/components/ui/lucide-icons'; // Use centralized icons
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -20,11 +21,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"; // Import Select components
 import { useToast } from '@/hooks/use-toast'; // Import useToast
-// Import client-side db instance
-import { db } from '@/lib/firebase/client';
+import { db } from '@/lib/firebase/client'; // Import client-side db instance
 import { useAuth } from '@/context/auth-context'; // Import useAuth
+import { getEnvironmentById } from '@/services/environment-service'; // Import function to get environment details
+import type { Environment } from '@/types/environment'; // Import Environment type
 
-// Define expected params structure remains the same
+// Define expected params structure
 interface PlantPageProps {
   params: Promise<{ // Mark params as a Promise
     qrCode: string;
@@ -40,82 +42,91 @@ export default function PlantPage({ params }: PlantPageProps) {
   const { user, loading: authLoading, authError } = useAuth(); // Get user and auth status
 
   const [plant, setPlant] = useState<Plant | null>(null);
+  const [environment, setEnvironment] = useState<Environment | null>(null); // State for environment details
+  const [isLoadingEnvironment, setIsLoadingEnvironment] = useState(false); // Loading state for environment
   const [currentStatus, setCurrentStatus] = useState<string>(''); // Local state for status
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false); // Loading state for status update
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true); // Add loading state
+  const [isLoading, setIsLoading] = useState(true); // Add loading state for plant data
 
-  // Determine if there's a critical initialization error (db instance unavailable or auth error)
+  // Determine if there's a critical initialization error
   const isDbUnavailable = !db || !!authError;
 
 
-  // Fetch plant data from Firestore
+  // Fetch plant data and then environment data
   useEffect(() => {
-    const fetchPlantData = async () => {
+    const fetchPlantAndEnvData = async () => {
       setIsLoading(true);
       setError(null);
       setPlant(null);
-      setCurrentStatus(''); // Reset status
+      setEnvironment(null);
+      setCurrentStatus('');
 
       if (!plantId) {
-          console.error("Plant ID (from QR Code) is missing in params.");
           setError("ID da planta inválido ou ausente.");
           setIsLoading(false);
           return;
       }
 
-       // Check for DB availability before proceeding
       if (isDbUnavailable) {
-          const errorMsg = authError?.message || 'Serviço de banco de dados indisponível.';
-          console.error("Firestore DB not available:", errorMsg);
-          setError(`Erro de Configuração: ${errorMsg} Não é possível buscar dados.`);
+          setError(`Erro de Configuração: ${authError?.message || 'Serviço indisponível.'}`);
           setIsLoading(false);
           return;
       }
-       // Check if user is logged in (redundant if using protected routes/middleware, but safe)
-       if (!authLoading && !user) {
+
+      if (!authLoading && !user) {
            setError("Usuário não autenticado. Faça login para ver os detalhes da planta.");
            setIsLoading(false);
            return;
-       }
+      }
 
-
+      // Fetch Plant Data
       try {
         console.log(`Fetching plant data for ID: ${plantId} from Firestore...`);
-        // Ensure db is checked before calling service function implicitly relying on it
-        const fetchedPlant = await getPlantById(plantId); // Service function now uses client db
+        const fetchedPlant = await getPlantById(plantId, user?.uid); // Pass user?.uid for owner check
         if (!fetchedPlant) {
-          setError(`Planta com ID '${plantId}' não encontrada no Firestore.`);
-          console.warn(`Plant with ID '${plantId}' not found.`);
-        } else {
-           // TODO: Implement owner check if needed:
-           // if (fetchedPlant.ownerId !== user?.uid) {
-           //    setError("Você não tem permissão para ver esta planta.");
-           //    setPlant(null);
-           // } else {
-              console.log(`Plant data fetched successfully for ${plantId}:`, fetchedPlant);
-              setPlant(fetchedPlant);
-              setCurrentStatus(fetchedPlant.status); // Initialize local status state
-           // }
+          setError(`Planta com ID '${plantId}' não encontrada ou não pertence a você.`);
+          setIsLoading(false);
+          return;
         }
+        console.log(`Plant data fetched successfully for ${plantId}:`, fetchedPlant);
+        setPlant(fetchedPlant);
+        setCurrentStatus(fetchedPlant.status);
+
+        // Fetch Environment Data if plant has growRoomId
+        if (fetchedPlant.growRoomId) {
+          setIsLoadingEnvironment(true);
+          console.log(`Fetching environment data for ID: ${fetchedPlant.growRoomId}...`);
+          try {
+             const fetchedEnv = await getEnvironmentById(fetchedPlant.growRoomId); // Service handles owner check implicitly
+             setEnvironment(fetchedEnv); // Might be null if not found or not owned
+             console.log("Environment data fetched:", fetchedEnv);
+          } catch (envError: any) {
+              console.error(`Failed to fetch environment ${fetchedPlant.growRoomId}:`, envError);
+              // Don't block page load for environment error, just show N/A
+          } finally {
+              setIsLoadingEnvironment(false);
+          }
+        }
+
       } catch (e) {
         console.error('Falha ao buscar dados da planta no Firestore:', e);
          setError(`Falha ao carregar dados da planta: ${e instanceof Error ? e.message : 'Erro desconhecido'}`);
       } finally {
-        setIsLoading(false);
+        setIsLoading(false); // Plant loading finished
       }
     };
 
-    // Only fetch if user is available and no critical errors
-    if (user && !authLoading && !isDbUnavailable) {
-      fetchPlantData();
+    // Only fetch if user is resolved and db is available
+    if (!authLoading && !isDbUnavailable) {
+      fetchPlantAndEnvData();
     } else if (isDbUnavailable) {
-      setIsLoading(false); // Don't attempt to load if Firebase is not okay
-    } else if (!authLoading && !user) {
-      setError("Usuário não autenticado. Faça login para ver os detalhes da planta.");
-      setIsLoading(false);
+       setIsLoading(false); // Don't attempt to load if Firebase is not okay
+    } else {
+        // Wait for auth to resolve
+        setIsLoading(true);
     }
-  }, [plantId, isDbUnavailable, user, authLoading, authError]); // Add dependencies
+  }, [plantId, isDbUnavailable, user, authLoading, authError]); // Rerun if plantId, user, or error state changes
 
 
   // --- Handle Status Update ---
@@ -124,29 +135,22 @@ export default function PlantPage({ params }: PlantPageProps) {
        return; // No change or already updating
      }
 
-      // Check for DB availability before proceeding
      if (isDbUnavailable) {
-         const errorMsg = authError?.message || 'Serviço de banco de dados indisponível.';
-         toast({ variant: 'destructive', title: 'Erro de Configuração', description: errorMsg });
+         toast({ variant: 'destructive', title: 'Erro de Configuração', description: authError?.message || 'Serviço indisponível.' });
          return;
      }
-     // Check if user is logged in
      if (!user) {
          toast({ variant: 'destructive', title: 'Não Autenticado', description: 'Faça login para alterar o status.' });
          return;
      }
-     // TODO: Optional: Check if current user is the owner
-     // if (plant.ownerId !== user.uid) {
-     //    toast({ variant: 'destructive', title: 'Não Autorizado', description: 'Você não pode alterar o status desta planta.' });
-     //    return;
-     // }
+     // Owner check happens within updatePlantStatus service function now
 
 
      setIsUpdatingStatus(true);
      console.log(`Attempting to update status for plant ${plant.id} to ${newStatus} in Firestore`);
 
      try {
-       await updatePlantStatus(plant.id, newStatus); // Service uses client db now
+       await updatePlantStatus(plant.id, newStatus, user.uid); // Pass user.uid for owner check
        setCurrentStatus(newStatus); // Update local state on success
        setPlant(prevPlant => prevPlant ? { ...prevPlant, status: newStatus } : null); // Update plant object state too
        toast({
@@ -170,7 +174,7 @@ export default function PlantPage({ params }: PlantPageProps) {
 
 
   // --- Loading State ---
-  if (isLoading || authLoading) { // Show loading if either data or auth is loading
+  if (isLoading || authLoading) { // Show loading if plant data or auth is loading
      return (
         <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background to-primary/10">
           <Card className="w-full max-w-md text-center shadow-lg card p-6">
@@ -187,12 +191,11 @@ export default function PlantPage({ params }: PlantPageProps) {
   }
 
   // --- Error State (including DB/auth errors or general errors) ---
-   // Prioritize DB unavailability error, then general fetch error, then auth error
   const displayError = isDbUnavailable ? (authError?.message || 'Serviço de banco de dados indisponível.') : error || (!authLoading && !user ? "Usuário não autenticado." : null);
 
   if (displayError) {
       console.error(`Rendering error state: ${displayError}`);
-      const isCriticalError = isDbUnavailable; // Treat DB unavailable as critical
+      const isCriticalError = isDbUnavailable;
       const errorTitle = isCriticalError ? "Erro Crítico de Configuração" : "Erro ao Carregar Planta";
 
       return (
@@ -207,7 +210,7 @@ export default function PlantPage({ params }: PlantPageProps) {
              <CardContent className="space-y-4">
                <p className="text-muted-foreground">{displayError}</p>
                 <Button asChild variant="secondary" className="button">
-                    <Link href="/dashboard">Voltar ao Painel</Link> {/* Link to dashboard */}
+                    <Link href="/dashboard">Voltar ao Painel</Link>
                 </Button>
              </CardContent>
            </Card>
@@ -227,9 +230,9 @@ export default function PlantPage({ params }: PlantPageProps) {
                 <CardTitle className="text-xl text-muted-foreground">Planta Não Encontrada</CardTitle>
              </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-muted-foreground">Não foi possível encontrar detalhes para a planta com ID: {plantId}. Pode ter sido removida ou o ID/QR Code está incorreto.</p>
+                <p className="text-muted-foreground">Não foi possível encontrar detalhes para a planta com ID: {plantId}. Pode ter sido removida, o ID/QR Code está incorreto, ou você não tem permissão para vê-la.</p>
                  <Button asChild variant="secondary" className="button">
-                    <Link href="/dashboard">Voltar ao Painel</Link> {/* Link to dashboard */}
+                    <Link href="/dashboard">Voltar ao Painel</Link>
                 </Button>
               </CardContent>
            </Card>
@@ -242,11 +245,11 @@ export default function PlantPage({ params }: PlantPageProps) {
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
         <Card className="shadow-lg overflow-hidden border-primary/20 card">
-            <CardHeader className="bg-gradient-to-r from-card to-muted/30 p-5 md:p-6"> {/* Subtle gradient */}
+            <CardHeader className="bg-gradient-to-r from-card to-muted/30 p-5 md:p-6">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     {/* Plant Title and Info */}
-                    <div className="flex items-center gap-4"> {/* Increased gap */}
-                         <div className="bg-primary/10 p-3 rounded-lg shadow-inner"> {/* Inner shadow */}
+                    <div className="flex items-center gap-4">
+                         <div className="bg-primary/10 p-3 rounded-lg shadow-inner">
                             <Leaf className="h-8 w-8 text-primary" />
                          </div>
                          <div>
@@ -256,14 +259,13 @@ export default function PlantPage({ params }: PlantPageProps) {
                              <CardDescription className="text-muted-foreground flex items-center gap-1.5 mt-1 text-sm">
                                <QrCode className="h-4 w-4" /> ID: {plant.id}
                              </CardDescription>
-                              {/* Display Lot Name */}
                               <CardDescription className="text-muted-foreground flex items-center gap-1.5 mt-1 text-sm">
                                 <Archive className="h-4 w-4" /> Lote: {plant.lotName || 'N/A'}
                              </CardDescription>
                          </div>
                     </div>
                     {/* Status Badge and Selector */}
-                    <div className="flex items-center gap-2 self-start sm:self-center mt-2 sm:mt-0"> {/* Added margin top on small screens */}
+                    <div className="flex items-center gap-2 self-start sm:self-center mt-2 sm:mt-0">
                         <Badge variant={currentStatus === 'Em tratamento' || currentStatus === 'Diagnóstico Pendente' ? 'destructive' : 'secondary'} className="text-base px-3 py-1 font-medium shadow-sm flex items-center gap-1.5">
                             Status: {currentStatus}
                         </Badge>
@@ -271,7 +273,7 @@ export default function PlantPage({ params }: PlantPageProps) {
                         <Select
                             value={currentStatus}
                             onValueChange={handleStatusChange}
-                            disabled={isUpdatingStatus || isDbUnavailable || !user} // Also disable if no user or db unavailable
+                            disabled={isUpdatingStatus || isDbUnavailable || !user}
                         >
                             <SelectTrigger
                                 className="w-auto h-9 px-2 py-1 text-xs shadow-sm button focus:ring-offset-0 focus:ring-primary/50"
@@ -280,7 +282,7 @@ export default function PlantPage({ params }: PlantPageProps) {
                                 {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin"/> : <Pencil className="h-3 w-3" />}
                             </SelectTrigger>
                             <SelectContent align="end">
-                                {PLANT_STATES.map((state) => ( // Use PLANT_STATES here
+                                {PLANT_STATES.map((state) => (
                                     <SelectItem key={state} value={state}>
                                         {state}
                                     </SelectItem>
@@ -294,24 +296,31 @@ export default function PlantPage({ params }: PlantPageProps) {
             <Separator />
 
             <CardContent className="p-5 md:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-sm">
+                {/* Planted Date */}
                 <div className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
                     <CalendarDays className="h-5 w-5 text-secondary flex-shrink-0" />
-                     {/* Format date from ISO string */}
                      <span className="text-foreground"><strong className="font-medium">Plantada em:</strong> {plant.birthDate ? new Date(plant.birthDate).toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Data desconhecida'}</span>
                 </div>
+                 {/* Environment (Grow Room) */}
                  <div className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
                    <Warehouse className="h-5 w-5 text-secondary flex-shrink-0" />
-                    <span className="text-foreground"><strong className="font-medium">Sala de Cultivo:</strong> {plant.growRoomId || 'N/A'}</span>
+                    <span className="text-foreground">
+                        <strong className="font-medium">Ambiente:</strong> {isLoadingEnvironment ? <Loader2 className="inline h-4 w-4 animate-spin ml-1"/> : (environment?.name || plant.growRoomId || 'N/A')}
+                        {environment && <span className="text-xs text-muted-foreground ml-1">({environment.type})</span>}
+                        {!isLoadingEnvironment && !environment && plant.growRoomId && (
+                            <Info className="inline h-3 w-3 ml-1 text-destructive" title="Ambiente não encontrado ou inacessível"/>
+                         )}
+                    </span>
                 </div>
-                 {/* Display Estimated Harvest Date */}
+                 {/* Estimated Harvest Date */}
                   <div className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
                      <Clock className="h-5 w-5 text-secondary flex-shrink-0" />
                      <span className="text-foreground"><strong className="font-medium">Colheita Estimada:</strong> {plant.estimatedHarvestDate ? new Date(plant.estimatedHarvestDate).toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Não definida'}</span>
                   </div>
-                 {/* Display creation date */}
+                 {/* Creation Date */}
                   <div className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
                      <CalendarDays className="h-5 w-5 text-secondary flex-shrink-0" />
-                     <span className="text-foreground"><strong className="font-medium">Cadastrada em:</strong> {plant.createdAt ? new Date(plant.createdAt).toLocaleDateString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Data desconhecida'}</span>
+                     <span className="text-foreground"><strong className="font-medium">Cadastrada em:</strong> {plant.createdAt ? new Date(plant.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Data desconhecida'}</span>
                   </div>
             </CardContent>
         </Card>
@@ -322,8 +331,8 @@ export default function PlantPage({ params }: PlantPageProps) {
       {/* Back to Dashboard Button */}
       <div className="text-center mt-8">
            <Button asChild variant="outline" className="button">
-              <Link href="/dashboard"> {/* Link to dashboard */}
-                 <HomeIcon className="mr-2 h-4 w-4"/> {/* Added icon */}
+              <Link href="/dashboard">
+                 <HomeIcon className="mr-2 h-4 w-4"/>
                  Voltar ao Painel
               </Link>
           </Button>
