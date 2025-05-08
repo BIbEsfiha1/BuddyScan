@@ -180,7 +180,7 @@ export default function LoginPage() {
        console.log("  authDomain:", auth.config.authDomain || 'MISSING! (Likely cause of auth/argument-error)');
        console.log("  projectId:", auth.config.projectId || 'MISSING!');
        // Compare with direct env var access (only reliable if this component runs client-side AFTER hydration)
-       if (typeof window !== 'undefined' && auth.config.authDomain !== process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) {
+       if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN && auth.config.authDomain !== process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) {
            console.error(`[CRITICAL DEBUG] Mismatch detected! Env var authDomain: "${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}", Auth instance authDomain: "${auth.config.authDomain}". Check .env.local and Firebase Console -> Authorized domains.`);
        }
 
@@ -242,9 +242,7 @@ export default function LoginPage() {
                  height={66} // Adjust height based on aspect ratio (2048x742) -> 180 * (742/2048) ≈ 65.5
                  className="mx-auto mb-4 object-contain h-[66px]" // Set explicit height
                  priority // Prioritize loading the logo
-                 onError={(e) => {
-                     console.error('Standard <img> load error (Login):', (e.target as HTMLImageElement).src);
-                 }}
+                 // Removed onError handler that caused console error spam
              />
           <CardTitle className="text-2xl font-bold text-primary">Bem-vindo de volta!</CardTitle>
           <CardDescription>Faça login para acessar seu painel BuddyScan.</CardDescription>
