@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
     ScanLine, PlusCircle, VideoOff, Loader2, Sprout, AlertTriangle, History,
-    AlertCircle as AlertCircleIcon, Camera, Zap, Package, Home as HomeIcon, Warehouse // Added Warehouse for environments
+    AlertCircle as AlertCircleIcon, Camera, Zap, Package, Home as HomeIcon, Warehouse, Seedling // Added Seedling icon
 } from '@/components/ui/lucide-icons'; // Use centralized icons
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -32,8 +32,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useAuth } from '@/context/auth-context'; // Import useAuth
 import Link from 'next/link'; // Import Link for login redirect
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
-
-
+import { Progress } from "@/components/ui/progress"; // Import Progress
+import { formatDistanceToNow } from 'date-fns'; // Import formatDistanceToNow
+import { toDate } from 'date-fns';// Import toDate
+import { ptBR } from 'date-fns/locale'; // Import ptBR locale
+import { Environment } from '@/types/environment';
+import { getEnvironmentsByOwner } from '@/services/environment-service';
+import { addDays } from 'date-fns'; // Import addDays
 // Define states for camera/scanner
 type ScannerStatus = 'idle' | 'permission-pending' | 'permission-denied' | 'initializing' | 'scanning' | 'stopped' | 'error';
 
@@ -61,6 +66,20 @@ export default function DashboardPage() { // Renamed component to DashboardPage
 
   // Determine if there's a critical initialization error (db instance unavailable or auth error)
   const isDbUnavailable = !db || !!authError;
+  const [availableEnvironments, setAvailableEnvironments] = useState<Environment[]>([]); // Store fetched environments
+  const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(true); // Loading state for environments
+  // Calculate progress
+  const calculateProgress = (start: string | number | Date, estimatedHarvestDate: string | number | Date) => {
+    const startDate = toDate(new Date(start));
+    const endDate = toDate(new Date(estimatedHarvestDate));
+    const now = new Date();
+    if (now < startDate) return 0; // Before start date
+    if (now > endDate) return 100; // After end date
+
+    const totalTime = endDate.getTime() - startDate.getTime();
+    const elapsedTime = now.getTime() - startDate.getTime();
+    return Math.min(100, Math.max(0, (elapsedTime / totalTime) * 100)); // Ensure within 0-100 range
+  };
 
 
   // Track mount state and check scanner support
@@ -127,26 +146,44 @@ export default function DashboardPage() { // Renamed component to DashboardPage
    }, [toast, isDbUnavailable, user, authError, authLoading]); // Added authLoading dependency
 
 
+    const fetchEnvironments = useCallback(async () => {
+        if (!user || isDbUnavailable || authLoading) {
+            setIsLoadingEnvironments(false);
+            return; // Don't fetch if not ready
+        }
+        setIsLoadingEnvironments(true);
+        try {
+            const envs = await getEnvironmentsByOwner(); // Fetches environments for the current user
+            setAvailableEnvironments(envs);
+        } catch (e: any) {
+            console.error("Failed to fetch environments for filter:", e);
+            toast({ variant: 'destructive', title: 'Erro ao Carregar Filtros', description: 'Não foi possível buscar os ambientes.' });
+        } finally {
+            setIsLoadingEnvironments(false);
+        }
+    }, [user, isDbUnavailable, authLoading, toast]);
+
    // --- Effect to fetch plant data on mount and when dialog closes ---
    useEffect(() => {
-     if (isMounted && !isDialogOpen && user && !isDbUnavailable && !authLoading) {
-        console.log("Component mounted or dialog closed, user logged in, fetching plants.");
-        fetchPlants();
-     } else if (isDbUnavailable) {
-        console.log("Skipping plant fetch: DB unavailable.");
-     } else if (authLoading) {
-         console.log("Skipping plant fetch: Auth is loading.");
-         setIsLoadingPlants(true); // Keep loading state while auth loads
-     } else if (!user) {
-         console.log("Skipping plant fetch: User not logged in.");
-         setError("Faça login para ver os dados das plantas."); // Set error if user logs out
-         setIsLoadingPlants(false);
-         setRecentPlants([]);
-         setAttentionPlants([]);
-     } else {
-         console.log(`Skipping plant fetch. Mounted: ${isMounted}, Dialog Open: ${isDialogOpen}`);
-     }
-   }, [isMounted, isDialogOpen, fetchPlants, user, authLoading, isDbUnavailable]); // Add authLoading dependency
+       if (isMounted && !isDialogOpen && user && !isDbUnavailable && !authLoading) {
+           console.log("Component mounted or dialog closed, user logged in, fetching plants.");
+           fetchPlants();
+           fetchEnvironments();
+       } else if (isDbUnavailable) {
+           console.log("Skipping plant fetch: DB unavailable.");
+       } else if (authLoading) {
+           console.log("Skipping plant fetch: Auth is loading.");
+           setIsLoadingPlants(true); // Keep loading state while auth loads
+       } else if (!user) {
+           console.log("Skipping plant fetch: User not logged in.");
+           setError("Faça login para ver os dados das plantas."); // Set error if user logs out
+           setIsLoadingPlants(false);
+           setRecentPlants([]);
+           setAttentionPlants([]);
+       } else {
+           console.log(`Skipping plant fetch. Mounted: ${isMounted}, Dialog Open: ${isDialogOpen}`);
+       }
+   }, [isMounted, isDialogOpen, fetchPlants, user, authLoading, isDbUnavailable, fetchEnvironments]); // Add authLoading dependency
 
 
     // --- Stop Media Stream ---
@@ -597,14 +634,13 @@ export default function DashboardPage() { // Renamed component to DashboardPage
     handleOpenChange(true); // handleOpenChange calls handleDialogOpen which has the checks
   };
 
-  const handleRegister = () => {
-    console.log('Navegar para a página de registro...');
-     router.push('/register-plant');
-  };
+   const startNewCultivation = () => {
+       router.push('/environments'); // Navigate to environments page to select/create an environment
+   };
 
-   const handleManageEnvironments = () => {
-       console.log('Navegar para a página de gerenciamento de ambientes...');
-       router.push('/environments');
+   // Function to format time difference
+   const formatTimeSince = (date: Date) => {
+       return formatDistanceToNow(date, { addSuffix: true, locale: ptBR });
    };
 
   // Determine if buttons should be disabled based on auth and Firebase status
@@ -682,12 +718,12 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                  <Button
                    size="lg"
                    className="w-full text-base font-medium button justify-start"
-                   onClick={handleRegister}
+                   onClick={startNewCultivation}
                    aria-label="Cadastrar Nova Planta"
                    disabled={generalDisabled}
                  >
-                   <PlusCircle className="mr-3 h-5 w-5" />
-                   Cadastrar Nova Planta
+                   <Seedling className="mr-3 h-5 w-5" />
+                   Novo Cultivo
                  </Button>
 
                  <Tooltip>
@@ -724,7 +760,6 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                            </TooltipContent>
                        )}
                  </Tooltip>
-
 
                  <Button
                    size="lg"
