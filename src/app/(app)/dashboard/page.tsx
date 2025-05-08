@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -28,9 +26,11 @@ import type { Plant } from '@/services/plant-id'; // Import Plant type
 import { getRecentPlants, getAttentionPlants, getPlantById } from '@/services/plant-id'; // Import Firestore fetch functions
 import Image from 'next/image'; // Import Image component
 import { cn } from '@/lib/utils'; // Import cn
-import { firebaseInitializationError } from '@/lib/firebase/config'; // firebaseInitializationError is now an Error object or null
+// Import client-side db instance
+import { db } from '@/lib/firebase/client';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; // Import Tooltip components
 import { useAuth } from '@/context/auth-context'; // Import useAuth
+import Link from 'next/link'; // Import Link for login redirect
 
 
 // Define states for camera/scanner
@@ -46,7 +46,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
   const [scannerError, setScannerError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const barcodeDetectorRef = useRef<any | null>(null); // Fix: Initialize with null
+  const barcodeDetectorRef = useRef<any | null>(null); // Using any for BarcodeDetector due to type issues
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isMounted, setIsMounted] = useState(false); // Track mount state
   const [isScannerSupported, setIsScannerSupported] = useState(false); // State for scanner support
@@ -58,8 +58,8 @@ export default function DashboardPage() { // Renamed component to DashboardPage
   // State for general error display
   const [error, setError] = useState<string | null>(null);
 
-  // Determine the current Firebase error state, prioritizing the direct import, then context
-  const currentFirebaseError = firebaseInitializationError || authError;
+  // Determine if there's a critical initialization error (db instance unavailable or auth error)
+  const isDbUnavailable = !db || !!authError;
 
 
   // Track mount state and check scanner support
@@ -67,7 +67,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
     setIsMounted(true);
     // Check for BarcodeDetector support once the component is mounted on the client
     if (typeof window !== 'undefined') {
-      const supported = 'BarcodeDetector' in window && typeof BarcodeDetector !== 'undefined';
+      const supported = 'BarcodeDetector' in window && typeof (window as any).BarcodeDetector !== 'undefined';
       setIsScannerSupported(supported);
       console.log(`BarcodeDetector supported: ${supported}`);
       if (supported && !barcodeDetectorRef.current) {
@@ -78,6 +78,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
         } catch (initError) {
           console.error('Failed to initialize BarcodeDetector:', initError);
           setIsScannerSupported(false); // Mark as unsupported if init fails
+          barcodeDetectorRef.current = null; // Ensure it's null if failed
         }
       }
     }
@@ -91,17 +92,27 @@ export default function DashboardPage() { // Renamed component to DashboardPage
      setIsLoadingPlants(true);
      setError(null); // Reset error state
 
-     // Check for Firebase initialization errors before proceeding
-     if (currentFirebaseError) {
-         console.error("Firebase initialization error:", currentFirebaseError);
-         setError(`Erro de configuração do Firebase: ${currentFirebaseError.message}. Não é possível buscar dados.`);
+     // Check for DB availability before proceeding
+     if (isDbUnavailable) {
+         const errorMsg = authError?.message || 'Serviço de banco de dados indisponível.';
+         console.error("Firestore DB not available:", errorMsg);
+         setError(`Erro de Configuração: ${errorMsg} Não é possível buscar dados.`);
          setIsLoadingPlants(false);
          return;
      }
-
+     // Check if user is logged in
+      if (!user) {
+        console.log("User not authenticated, skipping plant fetch.");
+        setError("Faça login para ver os dados das plantas."); // Set error message
+        setIsLoadingPlants(false);
+        setRecentPlants([]); // Clear existing data if any
+        setAttentionPlants([]);
+        return;
+      }
 
      try {
-       // Use the Firestore service functions
+       // TODO: Add ownerId filter to service functions if necessary
+       // E.g., getRecentPlants(user.uid, 5), getAttentionPlants(user.uid, 5)
        const [fetchedRecent, fetchedAttention] = await Promise.all([
          getRecentPlants(5), // Fetch 5 recent plants
          getAttentionPlants(5) // Fetch 5 attention plants
@@ -123,18 +134,27 @@ export default function DashboardPage() { // Renamed component to DashboardPage
        setIsLoadingPlants(false);
         console.log("Finished fetching plant data.");
      }
-   }, [toast, currentFirebaseError]); // Dependency: toast and currentFirebaseError
+   }, [toast, isDbUnavailable, user, authError]); // Dependency: toast, db availability, user, authError
 
 
    // --- Effect to fetch plant data on mount and when dialog closes ---
    useEffect(() => {
-     if (isMounted && !isDialogOpen) { // Fetch only when mounted and dialog is closed
-        console.log("Component mounted or dialog closed, fetching plants.");
+      // Only fetch if mounted, dialog is closed, and db/user are available
+     if (isMounted && !isDialogOpen && user && !isDbUnavailable) {
+        console.log("Component mounted or dialog closed, user logged in, fetching plants.");
         fetchPlants();
+     } else if (isDbUnavailable) {
+        console.log("Skipping plant fetch: DB unavailable.");
+     } else if (!user) {
+         console.log("Skipping plant fetch: User not logged in.");
+         setError("Faça login para ver os dados das plantas."); // Set error if user logs out while viewing
+         setIsLoadingPlants(false);
+         setRecentPlants([]);
+         setAttentionPlants([]);
      } else {
-        console.log(`Skipping plant fetch. Mounted: ${isMounted}, Dialog Open: ${isDialogOpen}`);
+         console.log(`Skipping plant fetch. Mounted: ${isMounted}, Dialog Open: ${isDialogOpen}`);
      }
-   }, [isMounted, isDialogOpen, fetchPlants]); // Run on mount and when dialog state changes
+   }, [isMounted, isDialogOpen, fetchPlants, user, isDbUnavailable]); // Add user, isDbUnavailable dependencies
 
 
     // --- Stop Media Stream ---
@@ -343,18 +363,27 @@ export default function DashboardPage() { // Renamed component to DashboardPage
 
            toast({ title: 'QR Code Detectado!', description: `Verificando planta ${qrCodeData}...` });
 
-           // Check for Firebase initialization errors before Firestore check
-           if (currentFirebaseError) {
-               console.error("Firebase initialization error during QR verification:", currentFirebaseError);
-               toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Não foi possível verificar a planta devido a erro do Firebase.' });
+           // Check for DB availability before Firestore check
+           if (isDbUnavailable) {
+               console.error("DB unavailable during QR verification:", authError?.message);
+               toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Não foi possível verificar a planta devido a erro do banco de dados.' });
                setScannerStatus('error');
                setScannerError('Erro de configuração ao verificar planta.');
                return; // Stop the process
            }
+            // Check if user is logged in
+            if (!user) {
+                toast({ variant: 'destructive', title: 'Não Autenticado', description: 'Faça login para verificar a planta.' });
+                setScannerStatus('error'); // Or back to initializing? Error seems safer.
+                setScannerError('Usuário não autenticado para verificar planta.');
+                return;
+            }
 
            try {
+             // TODO: Add owner check if needed: const plantExists = await getPlantById(qrCodeData, user.uid);
              const plantExists = await getPlantById(qrCodeData); // Check Firestore
              if (plantExists) {
+                 // TODO: Add owner check: if (plantExists.ownerId === user.uid) { ... } else { /* Not authorized */ }
                  console.log(`Planta ${qrCodeData} encontrada no Firestore. Redirecionando...`);
                  sessionStorage.setItem('pendingNavigationQr', qrCodeData);
                  if (handleOpenChangeCallbackRef.current) {
@@ -409,7 +438,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
        }
      }, 500); // Interval duration (adjust if needed, e.g., 300ms for faster scans)
      console.log("Scan interval setup complete.");
-   }, [stopScanInterval, stopMediaStream, toast, isDialogOpen, scannerStatus, currentFirebaseError]); // Added isDialogOpen and scannerStatus, currentFirebaseError
+   }, [stopScanInterval, stopMediaStream, toast, isDialogOpen, scannerStatus, isDbUnavailable, user, authError]); // Added dependencies
 
 
   // --- Dialog Open/Close Handlers ---
@@ -433,7 +462,6 @@ export default function DashboardPage() { // Renamed component to DashboardPage
 
    const handleDialogOpen = useCallback(() => {
         console.log(`Dialog opening intent received...`);
-        // Prerequisite check moved to handleScanClick and useEffect for initial load
          // Prerequisite check
          if (!isScannerSupported || !barcodeDetectorRef.current) {
              const errorMsg = !isScannerSupported
@@ -594,7 +622,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
   };
 
   // Determine if buttons should be disabled based on auth and Firebase status
-  const generalDisabled = isDialogOpen || !!currentFirebaseError || !user || authLoading;
+  const generalDisabled = isDialogOpen || isDbUnavailable || authLoading || !user;
 
 
   return (
@@ -610,17 +638,17 @@ export default function DashboardPage() { // Renamed component to DashboardPage
        </header>
 
        {/* Display Global Error if Firebase Failed or Auth Failed */}
-        {currentFirebaseError && (
+        {isDbUnavailable && (
           <Alert variant="destructive" className="mb-6">
             <AlertCircleIcon className="h-4 w-4" />
             <AlertTitle>Erro Crítico de Configuração</AlertTitle>
             <AlertDescription>
-              {currentFirebaseError.message}. Algumas funcionalidades podem estar indisponíveis. Verifique o console para mais detalhes.
+              {authError?.message || 'Serviço de banco de dados indisponível.'} Algumas funcionalidades podem estar indisponíveis. Verifique o console para mais detalhes.
             </AlertDescription>
           </Alert>
         )}
         {/* Display General Fetch Error */}
-        {error && !currentFirebaseError && (
+        {error && !isDbUnavailable && (
            <Alert variant="destructive" className="mb-6">
               <AlertCircleIcon className="h-4 w-4" />
               <AlertTitle>Erro ao Carregar Dados</AlertTitle>
@@ -633,14 +661,14 @@ export default function DashboardPage() { // Renamed component to DashboardPage
            </Alert>
         )}
          {/* Auth Loading or No User Message (if auth is enabled) */}
-         {authLoading && (
+         {authLoading && !isDbUnavailable && (
              <Alert variant="default" className="mb-6 border-blue-500/50 bg-blue-500/10">
                 <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
                 <AlertTitle>Autenticando...</AlertTitle>
                 <AlertDescription>Verificando sua sessão, um momento.</AlertDescription>
              </Alert>
          )}
-         {!authLoading && !user && !currentFirebaseError && ( // Show if not loading, no user, and no critical Firebase error
+         {!authLoading && !user && !isDbUnavailable && ( // Show if not loading, no user, and no critical Firebase error
              <Alert variant="destructive" className="mb-6">
                  <AlertCircleIcon className="h-4 w-4" />
                  <AlertTitle>Sessão Expirada ou Inválida</AlertTitle>
@@ -700,7 +728,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                       )}
                       {generalDisabled && isScannerSupported && (
                          <TooltipContent side="bottom">
-                            <p>{currentFirebaseError ? 'Funcionalidade indisponível devido a erro.' : !user ? 'Faça login para escanear.' : 'Aguarde...'}</p>
+                            <p>{isDbUnavailable ? 'Funcionalidade indisponível devido a erro.' : !user ? 'Faça login para escanear.' : 'Aguarde...'}</p>
                          </TooltipContent>
                       )}
                  </Tooltip>
@@ -721,7 +749,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
              </Card>
 
               {/* Plants Needing Attention Card */}
-              {isLoadingPlants && !currentFirebaseError ? (
+              {isLoadingPlants && !isDbUnavailable && user ? (
                 <Card className="shadow-md card border-destructive/30 p-6">
                    <div className="flex items-center gap-2 mb-4">
                       <AlertTriangle className="h-5 w-5 text-destructive" />
@@ -732,7 +760,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                        <p className="text-center text-muted-foreground text-sm">Carregando plantas...</p>
                    </div>
                 </Card>
-               ) : error && !currentFirebaseError ? ( // Show error state within the card if loading failed (and no Firebase error)
+               ) : error && !isDbUnavailable && user ? ( // Show error state within the card if loading failed (and no critical error)
                  <Card className="shadow-md card border-destructive/30 p-6">
                     <div className="flex items-center gap-2 mb-4">
                        <AlertTriangle className="h-5 w-5 text-destructive" />
@@ -744,16 +772,16 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                         <AlertDescription>Não foi possível carregar.</AlertDescription>
                     </Alert>
                  </Card>
-                ) : !currentFirebaseError && user ? ( // Show AttentionPlants only if no error, no Firebase error, and user is logged in
+                ) : !isDbUnavailable && user ? ( // Show AttentionPlants only if no error, no critical error, and user is logged in
                  <AttentionPlants plants={attentionPlants} />
-               ) : null /* Hide if Firebase error or no user */}
+               ) : null /* Hide if critical error or no user */}
 
 
           </div>
 
            {/* Right Column (Recent Plants) */}
            <div className="lg:col-span-2">
-              {isLoadingPlants && !currentFirebaseError ? (
+              {isLoadingPlants && !isDbUnavailable && user ? (
                  <Card className="shadow-md card h-full flex flex-col p-6">
                     <div className="flex items-center gap-2 mb-4">
                         <History className="h-5 w-5 text-primary" />
@@ -764,7 +792,7 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                          <p className="text-center text-muted-foreground">Carregando plantas recentes...</p>
                      </div>
                  </Card>
-              ) : error && !currentFirebaseError ? ( // Show error state within the card if loading failed (and no Firebase error)
+              ) : error && !isDbUnavailable && user ? ( // Show error state within the card if loading failed (and no critical error)
                   <Card className="shadow-md card h-full flex flex-col p-6">
                      <div className="flex items-center gap-2 mb-4">
                          <History className="h-5 w-5 text-primary" />
@@ -778,9 +806,9 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                           </Alert>
                      </div>
                   </Card>
-               ) : !currentFirebaseError && user ? ( // Show RecentPlants only if no error, no Firebase error, and user is logged in
+               ) : !isDbUnavailable && user ? ( // Show RecentPlants only if no error, no critical error, and user is logged in
                  <RecentPlants plants={recentPlants} />
-              ) : null /* Hide if Firebase error or no user */}
+              ) : null /* Hide if critical error or no user */}
            </div>
 
        </main>
@@ -828,8 +856,8 @@ export default function DashboardPage() { // Renamed component to DashboardPage
                          <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-accent animate-pulse-corners rounded-bl-md z-20"></div>
                          <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-accent animate-pulse-corners rounded-br-md z-20"></div>
 
-                         {/* Scan Line Animation - Removed */}
-                         {/* <div className="absolute top-0 left-1/2 w-0.5 h-full bg-gradient-to-b from-transparent via-primary/70 to-transparent animate-scan-line-vertical transform -translate-x-1/2"></div> */}
+                         {/* Scan Line Animation */}
+                          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/70 to-transparent animate-scan-line-vertical"></div>
                      </div>
                  </div>
              )}
@@ -907,6 +935,3 @@ export default function DashboardPage() { // Renamed component to DashboardPage
      </TooltipProvider>
   );
 }
-
-    
-

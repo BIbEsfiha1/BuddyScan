@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -13,12 +12,13 @@ import {
 } from '@/components/ui/lucide-icons'; // Use centralized icons, added History
 import { Badge } from '@/components/ui/badge';
 import type { DiaryEntry } from '@/types/diary-entry';
-// Import Firestore functions for diary entries
-import { loadDiaryEntriesPaginated, addDiaryEntryToFirestore, getDiaryEntriesCollectionRef } from '@/types/diary-entry'; // Use paginated load function
+// Import Firestore functions for diary entries (these now use client db)
+import { loadDiaryEntriesPaginated, addDiaryEntryToFirestore, getDiaryEntriesCollectionRef } from '@/types/diary-entry';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert components
 import { Button } from '@/components/ui/button'; // Import Button for refresh
-import { firebaseInitializationError } from '@/lib/firebase/config'; // firebaseInitializationError is now an Error object or null
-import { useAuth } from '@/context/auth-context'; // Import useAuth to potentially map author IDs later
+// Import client-side db instance (implicitly used by service functions now)
+import { db } from '@/lib/firebase/client';
+import { useAuth } from '@/context/auth-context'; // Import useAuth to get user info
 import type { QueryDocumentSnapshot, DocumentData, Timestamp } from 'firebase/firestore'; // Import Firestore types
 import { query, orderBy, limit as firestoreLimit, startAfter, getDocs } from 'firebase/firestore';
 
@@ -36,18 +36,25 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
   const [error, setError] = useState<string | null>(null);
   const [lastVisibleEntry, setLastVisibleEntry] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMoreEntries, setHasMoreEntries] = useState(true);
-  const { user: currentUser, authError } = useAuth(); // Get current user for display purposes if needed
+  const { user: currentUser, loading: authLoading, authError } = useAuth(); // Get current user for display purposes and auth status
 
-  // Determine the current Firebase error state
-  const currentFirebaseError = firebaseInitializationError || authError;
+  // Determine if there's a critical initialization error
+  const isDbUnavailable = !db || !!authError;
 
   // Use useCallback to memoize the load function
   const loadEntries = useCallback(async (loadMore = false) => {
-    // Check Firebase availability before loading
-    if (currentFirebaseError) {
-        setError(`Firebase não inicializado: ${currentFirebaseError.message}`);
+    // Check DB availability and user authentication
+    if (isDbUnavailable) {
+        setError(`Erro de Configuração: ${authError?.message || 'Serviço de banco de dados indisponível.'}`);
         setIsLoading(false);
         setIsFetchingMore(false);
+        return;
+    }
+    if (!currentUser && !authLoading) { // Check if auth check is done and user is null
+        setError("Faça login para ver o diário.");
+        setIsLoading(false);
+        setIsFetchingMore(false);
+        setEntries([]); // Clear entries if user logs out
         return;
     }
      if (!plantId) {
@@ -67,37 +74,18 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
     } else {
         setIsFetchingMore(true);
     }
-    setError(null);
+    setError(null); // Clear previous errors
 
     try {
-      const diaryEntriesCollection = getDiaryEntriesCollectionRef(plantId);
-      let q = query(diaryEntriesCollection, orderBy('timestamp', 'desc'), firestoreLimit(ENTRIES_PER_PAGE)); // Order by Firestore timestamp
+      // Service function uses client db implicitly
+      // TODO: Potentially pass ownerId if diary entries should be user-specific (depends on data model)
+      const result = await loadDiaryEntriesPaginated(plantId, ENTRIES_PER_PAGE, loadMore ? lastVisibleEntry : undefined);
 
-      if (lastVisibleEntry && loadMore) { // Ensure lastVisibleEntry is used only for loadMore
-          q = query(q, startAfter(lastVisibleEntry));
-      }
+      console.log(`Carregadas ${result.entries.length} entradas do diário. Próxima página começa após: ${result.lastVisible?.id}`);
 
-      const querySnapshot = await getDocs(q);
-
-      const fetchedEntries: DiaryEntry[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        // Convert Firestore Timestamp back to ISO string
-        const timestamp = (data.timestamp as Timestamp)?.toDate?.().toISOString() || data.timestamp;
-
-        fetchedEntries.push({
-          ...data,
-          id: doc.id,
-          timestamp: timestamp,
-        } as DiaryEntry);
-      });
-
-      const newLastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
-      console.log(`Carregadas ${fetchedEntries.length} entradas do diário. Próxima página começa após: ${newLastVisible?.id}`);
-
-      setEntries(prevEntries => loadMore ? [...prevEntries, ...fetchedEntries] : fetchedEntries);
-      setLastVisibleEntry(newLastVisible);
-      setHasMoreEntries(fetchedEntries.length === ENTRIES_PER_PAGE);
+      setEntries(prevEntries => loadMore ? [...prevEntries, ...result.entries] : result.entries);
+      setLastVisibleEntry(result.lastVisible);
+      setHasMoreEntries(result.entries.length === ENTRIES_PER_PAGE);
 
     } catch (err: any) {
       console.error('Falha ao buscar entradas do diário no Firestore:', err);
@@ -106,52 +94,47 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
       setIsLoading(false);
       setIsFetchingMore(false);
     }
-  }, [plantId, lastVisibleEntry, currentFirebaseError]); // Dependency array includes plantId and the pagination cursor and firebase error state
+  }, [plantId, lastVisibleEntry, isDbUnavailable, currentUser, authLoading, authError]); // Add dependencies
 
-  // Load initial entries on mount or when plantId changes
+  // Load initial entries on mount or when plantId/user changes
   useEffect(() => {
-    console.log("PlantDiary useEffect triggered for initial load, plantId:", plantId);
-    if (plantId && !currentFirebaseError) { // Only load if plantId is valid and no Firebase error
+    console.log("PlantDiary useEffect triggered for initial load, plantId:", plantId, "User:", currentUser?.uid);
+     // Only load if plantId is valid, DB is available, and auth isn't loading
+    if (plantId && !isDbUnavailable && !authLoading) {
         loadEntries(false);
-    } else if (currentFirebaseError) {
-        setIsLoading(false); // Stop loading if there's a Firebase error
-        setError(`Firebase não inicializado: ${currentFirebaseError.message}`);
+    } else if (isDbUnavailable) {
+        setIsLoading(false); // Stop loading if there's a DB error
+        setError(`Erro de Configuração: ${authError?.message || 'Serviço de banco de dados indisponível.'}`);
+    } else if (authLoading) {
+        console.log("Auth is loading, waiting to fetch entries...");
+        setIsLoading(true); // Ensure loading state remains true while auth loads
     }
-  }, [plantId, currentFirebaseError, loadEntries]); // Re-run if plantId or firebase error state changes
+  }, [plantId, isDbUnavailable, authLoading, currentUser, loadEntries, authError]); // Re-run if dependencies change
 
 
    // Handler for when DiaryEntryForm submits a new entry
-   // This function is called by DiaryEntryForm AFTER it successfully saves to Firestore
    const handleNewEntry = (newlyAddedEntry: DiaryEntry) => {
        console.log('Handling new entry in PlantDiary (already saved to Firestore):', newlyAddedEntry);
-       // Optimistically update the local state by prepending the new entry
        setEntries(prevEntries => [newlyAddedEntry, ...prevEntries]);
-       // Optional: Consider if prepending messes up pagination logic if user immediately loads more.
-       // A full refresh might be safer, or adjust `lastVisibleEntry` if needed.
-       // For simplicity, we prepend here.
    };
 
     // Helper function to display author information
     const getAuthorDisplayName = (authorId: string): string => {
-        // For now, just show the first part of the UID or a placeholder
-        // In a real app, you might fetch user profiles based on authorId
         if (!authorId) return 'Desconhecido';
-        // Could check against currentUser?.uid, but entries might be from others
         if (currentUser && currentUser.uid === authorId) {
-             return currentUser.displayName || currentUser.email?.split('@')[0] || `Usuário (${authorId.substring(0, 6)}...)`; // Use display name or email prefix
+             return currentUser.displayName || currentUser.email?.split('@')[0] || `Você (${authorId.substring(0, 6)}...)`;
         }
+        // In a real app, fetch other user profiles or show generic placeholder
         return `Usuário (${authorId.substring(0, 6)}...)`;
     };
 
 
   return (
     <div className="space-y-8">
-      {/* Diary Entry Form */}
+      {/* Diary Entry Form - Disabled state handled internally based on auth */}
       <DiaryEntryForm
         plantId={plantId}
         onNewEntry={handleNewEntry}
-        // Pass disabled state based on Firebase init error (prop needs to be added to form)
-        // disabled={!!currentFirebaseError}
       />
 
 
@@ -162,23 +145,38 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
                 <CardTitle className="text-2xl flex items-center gap-2"><History className="h-6 w-6 text-primary"/>Histórico do Diário</CardTitle>
                 <CardDescription>Registro cronológico de observações e ações.</CardDescription>
             </div>
-             <Button variant="outline" size="sm" onClick={() => loadEntries(false)} disabled={isLoading || isFetchingMore || !!currentFirebaseError} className="button">
+             <Button variant="outline" size="sm" onClick={() => loadEntries(false)} disabled={isLoading || isFetchingMore || isDbUnavailable || authLoading} className="button">
                  {isLoading && !isFetchingMore ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                  {isLoading && !isFetchingMore ? 'Atualizando...' : 'Atualizar'}
              </Button>
         </CardHeader>
         <CardContent className="space-y-6 pt-6 px-4 md:px-6">
-          {/* Display Firebase Init Error */}
-           {currentFirebaseError && (
+          {/* Display DB Init Error or Auth Loading/Error */}
+           {isDbUnavailable && (
               <Alert variant="destructive" className="mt-4">
                  <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Erro Crítico de Configuração</AlertTitle>
-                <AlertDescription>{currentFirebaseError.message}. Não é possível carregar ou salvar entradas.</AlertDescription>
+                <AlertDescription>{authError?.message || 'Serviço de banco de dados indisponível.'}. Não é possível carregar ou salvar entradas.</AlertDescription>
               </Alert>
            )}
+            {authLoading && !isDbUnavailable && (
+               <Alert variant="default" className="mt-4 border-blue-500/50 bg-blue-500/10">
+                   <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                   <AlertTitle>Autenticando...</AlertTitle>
+                   <AlertDescription>Aguarde enquanto verificamos sua sessão.</AlertDescription>
+               </Alert>
+            )}
+            {!authLoading && !currentUser && !isDbUnavailable && (
+                <Alert variant="destructive" className="mt-4">
+                   <AlertTriangle className="h-4 w-4" />
+                   <AlertTitle>Login Necessário</AlertTitle>
+                   <AlertDescription>Faça login para ver ou adicionar entradas no diário.</AlertDescription>
+                </Alert>
+             )}
 
-           {/* Loading Skeletons for initial load */}
-           {isLoading && !isFetchingMore && !currentFirebaseError &&(
+
+           {/* Loading Skeletons for initial load (only show if not auth loading and db is available) */}
+           {isLoading && !isFetchingMore && !isDbUnavailable && !authLoading && currentUser &&(
               <div className="space-y-6 pt-4">
                 {[...Array(3)].map((_, i) => ( // Show 3 skeletons
                     <Skeleton key={i} className="h-56 w-full rounded-lg" />
@@ -186,8 +184,8 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
               </div>
            )}
 
-           {/* Error Message */}
-           {error && !isLoading && !currentFirebaseError &&(
+           {/* Fetching Error Message (show only if logged in and db available) */}
+           {error && !isLoading && !isDbUnavailable && currentUser &&(
               <Alert variant="destructive" className="mt-4">
                  <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Erro ao Carregar Diário</AlertTitle>
@@ -198,8 +196,8 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
               </Alert>
            )}
 
-          {/* No Entries Message */}
-          {!isLoading && !error && !currentFirebaseError && entries.length === 0 && (
+          {/* No Entries Message (show only if logged in and db available) */}
+          {!isLoading && !error && !isDbUnavailable && currentUser && entries.length === 0 && (
             <div className="text-center py-10 text-muted-foreground border border-dashed rounded-lg mt-4">
                 <ClipboardList className="h-12 w-12 mx-auto mb-3 text-secondary/50"/>
                 <p className="font-medium">Nenhuma entrada no diário ainda.</p>
@@ -207,8 +205,8 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
             </div>
           )}
 
-          {/* Entries List - Only show if no errors and not loading initially */}
-          {!isLoading && !error && !currentFirebaseError && entries.length > 0 && (
+          {/* Entries List - Only show if logged in, no errors and not loading initially */}
+          {!isLoading && !error && !isDbUnavailable && currentUser && entries.length > 0 && (
             <div className="space-y-6 mt-4">
                 {entries.map((entry) => (
                   <Card key={entry.id} className="border shadow-md overflow-hidden bg-card/80 hover:shadow-lg transition-shadow card">
@@ -295,11 +293,11 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
           )}
 
             {/* Load More Button */}
-             {!isLoading && entries.length > 0 && hasMoreEntries && !currentFirebaseError && (
+             {!isLoading && entries.length > 0 && hasMoreEntries && !isDbUnavailable && currentUser && (
                <div className="text-center mt-6 py-4 border-t">
                    <Button
                        onClick={() => loadEntries(true)}
-                       disabled={isFetchingMore || !!currentFirebaseError}
+                       disabled={isFetchingMore || isDbUnavailable || authLoading}
                        variant="secondary"
                        className="button"
                    >
@@ -315,7 +313,7 @@ export default function PlantDiary({ plantId }: PlantDiaryProps) {
              )}
 
              {/* End of List Indicator */}
-             {!isLoading && !hasMoreEntries && entries.length > 0 && !currentFirebaseError && (
+             {!isLoading && !hasMoreEntries && entries.length > 0 && !isDbUnavailable && currentUser && (
                  <p className="text-center text-muted-foreground text-sm mt-6 py-4 border-t">Fim do histórico.</p>
              )}
 

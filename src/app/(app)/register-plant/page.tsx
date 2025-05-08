@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useCallback } from 'react';
@@ -26,7 +25,8 @@ import { generateUniqueId } from '@/lib/utils';
 // import { QrCode as QrCodeIcon } from 'lucide-react'; // Already imported from lucide-icons
 import { toDataURL } from 'qrcode'; // Import QR code generation function
 import Image from 'next/image'; // Import Next Image component
-import { firebaseInitializationError } from '@/lib/firebase/config'; // firebaseInitializationError is now an Error object or null
+// Import client-side db instance
+import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/context/auth-context'; // Import useAuth
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert
 
@@ -54,9 +54,10 @@ export default function RegisterPlantPage() {
   const [generatedQrCode, setGeneratedQrCode] = useState<string | null>(null);
   const [qrCodeImageDataUrl, setQrCodeImageDataUrl] = useState<string | null>(null);
 
-  // Determine the current Firebase error state
-  const currentFirebaseError = firebaseInitializationError || authError;
-  const generalDisabled = isSubmitting || !!currentFirebaseError || authLoading || !user;
+  // Determine if there's a critical initialization error (db instance unavailable)
+  const isDbUnavailable = !db || !!authError; // db might be null if client.ts failed, or auth context has error
+
+  const generalDisabled = isSubmitting || isDbUnavailable || authLoading || !user;
 
 
   const form = useForm<RegisterPlantFormData>({
@@ -92,14 +93,15 @@ export default function RegisterPlantPage() {
     setGeneratedQrCode(null);
     setQrCodeImageDataUrl(null);
 
-    // Check for Firebase initialization errors before proceeding
-    if (currentFirebaseError) {
-        console.error("Firebase initialization error:", currentFirebaseError);
-        setSubmitError(`Erro de configuração do Firebase: ${currentFirebaseError.message}. Não é possível salvar.`);
+    // Check for DB availability first
+    if (isDbUnavailable) {
+        const errorMsg = authError?.message || 'Serviço de banco de dados indisponível.';
+        console.error("Firestore DB not available:", errorMsg);
+        setSubmitError(`Erro de Configuração: ${errorMsg} Não é possível salvar.`);
         toast({
             variant: 'destructive',
             title: 'Erro de Configuração',
-            description: 'Não foi possível conectar ao banco de dados. Verifique as configurações do Firebase.',
+            description: 'Não foi possível conectar ao banco de dados.',
         });
         setIsSubmitting(false);
         return;
@@ -118,6 +120,7 @@ export default function RegisterPlantPage() {
       const uniqueId = generateUniqueId(); // Use the existing utility
 
       // Construct the new plant object for Firestore (without status and createdAt)
+      // Add ownerId field
       const newPlantData: Omit<Plant, 'status' | 'createdAt'> = {
         id: uniqueId, // Use generated ID as Firestore document ID
         qrCode: uniqueId, // QR Code content is the same as the ID
@@ -126,6 +129,7 @@ export default function RegisterPlantPage() {
         estimatedHarvestDate: data.estimatedHarvestDate || null, // Added harvest date
         birthDate: data.birthDate, // Store as ISO string temporarily, service converts to Timestamp
         growRoomId: data.growRoomId,
+        // ownerId: user.uid, // Associate plant with the logged-in user
       };
 
       console.log('Tentando cadastrar planta no Firestore:', newPlantData);
@@ -208,21 +212,21 @@ export default function RegisterPlantPage() {
          </CardHeader>
          <CardContent className="pt-6">
              {/* Global Error/Auth Messages */}
-             {currentFirebaseError && (
-                <Alert variant="destructive" className="mb-4">
-                    <AlertCircleIcon className="h-4 w-4" />
-                    <AlertTitle>Erro Crítico de Configuração</AlertTitle>
-                    <AlertDescription>{currentFirebaseError.message}. Não é possível salvar.</AlertDescription>
-                </Alert>
-             )}
-             {authLoading && !currentFirebaseError && (
+              {isDbUnavailable && (
+                 <Alert variant="destructive" className="mb-4">
+                     <AlertCircleIcon className="h-4 w-4" />
+                     <AlertTitle>Erro Crítico de Configuração</AlertTitle>
+                     <AlertDescription>{authError?.message || 'Serviço de banco de dados indisponível.'} Não é possível salvar.</AlertDescription>
+                 </Alert>
+              )}
+             {authLoading && !isDbUnavailable && (
                 <Alert variant="default" className="mb-4 border-blue-500/50 bg-blue-500/10">
                     <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
                     <AlertTitle>Autenticando...</AlertTitle>
                     <AlertDescription>Aguarde enquanto verificamos sua sessão.</AlertDescription>
                 </Alert>
              )}
-             {!authLoading && !user && !currentFirebaseError && (
+             {!authLoading && !user && !isDbUnavailable && (
                 <Alert variant="destructive" className="mb-4">
                     <AlertCircleIcon className="h-4 w-4" />
                     <AlertTitle>Não Autenticado</AlertTitle>
@@ -379,12 +383,12 @@ export default function RegisterPlantPage() {
 
 
                     {/* Submit Error Display */}
-                    {submitError && !currentFirebaseError && (
+                    {submitError && !isDbUnavailable && ( // Only show if not critical error
                         <div className="text-sm font-medium text-destructive text-center bg-destructive/10 p-3 rounded-md">
                         {submitError}
                         </div>
                     )}
-                    
+
                     {/* Submit Button */}
                 <Button type="submit" size="lg" className="w-full font-semibold button" disabled={generalDisabled}>
                     {isSubmitting ? (
@@ -405,4 +409,3 @@ export default function RegisterPlantPage() {
     </div>
   );
 }
-

@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -26,12 +24,13 @@ import {
 import Image from 'next/image';
 import { analyzePlantPhoto, type AnalyzePlantPhotoOutput } from '@/ai/flows/analyze-plant-photo';
 import type { DiaryEntry } from '@/types/diary-entry';
-// Import Firestore add function
+// Import Firestore add function (now uses client db)
 import { addDiaryEntryToFirestore } from '@/types/diary-entry';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { firebaseInitializationError } from '@/lib/firebase/config'; // firebaseInitializationError is now an Error object or null
+// Import client-side db instance (implicitly used by service function)
+import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/context/auth-context'; // Import useAuth
 import { cn } from '@/lib/utils'; // Import cn
 
@@ -65,7 +64,6 @@ type DiaryEntryFormData = z.infer<typeof diaryEntrySchema>;
 interface DiaryEntryFormProps {
   plantId: string;
   onNewEntry: (entry: DiaryEntry) => void;
-  // disabled?: boolean; // Optional disabled prop
 }
 
 type CameraStatus = 'idle' | 'permission-pending' | 'permission-denied' | 'streaming' | 'error';
@@ -89,11 +87,11 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null); // Ref for file input
 
-  // Determine the current Firebase error state
-  const currentFirebaseError = firebaseInitializationError || authError;
+  // Determine if there's a critical initialization error (db or auth error)
+  const isDbUnavailable = !db || !!authError;
 
   // Determine if the form should be globally disabled
-  const isDisabled = isSubmitting || isAnalyzing || showCameraView || !!currentFirebaseError || authLoading || !user; // Disable if no user or loading auth
+  const isDisabled = isSubmitting || isAnalyzing || showCameraView || isDbUnavailable || authLoading || !user;
 
 
   const form = useForm<DiaryEntryFormData>({
@@ -328,8 +326,9 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
         });
         return;
     }
-     if (currentFirebaseError) {
-        toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Serviço de análise indisponível devido a erro do Firebase.' });
+     // Check if DB (and implicitly Firebase services) is available
+     if (isDbUnavailable) {
+        toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Serviço de análise indisponível.' });
         return;
      }
 
@@ -370,14 +369,15 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
      setIsSubmitting(true);
      setSubmitError(null);
 
-     // Check for Firebase initialization errors before proceeding
-     if (currentFirebaseError) {
-         console.error("Firebase initialization error:", currentFirebaseError);
-         setSubmitError(`Erro de configuração do Firebase: ${currentFirebaseError.message}. Não é possível salvar.`);
+     // Check for DB availability first
+     if (isDbUnavailable) {
+         const errorMsg = authError?.message || 'Serviço de banco de dados indisponível.';
+         console.error("Firestore DB not available:", errorMsg);
+         setSubmitError(`Erro de Configuração: ${errorMsg} Não é possível salvar.`);
          toast({
              variant: 'destructive',
              title: 'Erro de Configuração',
-             description: 'Não foi possível conectar ao banco de dados. Verifique as configurações do Firebase.',
+             description: 'Não foi possível conectar ao banco de dados.',
          });
          setIsSubmitting(false);
          return;
@@ -415,7 +415,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
 
         console.log('Novo objeto de entrada para Firestore:', newEntryData);
 
-        // Call Firestore service function
+        // Call Firestore service function (uses client db)
         const savedEntry = await addDiaryEntryToFirestore(plantId, newEntryData);
         console.log('Entrada adicionada ao Firestore com ID:', savedEntry.id);
 
@@ -461,24 +461,22 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
 
-             {/* Firebase Init Error Display */}
-              {currentFirebaseError && (
+             {/* Global Error/Auth Messages */}
+              {isDbUnavailable && (
                  <Alert variant="destructive" className="p-3">
                    <AlertCircle className="h-4 w-4"/>
                    <AlertTitle>Erro Crítico de Configuração</AlertTitle>
-                   <AlertDescription className="text-sm">{currentFirebaseError.message}. Não é possível salvar entradas.</AlertDescription>
+                   <AlertDescription className="text-sm">{authError?.message || 'Serviço de banco de dados indisponível.'} Não é possível salvar.</AlertDescription>
                  </Alert>
               )}
-
-             {/* Auth Loading/Not Logged In Message */}
-             {authLoading && !isDisabled && !currentFirebaseError && (
+             {authLoading && !isDbUnavailable && (
                   <Alert variant="default" className="p-3 border-blue-500/50 bg-blue-500/10">
                       <Loader2 className="h-4 w-4 animate-spin text-blue-600"/>
                       <AlertTitle>Verificando Autenticação...</AlertTitle>
                       <AlertDescription className="text-sm text-blue-700">Aguarde enquanto verificamos seu login.</AlertDescription>
                   </Alert>
              )}
-             {!authLoading && !user && !currentFirebaseError && (
+             {!authLoading && !user && !isDbUnavailable && (
                   <Alert variant="destructive" className="p-3">
                       <AlertCircle className="h-4 w-4"/>
                       <AlertTitle>Login Necessário</AlertTitle>
@@ -782,7 +780,7 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
 
             {/* Submission Area */}
             <div className="pt-4 space-y-3">
-                 {submitError && !currentFirebaseError && ( // Only show submit error if no init error
+                 {submitError && !isDbUnavailable && ( // Only show if not critical error
                     <Alert variant="destructive" className="p-3">
                       <AlertCircle className="h-4 w-4"/>
                       <AlertTitle>Erro ao Salvar</AlertTitle>
@@ -808,4 +806,3 @@ export function DiaryEntryForm({ plantId, onNewEntry }: DiaryEntryFormProps) {
     </Card>
   );
 }
-

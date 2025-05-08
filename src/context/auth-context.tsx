@@ -1,10 +1,10 @@
-
 // src/context/auth-context.tsx
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { auth, firebaseInitializationError } from '@/lib/firebase/config'; // Import error object
+// Import auth instance directly from the new client config
+import { auth } from '@/lib/firebase/client';
 import { Loader2 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
@@ -12,7 +12,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   logout: () => Promise<void>;
-  authError: Error | null; // Add authError to context
+  authError: Error | null; // Keep authError for listener/runtime errors
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,34 +20,25 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  // Initialize with the error object from firebase/config
-  const [authError, setAuthError] = useState<Error | null>(firebaseInitializationError); 
+  // Initialize authError to null, as config errors are handled differently now
+  const [authError, setAuthError] = useState<Error | null>(null);
 
   useEffect(() => {
-    // If firebaseInitializationError already exists from config.ts, use it.
-    if (firebaseInitializationError) {
-      console.error("Auth Provider: Firebase initialization failed (detected from config.ts).", firebaseInitializationError);
-      setLoading(false);
-      // authError is already set via useState's initial value
-      return; // Stop further auth operations
-    }
-
-    console.log("Auth Provider: Setting up Firebase auth state listener...");
-    // Ensure auth instance is valid before trying to use it
+    // Check if the auth instance is available (it might not be if client.ts failed)
     if (!auth) {
-        console.error("Auth Provider: Firebase Auth instance is not available. Cannot set up listener.");
-        // Set authError if auth is null and no prior init error
-        if (!authError) {
-          setAuthError(new Error("Serviço de autenticação indisponível. Configuração do Firebase falhou."));
-        }
+        const initError = new Error("Serviço de autenticação indisponível. Configuração do Firebase falhou ou está sendo executado no servidor.");
+        console.error("Auth Provider:", initError.message);
+        setAuthError(initError);
         setLoading(false);
         return;
     }
 
+    console.log("Auth Provider: Setting up Firebase auth state listener...");
+
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
-      setAuthError(null); // Clear error on successful auth state change
+      setAuthError(null); // Clear previous listener errors on successful update
       if (currentUser) {
           console.log("Auth Provider: User is logged in - ", currentUser.uid);
       } else {
@@ -65,18 +56,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("Auth Provider: Cleaning up Firebase auth state listener.");
         unsubscribe();
     };
-  }, [authError]); // Re-run effect if authError (from initial state) changes to null
+  }, []); // Empty dependency array, runs once on mount
 
   const logout = async () => {
-    if (auth) {
-      return signOut(auth);
+    // Check if auth is available before signing out
+    if (!auth) {
+        console.error("Logout failed: Auth instance not available.");
+        setAuthError(new Error("Serviço de autenticação indisponível para logout."));
+        return Promise.reject(authError); // Reject promise if auth is unavailable
     }
-    console.warn("Logout called but auth instance is null.");
-    // Set authError if logout is attempted with no auth and no prior error
-    if (!authError) {
-       setAuthError(new Error("Serviço de autenticação indisponível para logout."));
+    try {
+        await signOut(auth);
+        // State update will be handled by onAuthStateChanged listener
+    } catch (error) {
+         console.error("Logout error:", error);
+         setAuthError(error instanceof Error ? error : new Error("Falha ao sair."));
+         throw error; // Re-throw error for potential handling upstream
     }
-    return Promise.resolve(); // Or reject if preferred for consistency
   };
 
    // Display loading indicator while auth state is being determined
@@ -96,20 +92,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
        );
    }
 
-   // Display error if Firebase failed to initialize overall
-    if (authError && !user) { // Show critical error if firebase failed and no user context yet
+   // Display error if the auth instance failed to initialize or listener failed
+   // This replaces the old firebaseInitializationError check
+    if (authError && !user) { // Show critical error if auth failed and no user context yet
         return (
             <div className="flex items-center justify-center min-h-screen bg-destructive/10">
                 <Card className="w-full max-w-lg text-center shadow-xl card p-8 border-destructive">
                     <CardHeader>
                         <Loader2 className="h-16 w-16 text-destructive animate-ping mx-auto mb-6" /> {/* Ping animation */}
-                        <CardTitle className="text-2xl text-destructive">Erro Crítico de Inicialização</CardTitle>
+                        <CardTitle className="text-2xl text-destructive">Erro Crítico de Autenticação</CardTitle>
                         <CardDescription className="text-destructive/80 mt-2">
                             Não foi possível conectar aos serviços de autenticação.
                             <br />
                             {authError.message}
                             <br />
-                            Por favor, verifique sua conexão ou contate o suporte.
+                            Por favor, verifique a configuração ou contate o suporte.
                         </CardDescription>
                     </CardHeader>
                 </Card>
@@ -132,4 +129,3 @@ export const useAuth = () => {
   }
   return context;
 };
-

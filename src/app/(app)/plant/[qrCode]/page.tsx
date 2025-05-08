@@ -1,4 +1,3 @@
-
 'use client'; // Add 'use client' directive
 
 import React, { useState, useEffect, useCallback, use } from 'react'; // Import hooks including 'use'
@@ -21,7 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"; // Import Select components
 import { useToast } from '@/hooks/use-toast'; // Import useToast
-import { firebaseInitializationError } from '@/lib/firebase/config'; // firebaseInitializationError is now an Error object or null
+// Import client-side db instance
+import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/context/auth-context'; // Import useAuth
 
 // Define expected params structure remains the same
@@ -45,8 +45,8 @@ export default function PlantPage({ params }: PlantPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true); // Add loading state
 
-  // Determine the current Firebase error state
-  const currentFirebaseError = firebaseInitializationError || authError;
+  // Determine if there's a critical initialization error (db instance unavailable or auth error)
+  const isDbUnavailable = !db || !!authError;
 
 
   // Fetch plant data from Firestore
@@ -64,24 +64,39 @@ export default function PlantPage({ params }: PlantPageProps) {
           return;
       }
 
-       // Check for Firebase initialization errors before proceeding
-      if (currentFirebaseError) {
-          console.error("Firebase initialization error:", currentFirebaseError);
-          setError(`Erro de configuração do Firebase: ${currentFirebaseError.message}. Não é possível buscar dados.`);
+       // Check for DB availability before proceeding
+      if (isDbUnavailable) {
+          const errorMsg = authError?.message || 'Serviço de banco de dados indisponível.';
+          console.error("Firestore DB not available:", errorMsg);
+          setError(`Erro de Configuração: ${errorMsg} Não é possível buscar dados.`);
           setIsLoading(false);
           return;
       }
+       // Check if user is logged in (redundant if using protected routes/middleware, but safe)
+       if (!authLoading && !user) {
+           setError("Usuário não autenticado. Faça login para ver os detalhes da planta.");
+           setIsLoading(false);
+           return;
+       }
+
 
       try {
         console.log(`Fetching plant data for ID: ${plantId} from Firestore...`);
-        const fetchedPlant = await getPlantById(plantId); // Use Firestore function
+        // Ensure db is checked before calling service function implicitly relying on it
+        const fetchedPlant = await getPlantById(plantId); // Service function now uses client db
         if (!fetchedPlant) {
           setError(`Planta com ID '${plantId}' não encontrada no Firestore.`);
           console.warn(`Plant with ID '${plantId}' not found.`);
         } else {
-          console.log(`Plant data fetched successfully for ${plantId}:`, fetchedPlant);
-          setPlant(fetchedPlant);
-          setCurrentStatus(fetchedPlant.status); // Initialize local status state
+           // TODO: Implement owner check if needed:
+           // if (fetchedPlant.ownerId !== user?.uid) {
+           //    setError("Você não tem permissão para ver esta planta.");
+           //    setPlant(null);
+           // } else {
+              console.log(`Plant data fetched successfully for ${plantId}:`, fetchedPlant);
+              setPlant(fetchedPlant);
+              setCurrentStatus(fetchedPlant.status); // Initialize local status state
+           // }
         }
       } catch (e) {
         console.error('Falha ao buscar dados da planta no Firestore:', e);
@@ -92,15 +107,16 @@ export default function PlantPage({ params }: PlantPageProps) {
     };
 
     // Only fetch if user is available and no critical errors
-    if (user && !authLoading && !currentFirebaseError) {
+    if (user && !authLoading && !isDbUnavailable) {
       fetchPlantData();
-    } else if (currentFirebaseError) {
+    } else if (isDbUnavailable) {
       setIsLoading(false); // Don't attempt to load if Firebase is not okay
     } else if (!authLoading && !user) {
       setError("Usuário não autenticado. Faça login para ver os detalhes da planta.");
       setIsLoading(false);
     }
-  }, [plantId, currentFirebaseError, user, authLoading]); // Add user and authLoading dependencies
+  }, [plantId, isDbUnavailable, user, authLoading, authError]); // Add dependencies
+
 
   // --- Handle Status Update ---
   const handleStatusChange = useCallback(async (newStatus: string) => {
@@ -108,9 +124,10 @@ export default function PlantPage({ params }: PlantPageProps) {
        return; // No change or already updating
      }
 
-      // Check for Firebase initialization errors before proceeding
-     if (currentFirebaseError) {
-         toast({ variant: 'destructive', title: 'Erro de Configuração', description: 'Não é possível atualizar o status devido a erro do Firebase.' });
+      // Check for DB availability before proceeding
+     if (isDbUnavailable) {
+         const errorMsg = authError?.message || 'Serviço de banco de dados indisponível.';
+         toast({ variant: 'destructive', title: 'Erro de Configuração', description: errorMsg });
          return;
      }
      // Check if user is logged in
@@ -118,13 +135,18 @@ export default function PlantPage({ params }: PlantPageProps) {
          toast({ variant: 'destructive', title: 'Não Autenticado', description: 'Faça login para alterar o status.' });
          return;
      }
+     // TODO: Optional: Check if current user is the owner
+     // if (plant.ownerId !== user.uid) {
+     //    toast({ variant: 'destructive', title: 'Não Autorizado', description: 'Você não pode alterar o status desta planta.' });
+     //    return;
+     // }
 
 
      setIsUpdatingStatus(true);
      console.log(`Attempting to update status for plant ${plant.id} to ${newStatus} in Firestore`);
 
      try {
-       await updatePlantStatus(plant.id, newStatus); // Use Firestore update function
+       await updatePlantStatus(plant.id, newStatus); // Service uses client db now
        setCurrentStatus(newStatus); // Update local state on success
        setPlant(prevPlant => prevPlant ? { ...prevPlant, status: newStatus } : null); // Update plant object state too
        toast({
@@ -144,7 +166,7 @@ export default function PlantPage({ params }: PlantPageProps) {
      } finally {
        setIsUpdatingStatus(false);
      }
-   }, [plant, currentStatus, isUpdatingStatus, toast, currentFirebaseError, user]);
+   }, [plant, currentStatus, isUpdatingStatus, toast, isDbUnavailable, user, authError]);
 
 
   // --- Loading State ---
@@ -164,29 +186,35 @@ export default function PlantPage({ params }: PlantPageProps) {
       );
   }
 
-  // --- Error State (including auth errors or general errors) ---
-  if (error || currentFirebaseError || (!authLoading && !user && !currentFirebaseError)) {
-    const displayError = error || currentFirebaseError?.message || "Usuário não autenticado. Faça login para ver os detalhes da planta.";
-    console.error(`Rendering error state: ${displayError}`);
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background via-muted/50 to-destructive/10">
-        <Card className="w-full max-w-md text-center shadow-xl border-destructive/50 card">
-           <CardHeader>
-             <div className="mx-auto bg-destructive/10 rounded-full p-3 w-fit mb-3">
-                <AlertCircle className="h-10 w-10 text-destructive" />
-             </div>
-             <CardTitle className="text-destructive text-2xl">Erro ao Carregar Planta</CardTitle>
-           </CardHeader>
-           <CardContent className="space-y-4">
-             <p className="text-muted-foreground">{displayError}</p>
-              <Button asChild variant="secondary" className="button">
-                  <Link href="/dashboard">Voltar ao Painel</Link> {/* Link to dashboard */}
-              </Button>
-           </CardContent>
-         </Card>
-      </div>
-    );
+  // --- Error State (including DB/auth errors or general errors) ---
+   // Prioritize DB unavailability error, then general fetch error, then auth error
+  const displayError = isDbUnavailable ? (authError?.message || 'Serviço de banco de dados indisponível.') : error || (!authLoading && !user ? "Usuário não autenticado." : null);
+
+  if (displayError) {
+      console.error(`Rendering error state: ${displayError}`);
+      const isCriticalError = isDbUnavailable; // Treat DB unavailable as critical
+      const errorTitle = isCriticalError ? "Erro Crítico de Configuração" : "Erro ao Carregar Planta";
+
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-background via-muted/50 to-destructive/10">
+          <Card className="w-full max-w-md text-center shadow-xl border-destructive/50 card">
+             <CardHeader>
+               <div className="mx-auto bg-destructive/10 rounded-full p-3 w-fit mb-3">
+                  <AlertCircle className="h-10 w-10 text-destructive" />
+               </div>
+               <CardTitle className="text-destructive text-2xl">{errorTitle}</CardTitle>
+             </CardHeader>
+             <CardContent className="space-y-4">
+               <p className="text-muted-foreground">{displayError}</p>
+                <Button asChild variant="secondary" className="button">
+                    <Link href="/dashboard">Voltar ao Painel</Link> {/* Link to dashboard */}
+                </Button>
+             </CardContent>
+           </Card>
+        </div>
+      );
   }
+
 
   // --- Not Found State ---
   if (!plant) { // This should only be reached if loading is done, no error, but plant is null
@@ -243,7 +271,7 @@ export default function PlantPage({ params }: PlantPageProps) {
                         <Select
                             value={currentStatus}
                             onValueChange={handleStatusChange}
-                            disabled={isUpdatingStatus || !!currentFirebaseError || !user} // Also disable if no user
+                            disabled={isUpdatingStatus || isDbUnavailable || !user} // Also disable if no user or db unavailable
                         >
                             <SelectTrigger
                                 className="w-auto h-9 px-2 py-1 text-xs shadow-sm button focus:ring-offset-0 focus:ring-primary/50"
@@ -303,4 +331,3 @@ export default function PlantPage({ params }: PlantPageProps) {
     </div>
   );
 }
-

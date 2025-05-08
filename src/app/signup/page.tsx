@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -14,8 +13,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from '@/hooks/use-toast';
 import { UserPlus, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
-// Import auth and the error object
-import { auth, firebaseInitializationError } from '@/lib/firebase/config';
+// Import auth instance directly from the new client config
+import { auth } from '@/lib/firebase/client';
 // Use Next.js Image component
 import Image from 'next/image';
 import { useAuth } from '@/context/auth-context';
@@ -45,26 +44,20 @@ export default function SignupPage() {
   const { user, loading: authLoading, authError: contextAuthError } = useAuth(); // Use auth context, get authError
   const isAuthEnabled = true; // Keep auth enabled
 
-  // Determine the current Firebase initialization error message string
-  let currentFirebaseInitErrorMessage: string | null = null;
-  if (firebaseInitializationError) {
-    currentFirebaseInitErrorMessage = firebaseInitializationError.message;
-  } else if (contextAuthError) { // contextAuthError is from AuthProvider, which might also reflect the init error
-    currentFirebaseInitErrorMessage = contextAuthError.message;
-  }
-
+  // Determine if there's a critical initialization error
+  const isAuthUnavailable = !auth || !!contextAuthError;
 
   const { register, handleSubmit, formState: { errors } } = useForm<SignupFormInputs>({
     resolver: zodResolver(signupSchema),
   });
 
-   // Redirect if user is already logged in AND auth is enabled
+   // Redirect if user is already logged in AND auth is enabled and available
    useEffect(() => {
-       if (isAuthEnabled && !authLoading && user) {
+       if (isAuthEnabled && auth && !authLoading && user) {
            console.log("User already logged in, redirecting to dashboard from signup...");
            router.replace('/dashboard'); // Use replace to avoid signup in history
        }
-   }, [user, authLoading, router, isAuthEnabled]);
+   }, [user, authLoading, router, isAuthEnabled, auth]);
 
     // --- Handle Firebase Errors ---
     const handleAuthError = (error: any, providerName: string) => {
@@ -94,32 +87,29 @@ export default function SignupPage() {
                     userMessage = 'Popup de login bloqueado pelo navegador. Habilite popups para este site.';
                     break;
                 case 'auth/account-exists-with-different-credential':
-                     // This usually happens during social sign-in attempts
-                    userMessage = 'Já existe uma conta com este email usando outro método (ex: Email, Google). Tente fazer login com o método original.';
+                    userMessage = 'Já existe uma conta com este email usando outro método.';
                     break;
                  case 'auth/network-request-failed':
-                      userMessage = 'Erro de rede. Verifique sua conexão e tente novamente.';
+                      userMessage = 'Erro de rede. Verifique sua conexão.';
                       break;
                  case 'auth/internal-error':
-                      userMessage = 'Ocorreu um erro interno no servidor de autenticação. Tente novamente mais tarde.';
+                      userMessage = 'Ocorreu um erro interno no servidor.';
                       break;
-                 case 'auth/invalid-api-key': // Corrected code
+                 case 'auth/invalid-api-key':
                  case 'auth/api-key-not-valid':
-                     userMessage = "Erro de configuração: Chave de API inválida. Contate o suporte.";
-                     console.error("CRITICAL: Invalid Firebase API Key detected during signup.");
+                     userMessage = "Erro crítico: Chave de API inválida.";
+                     console.error("CRITICAL: Invalid Firebase API Key.");
                      break;
-                 case 'auth/argument-error': // Often related to invalid authDomain
-                      userMessage = "Erro de configuração interna (authDomain inválido ou API key?). Verifique a configuração do Firebase e as variáveis de ambiente (NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN). Contate o suporte.";
-                      console.error("CRITICAL: Auth Argument Error - Likely Firebase config issue (check authDomain, projectId).", error);
+                 case 'auth/argument-error':
+                      userMessage = "Erro de configuração (authDomain inválido?). Verifique o Firebase Console.";
+                      console.error("Auth Argument Error - Check Firebase config (authDomain, API Key restrictions, authorized domains).");
                       break;
-                 case 'auth/invalid-credential': // Can happen if email format is wrong during create
+                 case 'auth/invalid-credential':
                      userMessage = 'Formato de email inválido.';
                      break;
                 default:
-                    userMessage = `Erro de cadastro/login (${error.code}). Tente novamente.`;
+                    userMessage = `Erro (${error.code}). Tente novamente.`;
             }
-        } else if (error.message) {
-            userMessage = error.message;
         }
         setSignupError(userMessage);
         toast({
@@ -131,23 +121,9 @@ export default function SignupPage() {
 
   // --- Email/Password Signup Handler ---
   const onEmailSubmit = async (data: SignupFormInputs) => {
-       // Check if auth is enabled first
-       if (!isAuthEnabled) {
-           console.warn("Email signup attempted while auth is disabled.");
-           return;
-       }
-       // Check if auth instance is available
-       if (!auth) {
-           console.error("Email signup failed: Auth instance not available.");
+       if (!isAuthEnabled || isAuthUnavailable) {
            setSignupError("Serviço de autenticação indisponível.");
            toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível." });
-           return;
-       }
-       // Check for critical Firebase initialization error
-       if (currentFirebaseInitErrorMessage) {
-           console.error("Email signup failed due to Firebase initialization error:", currentFirebaseInitErrorMessage);
-           setSignupError(`Erro de Configuração: ${currentFirebaseInitErrorMessage}`);
-           toast({ variant: "destructive", title: "Erro de Configuração", description: currentFirebaseInitErrorMessage });
            return;
        }
 
@@ -155,7 +131,8 @@ export default function SignupPage() {
      setSignupError(null);
      try {
        console.log('Attempting email signup for:', data.email);
-       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+       // Auth instance checked via isAuthUnavailable
+       const userCredential = await createUserWithEmailAndPassword(auth!, data.email, data.password);
        const user = userCredential.user;
        console.log('Email signup successful for:', user.email, 'UID:', user.uid);
        toast({ title: "Cadastro realizado!", description: `Bem-vindo ao BuddyScan, ${user.email}!` });
@@ -169,23 +146,9 @@ export default function SignupPage() {
 
    // --- Social Login/Signup Handler ---
    const handleSocialLogin = async (providerType: 'google' | 'facebook' | 'twitter') => {
-        // Check if auth is enabled first
-        if (!isAuthEnabled) {
-            console.warn(`${providerType} signup attempted while auth is disabled.`);
-            return;
-        }
-        // Check if auth instance is available
-        if (!auth) {
-            console.error(`${providerType} login/signup failed: Auth instance not available.`);
+        if (!isAuthEnabled || isAuthUnavailable) {
             setSignupError("Serviço de autenticação indisponível.");
             toast({ variant: "destructive", title: "Erro", description: "Serviço de autenticação indisponível." });
-            return;
-        }
-        // Check for critical Firebase initialization error
-        if (currentFirebaseInitErrorMessage) {
-            console.error(`${providerType} login failed: Firebase initialization error.`);
-            setSignupError(`Erro de Configuração: ${currentFirebaseInitErrorMessage}`);
-            toast({ variant: "destructive", title: "Erro de Configuração", description: currentFirebaseInitErrorMessage });
             return;
         }
 
@@ -197,15 +160,13 @@ export default function SignupPage() {
                 provider = new GoogleAuthProvider();
                 providerName = 'Google';
                 break;
+            // Keep others disabled
             case 'facebook':
-                 toast({ variant: "destructive", title: "Indisponível", description: "Login com Facebook ainda não implementado." });
-                 return;
             case 'twitter':
-                 toast({ variant: "destructive", title: "Indisponível", description: "Login com Twitter (X) ainda não implementado." });
+                 toast({ variant: "destructive", title: "Indisponível", description: `Login com ${providerType === 'facebook' ? 'Facebook' : 'Twitter (X)'} ainda não implementado.` });
                  return;
             default:
-                console.error('Provider type desconhecido:', providerType);
-                toast({ variant: "destructive", title: "Erro", description: "Método de login/cadastro desconhecido." });
+                 toast({ variant: "destructive", title: "Erro", description: "Método de login/cadastro desconhecido." });
                 return;
         }
 
@@ -213,27 +174,16 @@ export default function SignupPage() {
        setSignupError(null);
 
         try {
+            // Debug logs
             console.log(`--- [DEBUG] Initiating ${providerName} signInWithPopup (Signup Page) ---`);
-            console.log("[DEBUG] Auth Instance Available:", !!auth);
-             if (!auth) { // Double check auth right before the call
-                throw new Error("Auth instance became null before signInWithPopup call.");
-             }
-             // Log the specific config details of the auth instance being used RIGHT BEFORE the call
-             console.log("[DEBUG] Auth Config Used by Instance (Signup):");
-             console.log(" auth.config:", auth.config); 
-             console.log("  apiKey:", auth.config.apiKey ? 'Present' : 'MISSING!');
-             console.log("  authDomain:", auth.config.authDomain || 'MISSING! (Likely cause of auth/argument-error)');
-             console.log("  projectId:", auth.config.projectId || 'MISSING!');
+            // Auth instance checked via isAuthUnavailable
+             console.log("[DEBUG] Auth Instance Config (Signup):", auth!.config);
 
-
-             if (!provider) { // Should not happen based on switch logic, but check anyway
-                throw new Error("Provider instance is null or undefined.");
-             }
-             if (!auth.config.authDomain) {
+             if (!auth!.config?.authDomain) {
                  console.error("FATAL: authDomain is missing or invalid in Firebase Auth config. This is the likely cause of auth/argument-error for popup logins.");
                  throw new Error("authDomain inválido ou ausente na configuração do Firebase.");
              }
-            const result = await signInWithPopup(auth, provider);
+            const result = await signInWithPopup(auth!, provider);
             const user = result.user;
             console.log(`${providerName} login/signup successful. User:`, user.email, user.uid);
             toast({ title: "Conectado!", description: `Bem-vindo ao BuddyScan via ${providerName}.` });
@@ -246,8 +196,8 @@ export default function SignupPage() {
         }
    };
 
-    // Show loading state while checking auth status or if user is already defined (only if auth is enabled)
-    if (isAuthEnabled && (authLoading || (!authLoading && user))) {
+    // Show loading state while checking auth status or if user is already defined (only if auth is enabled and available)
+    if (isAuthEnabled && auth && (authLoading || (!authLoading && user))) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
                 <Card className="w-full max-w-md text-center shadow-lg card p-6">
@@ -276,20 +226,19 @@ export default function SignupPage() {
                   height={66} // Adjust height based on aspect ratio
                   className="mx-auto mb-4 object-contain h-[66px]" // Ensure proper scaling
                   priority
-                  onError={(e) => {
-                      console.error('Standard <img> load error (Signup):', (e.target as HTMLImageElement).src);
-                  }}
+                 // Removed onError handler
               />
           <CardTitle className="text-2xl font-bold text-primary">Crie sua Conta BuddyScan</CardTitle>
           <CardDescription>Cadastre-se para começar a monitorar suas plantas.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-             {currentFirebaseInitErrorMessage && (
+            {/* Show critical auth error */}
+             {isAuthUnavailable && contextAuthError && (
                  <Alert variant="destructive">
                      <AlertCircle className="h-4 w-4" />
-                     <AlertTitle>Erro Crítico de Configuração</AlertTitle>
+                     <AlertTitle>Erro Crítico de Autenticação</AlertTitle>
                      <AlertDescription>
-                         {currentFirebaseInitErrorMessage}. A autenticação pode não funcionar. Verifique as variáveis de ambiente (API Key, Auth Domain, etc.) ou contate o suporte.
+                          {contextAuthError.message}. A autenticação pode não funcionar.
                      </AlertDescription>
                  </Alert>
              )}
@@ -303,7 +252,7 @@ export default function SignupPage() {
                   type="email"
                   placeholder="seuemail@exemplo.com"
                   {...register('email')}
-                  disabled={isLoading || !!currentFirebaseInitErrorMessage || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
+                  disabled={isLoading || isAuthUnavailable || !!socialLoginLoading || !isAuthEnabled} // Disable if auth unavailable
                   className={`input ${errors.email ? 'border-destructive focus:ring-destructive' : ''}`}
                   aria-invalid={errors.email ? "true" : "false"}
                 />
@@ -316,7 +265,7 @@ export default function SignupPage() {
                   type="password"
                   placeholder="Mínimo 6 caracteres"
                   {...register('password')}
-                   disabled={isLoading || !!currentFirebaseInitErrorMessage || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
+                   disabled={isLoading || isAuthUnavailable || !!socialLoginLoading || !isAuthEnabled} // Disable if auth unavailable
                   className={`input ${errors.password ? 'border-destructive focus:ring-destructive' : ''}`}
                   aria-invalid={errors.password ? "true" : "false"}
                 />
@@ -329,14 +278,15 @@ export default function SignupPage() {
                   type="password"
                   placeholder="Repita a senha"
                   {...register('confirmPassword')}
-                   disabled={isLoading || !!currentFirebaseInitErrorMessage || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
+                   disabled={isLoading || isAuthUnavailable || !!socialLoginLoading || !isAuthEnabled} // Disable if auth unavailable
                   className={`input ${errors.confirmPassword ? 'border-destructive focus:ring-destructive' : ''}`}
                   aria-invalid={errors.confirmPassword ? "true" : "false"}
                 />
                  {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
               </div>
 
-               {signupError && !currentFirebaseInitErrorMessage && (
+               {/* Display signup-specific errors */}
+               {signupError && !isAuthUnavailable && (
                  <Alert variant="destructive" className="p-3">
                     <AlertCircle className="h-4 w-4"/>
                     <AlertTitle>Erro de Cadastro</AlertTitle>
@@ -344,11 +294,11 @@ export default function SignupPage() {
                   </Alert>
                )}
 
-              <Button type="submit" className="w-full font-semibold button" disabled={isLoading || !!currentFirebaseInitErrorMessage || !!socialLoginLoading || !isAuthEnabled}>
+              <Button type="submit" className="w-full font-semibold button" disabled={isLoading || isAuthUnavailable || !!socialLoginLoading || !isAuthEnabled}>
                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
                  {isLoading ? 'Cadastrando...' : ('Cadastrar com Email')}
               </Button>
-              {/* Add message if auth is disabled */}
+              {/* Add message if auth is generally disabled */}
                {!isAuthEnabled && (
                    <p className="text-xs text-center text-muted-foreground mt-2">O cadastro está temporariamente desativado.</p>
                )}
@@ -368,11 +318,11 @@ export default function SignupPage() {
              <Tooltip>
                  <TooltipTrigger asChild>
                     {/* Wrap button in span if it might be disabled */}
-                    <span className={cn(!isAuthEnabled && 'cursor-not-allowed')}>
+                    <span className={cn((!isAuthEnabled || isAuthUnavailable) && 'cursor-not-allowed')}>
                         <Button
                          variant="outline"
                          onClick={() => handleSocialLogin('google')}
-                         disabled={isLoading || !!currentFirebaseInitErrorMessage || !!socialLoginLoading || !isAuthEnabled} // Disable if auth disabled
+                         disabled={isLoading || isAuthUnavailable || !!socialLoginLoading || !isAuthEnabled} // Disable if auth unavailable
                          className="button justify-center gap-2 w-full"
                        >
                           {socialLoginLoading === 'Google' ? <Loader2 className="h-5 w-5 animate-spin"/> : <svg role="img" viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.36 1.67-4.06 1.67-3.4 0-6.33-2.83-6.33-6.33s2.93-6.33 6.33-6.33c1.9 0 3.21.73 4.18 1.69l2.6-2.6C16.84 3.18 14.91 2 12.48 2 7.48 2 3.11 6.33 3.11 11.33s4.37 9.33 9.37 9.33c3.19 0 5.64-1.18 7.57-3.01 2-1.9 2.6-4.5 2.6-6.66 0-.58-.05-1.14-.13-1.67z"></path></svg>}
@@ -380,9 +330,9 @@ export default function SignupPage() {
                        </Button>
                     </span>
                 </TooltipTrigger>
-                 {!isAuthEnabled && (
+                 {(!isAuthEnabled || isAuthUnavailable) && (
                      <TooltipContent>
-                        <p>Cadastro está temporariamente desabilitado.</p>
+                        <p>Cadastro com Google está temporariamente indisponível.</p>
                      </TooltipContent>
                  )}
              </Tooltip>
@@ -419,4 +369,3 @@ export default function SignupPage() {
     </TooltipProvider>
   );
 }
-
