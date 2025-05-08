@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -50,9 +51,15 @@ export default function SignupPage() {
     resolver: zodResolver(signupSchema),
   });
 
-  // REMOVED: useEffect hook that checked auth context user state for redirection.
-  // Middleware should handle redirecting logged-in users away from /signup.
-  // Let the AuthProvider handle showing its own loading state.
+  // --- Redirect Effect ---
+  // Move the redirection logic into a useEffect hook
+  useEffect(() => {
+    if (user && !authLoading) {
+      console.log("User logged in (useEffect check), redirecting from signup to /dashboard...");
+      router.replace('/dashboard');
+    }
+  }, [user, authLoading, router]);
+
 
   // --- Handle Firebase Errors ---
   const handleAuthError = (error: any, providerName: string) => {
@@ -130,7 +137,8 @@ export default function SignupPage() {
       const signedUpUser = userCredential.user;
       console.log('Email signup successful for:', signedUpUser.email, 'UID:', signedUpUser.uid);
       toast({ title: "Cadastro realizado!", description: `Bem-vindo ao BuddyScan, ${signedUpUser.email}!` });
-      router.push('/dashboard'); // Redirect on success
+      // Redirect is handled by the useEffect hook
+      // router.push('/dashboard');
     } catch (error: any) {
       handleAuthError(error, 'Email');
     } finally {
@@ -168,20 +176,25 @@ export default function SignupPage() {
 
     try {
       console.log(`--- [DEBUG] Initiating ${providerName} signInWithPopup (Signup Page) ---`);
-      console.log("[DEBUG] Auth Instance Config (Signup):", auth.config);
-      if (auth.config.authDomain !== process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) {
-          console.error(`[CRITICAL DEBUG] Mismatch detected! Initial config authDomain: "${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}", Auth instance authDomain: "${auth.config.authDomain}". Check .env.local and Firebase Console -> Authorized domains.`);
-      }
-      if (!auth.config?.authDomain) {
-        console.error("FATAL: authDomain is missing or invalid in Firebase Auth config. This is the likely cause of auth/argument-error for popup logins.");
-        throw new Error("authDomain inválido ou ausente na configuração do Firebase.");
-      }
+      // Log the specific config details of the auth instance being used RIGHT BEFORE the call
+        if (!auth) { // Double check auth right before the call
+            throw new Error("Auth instance became null before signInWithPopup call.");
+        }
+
+        console.log("[DEBUG] Auth Config Used by Instance (Signup):");
+        console.log("  apiKey:", auth.config.apiKey ? 'Present' : 'MISSING!');
+        console.log("  authDomain:", auth.config.authDomain || 'MISSING! (Likely cause of auth/argument-error)');
+        console.log("  projectId:", auth.config.projectId || 'MISSING!');
+        if (auth.config.authDomain !== process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) {
+            console.error(`[CRITICAL DEBUG] Mismatch detected! Env var authDomain: "${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}", Auth instance authDomain: "${auth.config.authDomain}". Check .env.local and Firebase Console -> Authorized domains.`);
+        }
 
       const result = await signInWithPopup(auth, provider);
       const signedUpUser = result.user;
       console.log(`${providerName} login/signup successful. User:`, signedUpUser.email, signedUpUser.uid);
       toast({ title: "Conectado!", description: `Bem-vindo ao BuddyScan via ${providerName}.` });
-      router.push('/dashboard');
+      // Redirect is handled by the useEffect hook
+      // router.push('/dashboard');
     } catch (error: any) {
       console.error(`Error during ${providerName} signInWithPopup (Signup):`, error);
       handleAuthError(error, providerName);
@@ -195,27 +208,27 @@ export default function SignupPage() {
        return null; // AuthProvider shows the main loading screen
    }
 
-   // If user is already logged in (checked after initial loading), redirect immediately
-    if (user && !authLoading) {
-       console.log("User logged in (client-side check), redirecting from signup...");
-       router.replace('/dashboard');
-       return null; // Prevent rendering the signup form while redirecting
-   }
-
+   // If user is already logged in, the useEffect hook will handle redirection.
+   // Remove direct check/redirect from here.
 
   return (
     <TooltipProvider>
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
         <Card className="w-full max-w-md shadow-xl border-primary/20 card">
           <CardHeader className="text-center">
-            <Image
-              src="/buddyscan-logo.png"
-              alt="BuddyScan Logo"
-              width={180}
-              height={66}
-              className="mx-auto mb-4 object-contain h-[66px]"
-              priority
-            />
+             {/* Using standard img tag */}
+             {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                  src="/buddyscan-logo.png"
+                  alt="BuddyScan Logo"
+                  width={180}
+                  height={66}
+                  className="mx-auto mb-4 object-contain h-[66px]"
+                  loading="eager"
+                  onError={(e) => {
+                     console.error('Standard <img> load error (Signup):', (e.target as HTMLImageElement).src);
+                  }}
+              />
             <CardTitle className="text-2xl font-bold text-primary">Crie sua Conta BuddyScan</CardTitle>
             <CardDescription>Cadastre-se para começar a monitorar suas plantas.</CardDescription>
           </CardHeader>

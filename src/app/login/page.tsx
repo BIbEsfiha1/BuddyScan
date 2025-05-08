@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -46,9 +47,14 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
-  // REMOVED: useEffect hook that checked auth context user state for redirection.
-  // Middleware should handle redirecting logged-in users away from /login.
-  // Let the AuthProvider handle showing its own loading state.
+  // --- Redirect Effect ---
+  // Move the redirection logic into a useEffect hook
+  useEffect(() => {
+    if (user && !authLoading) {
+      console.log("User logged in (useEffect check), redirecting to /dashboard...");
+      router.replace('/dashboard');
+    }
+  }, [user, authLoading, router]);
 
   // --- Handle Firebase Errors ---
   const handleAuthError = (error: any, providerName: string) => {
@@ -118,7 +124,8 @@ export default function LoginPage() {
       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
       console.log('Email login successful:', userCredential.user.email);
       toast({ title: "Login bem-sucedido!", description: `Bem-vindo de volta!` });
-      router.push('/dashboard'); // Redirect to dashboard on success
+      // Redirect is now handled by the useEffect hook
+      // router.push('/dashboard');
     } catch (error: any) {
       handleAuthError(error, 'Email');
     } finally {
@@ -156,21 +163,27 @@ export default function LoginPage() {
 
     try {
       console.log(`--- [DEBUG] Initiating ${providerName} signInWithPopup ---`);
-      console.log("[DEBUG] Auth Instance Config (Login):", auth.config);
-      if (auth.config.authDomain !== process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) {
-        console.error(`[CRITICAL DEBUG] Mismatch detected! Initial config authDomain: "${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}", Auth instance authDomain: "${auth.config.authDomain}". Check .env.local and Firebase Console -> Authorized domains.`);
-      }
-      if (!auth.config?.authDomain) {
-        console.error("FATAL: authDomain is missing or invalid in Firebase Auth config. This is the likely cause of auth/argument-error for popup logins.");
-        throw new Error("authDomain inválido ou ausente na configuração do Firebase.");
-      }
-
-      const result = await signInWithPopup(auth, provider);
+      // Log the specific config details of the auth instance being used RIGHT BEFORE the call
+        if (auth) {
+            console.log("[DEBUG] Auth Config Used by Instance:");
+            console.log(" auth.config:", auth.config);
+            console.log("  apiKey:", auth.config.apiKey ? 'Present' : 'MISSING!');
+            console.log("  authDomain:", auth.config.authDomain || 'MISSING! (Likely cause of auth/argument-error)');
+            console.log("  projectId:", auth.config.projectId || 'MISSING!');
+            if (auth.config.authDomain !== process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) {
+                console.error(`[CRITICAL DEBUG] Mismatch detected! Env var authDomain: "${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}", Auth instance authDomain: "${auth.config.authDomain}". Check .env.local and Firebase Console -> Authorized domains.`);
+            }
+        } else {
+            console.error("[FATAL DEBUG] Auth instance is null before signInWithPopup call!");
+            throw new Error("Auth instance became null before signInWithPopup call.");
+        }
+      const result = await signInWithPopup(auth, provider); // This is the line that often throws auth/argument-error
       const loggedInUser = result.user;
       console.log(`${providerName} login successful. User:`, loggedInUser.email, loggedInUser.uid);
 
       toast({ title: "Login bem-sucedido!", description: `Conectado com ${providerName}.` });
-      router.push('/dashboard');
+      // Redirect is handled by the useEffect hook
+      // router.push('/dashboard');
     } catch (error: any) {
       console.error(`Error during ${providerName} signInWithPopup:`, error);
       handleAuthError(error, providerName);
@@ -180,18 +193,12 @@ export default function LoginPage() {
   };
 
    // Show only the AuthProvider's loading state if auth is still loading
-   // The AuthProvider itself renders a loading screen now
    if (authLoading) {
-       return null; // Or a minimal skeleton if preferred, but AuthProvider handles the main one
+       return null; // AuthProvider handles the main loading screen
    }
 
-   // If user is already logged in (checked after initial loading), redirect immediately
-   // This might be redundant if middleware is effective, but provides a client-side fallback.
-   if (user && !authLoading) {
-       console.log("User logged in (client-side check), redirecting...");
-       router.replace('/dashboard');
-       return null; // Prevent rendering the login form while redirecting
-   }
+   // If user is already logged in, the useEffect hook above will handle redirection.
+   // Remove the direct check and redirect from here.
 
 
   return (
@@ -199,14 +206,19 @@ export default function LoginPage() {
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/50 to-primary/10">
         <Card className="w-full max-w-md shadow-xl border-primary/20 card">
           <CardHeader className="text-center">
-            <Image
-              src="/buddyscan-logo.png"
-              alt="BuddyScan Logo"
-              width={180}
-              height={66}
-              className="mx-auto mb-4 object-contain h-[66px]"
-              priority
-            />
+             {/* Using standard img tag to avoid Next/Image optimization issues */}
+             {/* eslint-disable-next-line @next/next/no-img-element */}
+             <img
+                 src="/buddyscan-logo.png" // Ensure this path is correct relative to the /public folder
+                 alt="BuddyScan Logo"
+                 width={180} // Set desired width
+                 height={66} // Set desired height based on aspect ratio or design
+                 className="mx-auto mb-4 object-contain h-[66px]"
+                 loading="eager" // Load logo eagerly
+                 onError={(e) => {
+                     console.error('Standard <img> load error (Login):', (e.target as HTMLImageElement).src);
+                 }}
+             />
             <CardTitle className="text-2xl font-bold text-primary">Bem-vindo de volta!</CardTitle>
             <CardDescription>Faça login para acessar seu painel BuddyScan.</CardDescription>
           </CardHeader>
@@ -328,3 +340,4 @@ export default function LoginPage() {
     </TooltipProvider>
   );
 }
+
